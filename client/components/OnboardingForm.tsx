@@ -4,12 +4,15 @@ import { useState } from 'react';
 
 interface OnboardingFormProps {
   onComplete: (userId: number) => void;
+  onBackToLogin: () => void;
 }
 
-export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
+export default function OnboardingForm({ onComplete, onBackToLogin }: OnboardingFormProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
+    confirmPassword: '',
     institution: '',
     research_areas: '',
     bio: '',
@@ -29,15 +32,27 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/researchers', {
+      const { confirmPassword, ...signupData } = formData;
+      const response = await fetch('http://localhost:5000/api/auth/signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(signupData)
       });
 
       const data = await response.json();
@@ -72,7 +87,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
 
@@ -87,7 +102,39 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block mb-2 text-gray-700 font-medium text-sm">
+              Password *
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block mb-2 text-gray-700 font-medium text-sm">
+              Confirm Password *
+            </label>
+            <input
+              type="password"
+              id="confirmPassword"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
 
@@ -101,7 +148,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               name="institution"
               value={formData.institution}
               onChange={handleChange}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
 
@@ -116,7 +163,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               value={formData.research_areas}
               onChange={handleChange}
               placeholder="e.g., Machine Learning, Computer Vision, NLP"
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
 
@@ -131,7 +178,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               value={formData.interests}
               onChange={handleChange}
               placeholder="e.g., Deep Learning, Image Recognition, Healthcare"
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
 
@@ -146,7 +193,7 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
               onChange={handleChange}
               rows={4}
               placeholder="Tell us about your research background and goals..."
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base focus:border-indigo-500 focus:outline-none transition-colors resize-y"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors resize-y"
             />
           </div>
 
@@ -164,6 +211,18 @@ export default function OnboardingForm({ onComplete }: OnboardingFormProps) {
             {loading ? 'Creating Profile...' : 'Create Profile'}
           </button>
         </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600 text-sm">
+            Already have an account?{' '}
+            <button
+              onClick={onBackToLogin}
+              className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
+            >
+              Sign in
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );

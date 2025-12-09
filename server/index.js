@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const bcrypt = require('bcrypt');
 const db = require('./database');
 
 const app = express();
@@ -9,23 +10,55 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Create researcher profile
-app.post('/api/researchers', (req, res) => {
-  const { name, email, institution, research_areas, bio, interests } = req.body;
+// Signup - Create researcher profile with password
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, password, institution, research_areas, bio, interests } = req.body;
 
-  const stmt = db.prepare(`
-    INSERT INTO researchers (name, email, institution, research_areas, bio, interests)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  stmt.run(name, email, institution, research_areas, bio, interests, function(err) {
+    const stmt = db.prepare(`
+      INSERT INTO researchers (name, email, password, institution, research_areas, bio, interests)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(name, email, hashedPassword, institution, research_areas, bio, interests, function(err) {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      res.json({ id: this.lastID, message: 'Profile created successfully' });
+    });
+
+    stmt.finalize();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create account' });
+  }
+});
+
+// Login - Authenticate researcher
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+
+  db.get('SELECT * FROM researchers WHERE email = ?', [email], async (err, user) => {
     if (err) {
-      return res.status(400).json({ error: err.message });
+      return res.status(500).json({ error: err.message });
     }
-    res.json({ id: this.lastID, message: 'Profile created successfully' });
-  });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-  stmt.finalize();
+    try {
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const { password: _, ...userWithoutPassword } = user;
+      res.json({ user: userWithoutPassword, message: 'Login successful' });
+    } catch (err) {
+      res.status(500).json({ error: 'Login failed' });
+    }
+  });
 });
 
 // Get all researchers
