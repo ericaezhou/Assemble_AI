@@ -19,6 +19,30 @@ db.serialize(() => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS conferences (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      location TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      host_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (host_id) REFERENCES researchers(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS conference_participants (
+      conference_id TEXT NOT NULL,
+      researcher_id INTEGER NOT NULL,
+      joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (conference_id, researcher_id),
+      FOREIGN KEY (conference_id) REFERENCES conferences(id),
+      FOREIGN KEY (researcher_id) REFERENCES researchers(id)
+    )
+  `);
 });
 
 module.exports = db;

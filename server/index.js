@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const db = require('./database');
 
 const app = express();
@@ -145,6 +146,115 @@ app.get('/api/researchers/:id/recommendations', (req, res) => {
       recommendations.sort((a, b) => b.similarity_score - a.similarity_score);
       res.json(recommendations.filter(r => r.similarity_score > 0).slice(0, 10));
     });
+  });
+});
+
+// Conference endpoints
+
+// Create conference
+app.post('/api/conferences', (req, res) => {
+  const { name, location, start_date, end_date, host_id } = req.body;
+
+  const conferenceId = crypto.randomBytes(4).toString('hex').toUpperCase();
+
+  const stmt = db.prepare(`
+    INSERT INTO conferences (id, name, location, start_date, end_date, host_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(conferenceId, name, location, start_date, end_date, host_id, function(err) {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+
+    const participantStmt = db.prepare(`
+      INSERT INTO conference_participants (conference_id, researcher_id)
+      VALUES (?, ?)
+    `);
+
+    participantStmt.run(conferenceId, host_id, function(err) {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      res.json({ id: conferenceId, message: 'Conference created successfully' });
+    });
+
+    participantStmt.finalize();
+  });
+
+  stmt.finalize();
+});
+
+// Join conference
+app.post('/api/conferences/:id/join', (req, res) => {
+  const { id } = req.params;
+  const { researcher_id } = req.body;
+
+  db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!conference) {
+      return res.status(404).json({ error: 'Conference not found' });
+    }
+
+    db.get(
+      'SELECT * FROM conference_participants WHERE conference_id = ? AND researcher_id = ?',
+      [id, researcher_id],
+      (err, existing) => {
+        if (existing) {
+          return res.status(400).json({ error: 'Already joined this conference' });
+        }
+
+        const stmt = db.prepare(`
+          INSERT INTO conference_participants (conference_id, researcher_id)
+          VALUES (?, ?)
+        `);
+
+        stmt.run(id, researcher_id, function(err) {
+          if (err) {
+            return res.status(400).json({ error: err.message });
+          }
+          res.json({ message: 'Joined conference successfully', conference });
+        });
+
+        stmt.finalize();
+      }
+    );
+  });
+});
+
+// Get user's conferences
+app.get('/api/researchers/:id/conferences', (req, res) => {
+  const { id } = req.params;
+
+  db.all(`
+    SELECT c.*,
+           CASE WHEN c.host_id = ? THEN 1 ELSE 0 END as is_host
+    FROM conferences c
+    INNER JOIN conference_participants cp ON c.id = cp.conference_id
+    WHERE cp.researcher_id = ?
+    ORDER BY c.start_date ASC
+  `, [id, id], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Get conference by ID (for verification)
+app.get('/api/conferences/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!conference) {
+      return res.status(404).json({ error: 'Conference not found' });
+    }
+    res.json(conference);
   });
 });
 

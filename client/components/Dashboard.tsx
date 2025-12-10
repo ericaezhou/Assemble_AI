@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
 import ResearcherCard from './ResearcherCard';
+import ConferenceCard from './ConferenceCard';
+import CreateConference from './CreateConference';
+import JoinConference from './JoinConference';
 
 interface Researcher {
   id: number;
@@ -15,20 +18,37 @@ interface Researcher {
   similarity_score?: number;
 }
 
+interface Conference {
+  id: string;
+  name: string;
+  location: string;
+  start_date: string;
+  end_date: string;
+  is_host: number;
+}
+
 interface DashboardProps {
   user: Researcher | null;
   onLogout: () => void;
 }
 
+type ActiveView = 'conferences' | 'researchers';
+
 export default function Dashboard({ user, onLogout }: DashboardProps) {
+  const [activeView, setActiveView] = useState<ActiveView>('conferences');
   const [recommendations, setRecommendations] = useState<Researcher[]>([]);
   const [searchResults, setSearchResults] = useState<Researcher[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [conferences, setConferences] = useState<Conference[]>([]);
+  const [showCreateConference, setShowCreateConference] = useState(false);
+  const [showJoinConference, setShowJoinConference] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchRecommendations();
+      fetchConferences();
     }
   }, [user]);
 
@@ -44,6 +64,57 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchConferences = async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/researchers/${user.id}/conferences`);
+      const data = await response.json();
+      setConferences(data);
+    } catch (err) {
+      console.error('Error fetching conferences:', err);
+    }
+  };
+
+  const handleCopyId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCreateSuccess = (conferenceId: string) => {
+    setShowCreateConference(false);
+    fetchConferences();
+    handleCopyId(conferenceId);
+  };
+
+  const handleJoinSuccess = () => {
+    setShowJoinConference(false);
+    fetchConferences();
+  };
+
+  const groupConferences = () => {
+    const now = new Date();
+    const upcoming: Conference[] = [];
+    const current: Conference[] = [];
+    const past: Conference[] = [];
+
+    conferences.forEach(conf => {
+      const startDate = new Date(conf.start_date);
+      const endDate = new Date(conf.end_date);
+
+      if (now < startDate) {
+        upcoming.push(conf);
+      } else if (now >= startDate && now <= endDate) {
+        current.push(conf);
+      } else {
+        past.push(conf);
+      }
+    });
+
+    return { upcoming, current, past };
   };
 
   const handleSearch = async (query: string) => {
@@ -64,6 +135,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   };
 
   const displayedResearchers = isSearching ? searchResults : recommendations;
+  const { upcoming, current, past } = groupConferences();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -99,32 +171,151 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         </div>
 
         <div>
-          <div className="flex justify-between items-center mb-5 gap-5 flex-wrap">
-            <h2 className="text-2xl font-bold text-gray-800">
-              {isSearching ? 'Search Results' : 'Recommended Researchers'}
-            </h2>
-            <SearchBar onSearch={handleSearch} />
+          <div className="flex gap-3 mb-5 border-b border-gray-200">
+            <button
+              onClick={() => setActiveView('conferences')}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeView === 'conferences'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Conferences
+            </button>
+            <button
+              onClick={() => setActiveView('researchers')}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeView === 'researchers'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Researchers
+            </button>
           </div>
 
-          {loading && !isSearching ? (
-            <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-              Loading recommendations...
-            </p>
-          ) : displayedResearchers.length === 0 ? (
-            <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-              {isSearching
-                ? 'No researchers found matching your search.'
-                : 'No recommendations yet. More researchers will appear as they join!'}
-            </p>
+          {activeView === 'conferences' ? (
+            <>
+              <div className="flex gap-3 mb-5">
+                <button
+                  onClick={() => setShowCreateConference(true)}
+                  className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
+                >
+                  Create Conference
+                </button>
+                <button
+                  onClick={() => setShowJoinConference(true)}
+                  className="px-5 py-2.5 border-2 border-indigo-500 text-indigo-600 rounded-lg font-semibold hover:bg-indigo-50 transition-colors"
+                >
+                  Join Conference
+                </button>
+              </div>
+
+              {copiedId && (
+                <div className="mb-5 bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm">
+                  Conference ID copied to clipboard!
+                </div>
+              )}
+
+              {conferences.length === 0 ? (
+                <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
+                  No conferences yet. Create or join a conference to get started!
+                </p>
+              ) : (
+                <div className="space-y-8">
+                  {current.length > 0 && (
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-4">Current</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {current.map(conference => (
+                          <ConferenceCard
+                            key={conference.id}
+                            conference={conference}
+                            onCopyId={handleCopyId}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {upcoming.length > 0 && (
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {upcoming.map(conference => (
+                          <ConferenceCard
+                            key={conference.id}
+                            conference={conference}
+                            onCopyId={handleCopyId}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {past.length > 0 && (
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-4">Past</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {past.map(conference => (
+                          <ConferenceCard
+                            key={conference.id}
+                            conference={conference}
+                            onCopyId={handleCopyId}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {displayedResearchers.map(researcher => (
-                <ResearcherCard key={researcher.id} researcher={researcher} />
-              ))}
-            </div>
+            <>
+              <div className="flex justify-between items-center mb-5 gap-5 flex-wrap">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {isSearching ? 'Search Results' : 'Recommended Researchers'}
+                </h2>
+                <SearchBar onSearch={handleSearch} />
+              </div>
+
+              {loading && !isSearching ? (
+                <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
+                  Loading recommendations...
+                </p>
+              ) : displayedResearchers.length === 0 ? (
+                <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
+                  {isSearching
+                    ? 'No researchers found matching your search.'
+                    : 'No recommendations yet. More researchers will appear as they join!'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {displayedResearchers.map(researcher => (
+                    <ResearcherCard key={researcher.id} researcher={researcher} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {showCreateConference && user && (
+        <CreateConference
+          userId={user.id}
+          onClose={() => setShowCreateConference(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {showJoinConference && user && (
+        <JoinConference
+          userId={user.id}
+          onClose={() => setShowJoinConference(false)}
+          onSuccess={handleJoinSuccess}
+        />
+      )}
     </div>
   );
 }
