@@ -12,16 +12,26 @@ interface Conference {
 interface ConferenceCardProps {
   conference: Conference;
   onCopyId: (id: string) => void;
+  onClick?: (id: string) => void;
 }
 
-export default function ConferenceCard({ conference, onCopyId }: ConferenceCardProps) {
+export default function ConferenceCard({ conference, onCopyId, onClick }: ConferenceCardProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick(conference.id);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all">
+    <div
+      className={`bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={handleCardClick}
+    >
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-lg font-bold text-gray-800">{conference.name}</h3>
         {conference.is_host === 1 && (
@@ -53,7 +63,10 @@ export default function ConferenceCard({ conference, onCopyId }: ConferenceCardP
           ID: {conference.id}
         </code>
         <button
-          onClick={() => onCopyId(conference.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopyId(conference.id);
+          }}
           className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

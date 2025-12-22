@@ -6,6 +6,7 @@ import ResearcherCard from './ResearcherCard';
 import ConferenceCard from './ConferenceCard';
 import CreateConference from './CreateConference';
 import JoinConference from './JoinConference';
+import ConferenceDetail from './ConferenceDetail';
 
 interface Researcher {
   id: number;
@@ -44,6 +45,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [showCreateConference, setShowCreateConference] = useState(false);
   const [showJoinConference, setShowJoinConference] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [selectedConferenceId, setSelectedConferenceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -134,8 +136,28 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   };
 
+  const handleConferenceClick = (conferenceId: string) => {
+    setSelectedConferenceId(conferenceId);
+  };
+
+  const handleBackToConferences = () => {
+    setSelectedConferenceId(null);
+    fetchConferences(); // Refresh conferences when coming back
+  };
+
   const displayedResearchers = isSearching ? searchResults : recommendations;
   const { upcoming, current, past } = groupConferences();
+
+  // Show conference detail page if a conference is selected
+  if (selectedConferenceId && user) {
+    return (
+      <ConferenceDetail
+        conferenceId={selectedConferenceId}
+        userId={user.id}
+        onBack={handleBackToConferences}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -232,6 +254,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                             key={conference.id}
                             conference={conference}
                             onCopyId={handleCopyId}
+                            onClick={handleConferenceClick}
                           />
                         ))}
                       </div>
@@ -247,6 +270,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                             key={conference.id}
                             conference={conference}
                             onCopyId={handleCopyId}
+                            onClick={handleConferenceClick}
                           />
                         ))}
                       </div>
@@ -262,6 +286,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                             key={conference.id}
                             conference={conference}
                             onCopyId={handleCopyId}
+                            onClick={handleConferenceClick}
                           />
                         ))}
                       </div>

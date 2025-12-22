@@ -258,6 +258,58 @@ app.get('/api/conferences/:id', (req, res) => {
   });
 });
 
+// Get conference participants with details
+app.get('/api/conferences/:id/participants', (req, res) => {
+  const { id } = req.params;
+  const { current_user_id } = req.query;
+
+  db.all(`
+    SELECT r.*, cp.joined_at
+    FROM researchers r
+    INNER JOIN conference_participants cp ON r.id = cp.researcher_id
+    WHERE cp.conference_id = ?
+    ORDER BY cp.joined_at ASC
+  `, [id], (err, participants) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (!current_user_id) {
+      return res.json(participants.map(({ password, ...p }) => p));
+    }
+
+    // Get current user's data to calculate similarity
+    db.get('SELECT * FROM researchers WHERE id = ?', [current_user_id], (err, currentUser) => {
+      if (err || !currentUser) {
+        return res.json(participants.map(({ password, ...p }) => p));
+      }
+
+      const userInterests = currentUser.interests ? currentUser.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+      const userResearchAreas = currentUser.research_areas ? currentUser.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+
+      const participantsWithScores = participants.map(participant => {
+        if (participant.id === parseInt(current_user_id)) {
+          const { password, ...cleanParticipant } = participant;
+          return { ...cleanParticipant, similarity_score: 0 };
+        }
+
+        const otherInterests = participant.interests ? participant.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+        const otherResearchAreas = participant.research_areas ? participant.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+
+        const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
+        const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
+
+        const score = matchingInterests * 2 + matchingResearchAreas * 3;
+
+        const { password, ...cleanParticipant } = participant;
+        return { ...cleanParticipant, similarity_score: score };
+      });
+
+      res.json(participantsWithScores);
+    });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
