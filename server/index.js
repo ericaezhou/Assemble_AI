@@ -1,9 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const db = require('./database');
+const { sendVerificationCode, verifyCode } = require('./emailService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -11,9 +13,52 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 
+// Send verification code to email
+app.post('/api/auth/send-verification-code', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Basic email validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  // Check if email already exists
+  db.get('SELECT id FROM researchers WHERE email = ?', [email], async (err, user) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (user) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    try {
+      const result = await sendVerificationCode(email);
+      res.json({
+        success: true,
+        message: 'Verification code sent to your email',
+        devMode: result.devMode,
+        code: result.devMode ? result.code : undefined // Only include code in dev mode
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+});
+
 // Signup - Create researcher profile with password
 app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password, institution, research_areas, bio, interests } = req.body;
+  const { name, email, password, institution, research_areas, bio, interests, verificationCode } = req.body;
+
+  // Verify the email verification code
+  const verification = verifyCode(email, verificationCode);
+  if (!verification.valid) {
+    return res.status(400).json({ error: verification.message });
+  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);

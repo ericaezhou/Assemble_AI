@@ -62,18 +62,38 @@ npm run server
 npm run client
 ```
 
+### Email Verification Setup (Optional for Production)
+
+By default, the application runs in **development mode** where verification codes are printed to the server console instead of being emailed. This allows you to test without configuring email.
+
+**For production email sending:**
+
+1. Copy `.env.example` to `.env`:
+```bash
+cp .env.example .env
+```
+
+2. Configure your email credentials in `.env`:
+   - For Gmail: Use your email and create an [app-specific password](https://myaccount.google.com/apppasswords)
+   - For other services: Update `server/emailService.js` with your service configuration
+
+3. Restart the server to load the new environment variables
+
+**In development mode** (no email configured):
+- Verification codes are printed to the server console
+- Check the terminal running `npm run dev` to see the 6-digit code
+- Copy the code and paste it into the signup form
+
 ### Using the Application
 
 1. Open your browser to `http://localhost:3000`
-2. Sign up with your email and password or log in if you already have an account
-3. Fill out the onboarding form with your information:
-   - Name and email (required)
-   - Password and confirmation
-   - Institution
-   - Research areas (comma-separated, e.g., "Machine Learning, Computer Vision")
-   - Research interests (comma-separated, e.g., "Deep Learning, Healthcare")
-   - Bio
-4. After onboarding, you'll see your dashboard with conferences
+2. Click "Sign up" to create a new account
+3. Fill out the signup form:
+   - Enter your email and click "Get Code" to receive a verification code
+   - In development mode, check the server console for the code
+   - Enter the 6-digit verification code
+   - Complete the form with your name, password, institution, research areas, interests, and bio
+4. After signup, you'll see your dashboard with conferences
 5. Create or join conferences using conference IDs
 6. View conference details, search participants, and get recommendations
 
@@ -110,8 +130,9 @@ This will remove all test users, test conferences, and their associated data fro
 ## API Endpoints
 
 ### Authentication
-- `POST /api/signup` - Create a new user account
-- `POST /api/login` - Login with email and password
+- `POST /api/auth/send-verification-code` - Send verification code to email
+- `POST /api/auth/signup` - Create a new user account (requires verification code)
+- `POST /api/auth/login` - Login with email and password
 
 ### Researchers
 - `GET /api/researchers` - Get all researchers

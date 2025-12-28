@@ -16,22 +16,80 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
     institution: '',
     research_areas: '',
     bio: '',
-    interests: ''
+    interests: '',
+    verificationCode: ''
   });
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
+
+    // Reset code sent status if email changes
+    if (e.target.name === 'email') {
+      setCodeSent(false);
+      setVerificationMessage('');
+    }
+  };
+
+  const handleSendVerificationCode = async () => {
+    if (!formData.email) {
+      setError('Please enter your email address first');
+      return;
+    }
+
+    setError('');
+    setVerificationMessage('');
+    setSendingCode(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/send-verification-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: formData.email })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setCodeSent(true);
+        if (data.devMode) {
+          setVerificationMessage(`Development mode: Your code is ${data.code}`);
+        } else {
+          setVerificationMessage('Verification code sent! Check your email.');
+        }
+      } else {
+        setError(data.error || 'Failed to send verification code');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setSendingCode(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!codeSent) {
+      setError('Please verify your email first by requesting a verification code');
+      return;
+    }
+
+    if (!formData.verificationCode) {
+      setError('Please enter the verification code');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
@@ -95,13 +153,45 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
             <label htmlFor="email" className="block mb-2 text-gray-700 font-medium text-sm">
               Email *
             </label>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                onClick={handleSendVerificationCode}
+                disabled={sendingCode || !formData.email}
+                className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {sendingCode ? 'Sending...' : codeSent ? 'Resend Code' : 'Get Code'}
+              </button>
+            </div>
+            {verificationMessage && (
+              <p className={`mt-2 text-sm ${verificationMessage.includes('Development') ? 'text-orange-600' : 'text-green-600'}`}>
+                {verificationMessage}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="verificationCode" className="block mb-2 text-gray-700 font-medium text-sm">
+              Verification Code *
+            </label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="verificationCode"
+              name="verificationCode"
+              value={formData.verificationCode}
               onChange={handleChange}
               required
+              placeholder="Enter 6-digit code"
+              maxLength={6}
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
             />
           </div>
