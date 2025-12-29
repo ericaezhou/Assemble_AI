@@ -147,6 +147,12 @@ This will remove all test users, test conferences, and their associated data fro
 - `GET /api/conferences/:id` - Get conference details
 - `GET /api/conferences/:id/participants` - Get conference participants with similarity scores
 
+### Messaging
+- `POST /api/conversations` - Create or get a conversation between two users
+- `GET /api/conversations/user/:userId` - Get all conversations for a user
+- `GET /api/conversations/:id/messages` - Get all messages in a conversation
+- `POST /api/messages` - Send a message in a conversation
+
 ## How Recommendations Work
 
 The recommendation algorithm calculates similarity scores based on:
@@ -155,14 +161,25 @@ The recommendation algorithm calculates similarity scores based on:
 
 Researchers with higher similarity scores appear first in your recommendations.
 
+## Features
+
+### 1:1 Messaging
+- Click "Connect" on any researcher's profile to start a conversation
+- Auto-generated intro messages based on common interests
+- View all your connections in the "Connections" tab
+- Resume conversations anytime
+
+### Smart Introductions
+When you connect with someone for the first time, the system automatically generates a friendly intro message highlighting your common research interests, eliminating the need for awkward ice-breaking!
+
 ## Future Enhancements
 
-- Natural language search for finding participants
+- Natural language search for finding participants (AI-powered intro messages)
 - Advanced filtering options
-- Messaging system between researchers
+- Group chat functionality
+- Real-time notifications
 - Profile photos and attachments
 - Export connections to contact list
-- Real-time chat functionality
 - Conference schedule and session management
 
 ## License

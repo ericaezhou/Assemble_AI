@@ -7,6 +7,7 @@ import ConferenceCard from './ConferenceCard';
 import CreateConference from './CreateConference';
 import JoinConference from './JoinConference';
 import ConferenceDetail from './ConferenceDetail';
+import Chat from './Chat';
 
 interface Researcher {
   id: number;
@@ -28,12 +29,20 @@ interface Conference {
   is_host: number;
 }
 
+interface Conversation {
+  id: number;
+  other_user_id: number;
+  other_user_name: string;
+  last_message: string;
+  last_message_time: string;
+}
+
 interface DashboardProps {
   user: Researcher | null;
   onLogout: () => void;
 }
 
-type ActiveView = 'conferences' | 'researchers';
+type ActiveView = 'conferences' | 'researchers' | 'connections';
 
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [activeView, setActiveView] = useState<ActiveView>('conferences');
@@ -46,11 +55,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [showJoinConference, setShowJoinConference] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedConferenceId, setSelectedConferenceId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversation, setActiveConversation] = useState<{ id: number; otherUserName: string } | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchRecommendations();
       fetchConferences();
+      fetchConversations();
     }
   }, [user]);
 
@@ -77,6 +89,18 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       setConferences(data);
     } catch (err) {
       console.error('Error fetching conferences:', err);
+    }
+  };
+
+  const fetchConversations = async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/conversations/user/${user.id}`);
+      const data = await response.json();
+      setConversations(data);
+    } catch (err) {
+      console.error('Error fetching conversations:', err);
     }
   };
 
@@ -145,8 +169,61 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     fetchConferences(); // Refresh conferences when coming back
   };
 
+  const handleConnect = async (otherUserId: number) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('http://localhost:5000/api/conversations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          user1_id: user.id,
+          user2_id: otherUserId
+        })
+      });
+
+      const conversation = await response.json();
+
+      // Find the other user's name
+      const otherUser = displayedResearchers.find(r => r.id === otherUserId);
+
+      if (otherUser) {
+        setActiveConversation({
+          id: conversation.id,
+          otherUserName: otherUser.name
+        });
+        fetchConversations(); // Refresh conversation list
+      }
+    } catch (err) {
+      console.error('Error creating/getting conversation:', err);
+    }
+  };
+
+  const handleOpenConversation = (conversationId: number, otherUserName: string) => {
+    setActiveConversation({ id: conversationId, otherUserName });
+  };
+
+  const handleBackToDashboard = () => {
+    setActiveConversation(null);
+    fetchConversations(); // Refresh conversations
+  };
+
   const displayedResearchers = isSearching ? searchResults : recommendations;
   const { upcoming, current, past } = groupConferences();
+
+  // Show chat if a conversation is active
+  if (activeConversation && user) {
+    return (
+      <Chat
+        conversationId={activeConversation.id}
+        currentUserId={user.id}
+        otherUserName={activeConversation.otherUserName}
+        onBack={handleBackToDashboard}
+      />
+    );
+  }
 
   // Show conference detail page if a conference is selected
   if (selectedConferenceId && user) {
@@ -213,6 +290,16 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               }`}
             >
               Researchers
+            </button>
+            <button
+              onClick={() => setActiveView('connections')}
+              className={`px-4 py-2 font-semibold transition-colors ${
+                activeView === 'connections'
+                  ? 'text-indigo-600 border-b-2 border-indigo-600'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              Connections
             </button>
           </div>
 
@@ -295,7 +382,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                 </div>
               )}
             </>
-          ) : (
+          ) : activeView === 'researchers' ? (
             <>
               <div className="flex justify-between items-center mb-5 gap-5 flex-wrap">
                 <h2 className="text-2xl font-bold text-gray-800">
@@ -317,7 +404,46 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {displayedResearchers.map(researcher => (
-                    <ResearcherCard key={researcher.id} researcher={researcher} />
+                    <ResearcherCard
+                      key={researcher.id}
+                      researcher={researcher}
+                      onConnect={handleConnect}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl font-bold text-gray-800 mb-5">Your Connections</h2>
+
+              {conversations.length === 0 ? (
+                <div className="bg-white rounded-xl p-10 text-center">
+                  <p className="text-gray-600">No conversations yet.</p>
+                  <p className="text-gray-500 text-sm mt-2">
+                    Click &quot;Connect&quot; on a researcher&apos;s profile to start chatting!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {conversations.map(conversation => (
+                    <div
+                      key={conversation.id}
+                      onClick={() => handleOpenConversation(conversation.id, conversation.other_user_name)}
+                      className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-all cursor-pointer"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-lg font-bold text-gray-800">{conversation.other_user_name}</h3>
+                        <span className="text-xs text-gray-400">
+                          {conversation.last_message_time && new Date(conversation.last_message_time).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {conversation.last_message && (
+                        <p className="text-gray-600 text-sm truncate">
+                          {conversation.last_message}
+                        </p>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}

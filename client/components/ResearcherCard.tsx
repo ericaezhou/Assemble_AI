@@ -13,9 +13,10 @@ interface Researcher {
 
 interface ResearcherCardProps {
   researcher: Researcher;
+  onConnect?: (researcherId: number) => void;
 }
 
-export default function ResearcherCard({ researcher }: ResearcherCardProps) {
+export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
   return (
     <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
       <div className="flex justify-between items-start mb-3 gap-2">
@@ -64,12 +65,21 @@ export default function ResearcherCard({ researcher }: ResearcherCardProps) {
       )}
 
       <div className="mt-4 pt-4 border-t border-gray-100">
-        <a
-          href={`mailto:${researcher.email}`}
-          className="inline-block px-5 py-2 bg-indigo-500 text-white rounded-lg font-semibold text-sm hover:bg-indigo-600 transition-colors"
-        >
-          Contact
-        </a>
+        {onConnect ? (
+          <button
+            onClick={() => onConnect(researcher.id)}
+            className="inline-block px-5 py-2 bg-indigo-500 text-white rounded-lg font-semibold text-sm hover:bg-indigo-600 transition-colors"
+          >
+            Connect
+          </button>
+        ) : (
+          <a
+            href={`mailto:${researcher.email}`}
+            className="inline-block px-5 py-2 bg-indigo-500 text-white rounded-lg font-semibold text-sm hover:bg-indigo-600 transition-colors"
+          >
+            Contact
+          </a>
+        )}
       </div>
     </div>
   );

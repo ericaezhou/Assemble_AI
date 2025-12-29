@@ -355,6 +355,182 @@ app.get('/api/conferences/:id/participants', (req, res) => {
   });
 });
 
+// Get or create conversation between two users
+app.post('/api/conversations', (req, res) => {
+  const { user1_id, user2_id } = req.body;
+
+  // Ensure consistent ordering (lower ID always as participant1)
+  const participant1_id = Math.min(user1_id, user2_id);
+  const participant2_id = Math.max(user1_id, user2_id);
+
+  // Check if conversation already exists
+  db.get(`
+    SELECT * FROM conversations
+    WHERE participant1_id = ? AND participant2_id = ?
+  `, [participant1_id, participant2_id], (err, conversation) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    if (conversation) {
+      // Conversation exists, return it
+      return res.json(conversation);
+    }
+
+    // Create new conversation
+    db.run(`
+      INSERT INTO conversations (participant1_id, participant2_id)
+      VALUES (?, ?)
+    `, [participant1_id, participant2_id], function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      const conversationId = this.lastID;
+
+      // Get both users' data to generate intro message
+      db.get('SELECT * FROM researchers WHERE id = ?', [user1_id], (err, user1) => {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+
+        db.get('SELECT * FROM researchers WHERE id = ?', [user2_id], (err, user2) => {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+
+          // Find common interests
+          const user1Interests = user1.interests ? user1.interests.split(',').map(i => i.trim()) : [];
+          const user2Interests = user2.interests ? user2.interests.split(',').map(i => i.trim()) : [];
+          const commonInterests = user1Interests.filter(i =>
+            user2Interests.some(j => j.toLowerCase() === i.toLowerCase())
+          );
+
+          // Generate intro message
+          let introMessage;
+          if (commonInterests.length > 0) {
+            const interestList = commonInterests.slice(0, 3).join(', ');
+            introMessage = `Hi ${user1.name} and ${user2.name}! Looks like you might be interested in chatting about ${interestList}!`;
+          } else {
+            introMessage = `Hi ${user1.name} and ${user2.name}! Welcome to your conversation. Feel free to introduce yourselves and discuss your research!`;
+          }
+
+          // Insert system intro message
+          db.run(`
+            INSERT INTO messages (conversation_id, sender_id, content, is_system_message)
+            VALUES (?, ?, ?, 1)
+          `, [conversationId, user1_id, introMessage], (err) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+
+            // Return the new conversation
+            db.get('SELECT * FROM conversations WHERE id = ?', [conversationId], (err, newConversation) => {
+              if (err) {
+                return res.status(500).json({ error: err.message });
+              }
+              res.json(newConversation);
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
+// Get user's conversations
+app.get('/api/conversations/user/:userId', (req, res) => {
+  const { userId } = req.params;
+
+  db.all(`
+    SELECT
+      c.*,
+      CASE
+        WHEN c.participant1_id = ? THEN c.participant2_id
+        ELSE c.participant1_id
+      END as other_user_id,
+      CASE
+        WHEN c.participant1_id = ? THEN r2.name
+        ELSE r1.name
+      END as other_user_name,
+      m.content as last_message,
+      m.created_at as last_message_time
+    FROM conversations c
+    LEFT JOIN researchers r1 ON c.participant1_id = r1.id
+    LEFT JOIN researchers r2 ON c.participant2_id = r2.id
+    LEFT JOIN (
+      SELECT conversation_id, content, created_at
+      FROM messages
+      WHERE id IN (
+        SELECT MAX(id) FROM messages GROUP BY conversation_id
+      )
+    ) m ON c.id = m.conversation_id
+    WHERE c.participant1_id = ? OR c.participant2_id = ?
+    ORDER BY c.last_message_at DESC
+  `, [userId, userId, userId, userId], (err, conversations) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(conversations);
+  });
+});
+
+// Get messages in a conversation
+app.get('/api/conversations/:id/messages', (req, res) => {
+  const { id } = req.params;
+
+  db.all(`
+    SELECT m.*, r.name as sender_name
+    FROM messages m
+    LEFT JOIN researchers r ON m.sender_id = r.id
+    WHERE m.conversation_id = ?
+    ORDER BY m.created_at ASC
+  `, [id], (err, messages) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(messages);
+  });
+});
+
+// Send a message
+app.post('/api/messages', (req, res) => {
+  const { conversation_id, sender_id, content } = req.body;
+
+  db.run(`
+    INSERT INTO messages (conversation_id, sender_id, content)
+    VALUES (?, ?, ?)
+  `, [conversation_id, sender_id, content], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+
+    // Update conversation's last_message_at
+    db.run(`
+      UPDATE conversations
+      SET last_message_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [conversation_id], (err) => {
+      if (err) {
+        console.error('Failed to update conversation timestamp:', err);
+      }
+    });
+
+    // Return the new message
+    db.get(`
+      SELECT m.*, r.name as sender_name
+      FROM messages m
+      LEFT JOIN researchers r ON m.sender_id = r.id
+      WHERE m.id = ?
+    `, [this.lastID], (err, message) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json(message);
+    });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

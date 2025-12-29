@@ -43,6 +43,32 @@ db.serialize(() => {
       FOREIGN KEY (researcher_id) REFERENCES researchers(id)
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      participant1_id INTEGER NOT NULL,
+      participant2_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (participant1_id) REFERENCES researchers(id),
+      FOREIGN KEY (participant2_id) REFERENCES researchers(id),
+      UNIQUE(participant1_id, participant2_id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL,
+      sender_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      is_system_message BOOLEAN DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+      FOREIGN KEY (sender_id) REFERENCES researchers(id)
+    )
+  `);
 });
 
 module.exports = db;
