@@ -187,9 +187,13 @@ app.get('/api/researchers/:id/recommendations', (req, res) => {
         };
       });
 
-      // Sort by similarity score and return top matches
-      recommendations.sort((a, b) => b.similarity_score - a.similarity_score);
-      res.json(recommendations.filter(r => r.similarity_score > 0).slice(0, 10));
+      // Sort by similarity score (highest first) and return top matches
+      // Remove password field from all recommendations
+      const cleanedRecommendations = recommendations.map(({ password, ...r }) => r);
+      cleanedRecommendations.sort((a, b) => b.similarity_score - a.similarity_score);
+
+      // Return top 20 recommendations (including those with score 0)
+      res.json(cleanedRecommendations.slice(0, 20));
     });
   });
 });

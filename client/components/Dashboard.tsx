@@ -49,7 +49,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [recommendations, setRecommendations] = useState<Researcher[]>([]);
   const [searchResults, setSearchResults] = useState<Researcher[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [conferences, setConferences] = useState<Conference[]>([]);
   const [showCreateConference, setShowCreateConference] = useState(false);
   const [showJoinConference, setShowJoinConference] = useState(false);
@@ -57,6 +56,8 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [selectedConferenceId, setSelectedConferenceId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<{ id: number; otherUserName: string } | null>(null);
+  const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
+  const [recommendationSeed, setRecommendationSeed] = useState(0);
 
   useEffect(() => {
     if (user) {
@@ -75,8 +76,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       setRecommendations(data);
     } catch (err) {
       console.error('Error fetching recommendations:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -201,6 +200,10 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   };
 
+  const handleSelectResearcher = (researcher: Researcher) => {
+    handleConnect(researcher.id);
+  };
+
   const handleOpenConversation = (conversationId: number, otherUserName: string) => {
     setActiveConversation({ id: conversationId, otherUserName });
   };
@@ -210,7 +213,21 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     fetchConversations(); // Refresh conversations
   };
 
+  const getRecommendedResearchers = () => {
+    // TODO: In the future, this will use naturalLanguagePreference to filter/sort
+    // For now, use similarity scores
+    const sorted = [...recommendations].sort((a, b) => (b.similarity_score || 0) - (a.similarity_score || 0));
+    const startIndex = (recommendationSeed * 3) % Math.max(1, sorted.length);
+    return sorted.slice(startIndex, startIndex + 3);
+  };
+
+  const handleRefreshRecommendations = () => {
+    // TODO: Backend will process naturalLanguagePreference here
+    setRecommendationSeed(prev => prev + 1);
+  };
+
   const displayedResearchers = isSearching ? searchResults : recommendations;
+  const recommendedResearchers = getRecommendedResearchers();
   const { upcoming, current, past } = groupConferences();
 
   // Show chat if a conversation is active
@@ -384,34 +401,63 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             </>
           ) : activeView === 'researchers' ? (
             <>
-              <div className="flex justify-between items-center mb-5 gap-5 flex-wrap">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {isSearching ? 'Search Results' : 'Recommended Researchers'}
-                </h2>
-                <SearchBar onSearch={handleSearch} />
-              </div>
+              {/* Recommended Researchers Section */}
+              {recommendedResearchers.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-5">Recommended for You</h2>
 
-              {loading && !isSearching ? (
-                <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-                  Loading recommendations...
-                </p>
-              ) : displayedResearchers.length === 0 ? (
-                <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-                  {isSearching
-                    ? 'No researchers found matching your search.'
-                    : 'No recommendations yet. More researchers will appear as they join!'}
-                </p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {displayedResearchers.map(researcher => (
-                    <ResearcherCard
-                      key={researcher.id}
-                      researcher={researcher}
-                      onConnect={handleConnect}
-                    />
-                  ))}
+                  {/* Natural Language Preference Input */}
+                  <div className="mb-5 bg-white rounded-xl p-5 shadow-md">
+                    <label htmlFor="nlPreference" className="block text-sm font-medium text-gray-700 mb-2">
+                      Describe who you&apos;d like to meet (optional)
+                    </label>
+                    <div className="flex gap-3">
+                      <input
+                        type="text"
+                        id="nlPreference"
+                        placeholder="e.g., find someone from my school with similar interests as me"
+                        value={naturalLanguagePreference}
+                        onChange={(e) => setNaturalLanguagePreference(e.target.value)}
+                        className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+                      />
+                      <button
+                        onClick={handleRefreshRecommendations}
+                        className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                      </button>
+                    </div>
+                    {naturalLanguagePreference && (
+                      <p className="mt-2 text-sm text-gray-500">
+                        Note: Natural language search will be implemented in a future update. Currently showing recommendations based on research similarity.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {recommendedResearchers.map(researcher => (
+                      <ResearcherCard
+                        key={researcher.id}
+                        researcher={researcher}
+                        onConnect={handleConnect}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* Search Section */}
+              <div>
+                <SearchBar
+                  onSearch={handleSearch}
+                  searchResults={searchResults}
+                  isSearching={isSearching}
+                  onSelectResearcher={handleSelectResearcher}
+                />
+              </div>
             </>
           ) : (
             <>
