@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { setToken } from '@/utils/auth';
 
 interface OnboardingFormProps {
   onComplete: (userId: number) => void;
@@ -116,6 +117,10 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
       const data = await response.json();
 
       if (response.ok) {
+        // Store JWT token in localStorage
+        if (data.token) {
+          setToken(data.token);
+        }
         onComplete(data.id);
       } else {
         setError(data.error || 'Failed to create profile');

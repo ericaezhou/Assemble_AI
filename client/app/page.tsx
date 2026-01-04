@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
+import { authenticatedFetch } from '@/utils/auth';
 
 interface Researcher {
   id: number;
@@ -24,7 +25,7 @@ export default function Home() {
   useEffect(() => {
     const userId = localStorage.getItem('userId');
     if (userId) {
-      fetch(`http://localhost:5000/api/researchers/${userId}`)
+      authenticatedFetch(`/api/researchers/${userId}`)
         .then(res => res.json())
         .then(data => {
           setCurrentUser(data);
@@ -39,7 +40,7 @@ export default function Home() {
 
   const handleLoginSuccess = (userId: number) => {
     localStorage.setItem('userId', userId.toString());
-    fetch(`http://localhost:5000/api/researchers/${userId}`)
+    authenticatedFetch(`/api/researchers/${userId}`)
       .then(res => res.json())
       .then(data => {
         setCurrentUser(data);
@@ -49,7 +50,7 @@ export default function Home() {
 
   const handleSignupComplete = (userId: number) => {
     localStorage.setItem('userId', userId.toString());
-    fetch(`http://localhost:5000/api/researchers/${userId}`)
+    authenticatedFetch(`/api/researchers/${userId}`)
       .then(res => res.json())
       .then(data => {
         setCurrentUser(data);

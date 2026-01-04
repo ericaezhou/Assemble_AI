@@ -8,6 +8,7 @@ import CreateConference from './CreateConference';
 import JoinConference from './JoinConference';
 import ConferenceDetail from './ConferenceDetail';
 import Chat from './Chat';
+import { authenticatedFetch } from '@/utils/auth';
 
 interface Researcher {
   id: number;
@@ -69,11 +70,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     if (!user) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/researchers/${user.id}/recommendations`);
+      const response = await authenticatedFetch(`/api/researchers/${user.id}/recommendations`);
       const data = await response.json();
       setRecommendations(data);
     } catch (err) {
       console.error('Error fetching recommendations:', err);
+      // If auth error, user will be logged out by the auth utility
     }
   };
 

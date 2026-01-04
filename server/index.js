@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const db = require('./database');
 const { sendVerificationCode, verifyCode } = require('./emailService');
+const { generateToken, authenticateToken, authorizeUser } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -72,7 +73,16 @@ app.post('/api/auth/signup', async (req, res) => {
       if (err) {
         return res.status(400).json({ error: err.message });
       }
-      res.json({ id: this.lastID, message: 'Profile created successfully' });
+
+      const userId = this.lastID;
+      // Generate JWT token
+      const token = generateToken(userId);
+
+      res.json({
+        id: userId,
+        token,
+        message: 'Profile created successfully'
+      });
     });
 
     stmt.finalize();
@@ -99,8 +109,15 @@ app.post('/api/auth/login', (req, res) => {
         return res.status(401).json({ error: 'Invalid email or password' });
       }
 
+      // Generate JWT token
+      const token = generateToken(user.id);
+
       const { password: _, ...userWithoutPassword } = user;
-      res.json({ user: userWithoutPassword, message: 'Login successful' });
+      res.json({
+        user: userWithoutPassword,
+        token,
+        message: 'Login successful'
+      });
     } catch (err) {
       res.status(500).json({ error: 'Login failed' });
     }
@@ -117,8 +134,8 @@ app.get('/api/researchers', (req, res) => {
   });
 });
 
-// Get researcher by ID
-app.get('/api/researchers/:id', (req, res) => {
+// Get researcher by ID (Protected)
+app.get('/api/researchers/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
 
   db.get('SELECT * FROM researchers WHERE id = ?', [id], (err, row) => {
@@ -151,8 +168,8 @@ app.get('/api/researchers/search/:query', (req, res) => {
   });
 });
 
-// Get recommendations for a researcher
-app.get('/api/researchers/:id/recommendations', (req, res) => {
+// Get recommendations for a researcher (Protected)
+app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser, (req, res) => {
   const { id } = req.params;
 
   // First get the current researcher's profile

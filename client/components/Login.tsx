@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { setToken } from '@/utils/auth';
 
 interface LoginProps {
   onLoginSuccess: (userId: number) => void;
@@ -40,6 +41,10 @@ export default function Login({ onLoginSuccess, onSignupClick }: LoginProps) {
       const data = await response.json();
 
       if (response.ok) {
+        // Store JWT token in localStorage
+        if (data.token) {
+          setToken(data.token);
+        }
         onLoginSuccess(data.user.id);
       } else {
         setError(data.error || 'Login failed');
