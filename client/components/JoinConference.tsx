@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { authenticatedFetch } from '@/utils/auth';
 
 interface JoinConferenceProps {
   userId: number;
@@ -19,11 +20,8 @@ export default function JoinConference({ userId, onClose, onSuccess }: JoinConfe
     setLoading(true);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/conferences/${conferenceId}/join`, {
+      const response = await authenticatedFetch(`/api/conferences/${conferenceId}/join`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           researcher_id: userId
         })

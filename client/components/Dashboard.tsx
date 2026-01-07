@@ -75,7 +75,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       setRecommendations(data);
     } catch (err) {
       console.error('Error fetching recommendations:', err);
-      // If auth error, user will be logged out by the auth utility
     }
   };
 
@@ -83,7 +82,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     if (!user) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/researchers/${user.id}/conferences`);
+      const response = await authenticatedFetch(`/api/researchers/${user.id}/conferences`);
       const data = await response.json();
       setConferences(data);
     } catch (err) {

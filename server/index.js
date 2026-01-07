@@ -217,9 +217,14 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
 
 // Conference endpoints
 
-// Create conference
-app.post('/api/conferences', (req, res) => {
+// Create conference (Protected)
+app.post('/api/conferences', authenticateToken, (req, res) => {
   const { name, location, start_date, end_date, host_id } = req.body;
+
+  // Authorize: user can only create conferences as themselves
+  if (req.userId !== host_id) {
+    return res.status(403).json({ error: 'Access denied. You can only create conferences as yourself.' });
+  }
 
   const conferenceId = crypto.randomBytes(4).toString('hex').toUpperCase();
 
@@ -251,10 +256,15 @@ app.post('/api/conferences', (req, res) => {
   stmt.finalize();
 });
 
-// Join conference
-app.post('/api/conferences/:id/join', (req, res) => {
+// Join conference (Protected)
+app.post('/api/conferences/:id/join', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { researcher_id } = req.body;
+
+  // Authorize: user can only join conferences as themselves
+  if (req.userId !== researcher_id) {
+    return res.status(403).json({ error: 'Access denied. You can only join conferences as yourself.' });
+  }
 
   db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
     if (err) {
@@ -290,8 +300,8 @@ app.post('/api/conferences/:id/join', (req, res) => {
   });
 });
 
-// Get user's conferences
-app.get('/api/researchers/:id/conferences', (req, res) => {
+// Get user's conferences (Protected - user can only view their own conferences)
+app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, (req, res) => {
   const { id } = req.params;
 
   db.all(`
@@ -309,8 +319,8 @@ app.get('/api/researchers/:id/conferences', (req, res) => {
   });
 });
 
-// Get conference by ID (for verification)
-app.get('/api/conferences/:id', (req, res) => {
+// Get conference by ID (Protected - auth only, allows viewing any conference)
+app.get('/api/conferences/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
 
   db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
@@ -324,21 +334,34 @@ app.get('/api/conferences/:id', (req, res) => {
   });
 });
 
-// Get conference participants with details
-app.get('/api/conferences/:id/participants', (req, res) => {
+// Get conference participants with details (Protected - only conference participants can view)
+app.get('/api/conferences/:id/participants', authenticateToken, (req, res) => {
   const { id } = req.params;
   const { current_user_id } = req.query;
 
-  db.all(`
-    SELECT r.*, cp.joined_at
-    FROM researchers r
-    INNER JOIN conference_participants cp ON r.id = cp.researcher_id
-    WHERE cp.conference_id = ?
-    ORDER BY cp.joined_at ASC
-  `, [id], (err, participants) => {
+  // First check if the authenticated user is part of this conference
+  db.get(`
+    SELECT * FROM conference_participants
+    WHERE conference_id = ? AND researcher_id = ?
+  `, [id, req.userId], (err, participation) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
+    if (!participation) {
+      return res.status(403).json({ error: 'Access denied. You must be a participant of this conference.' });
+    }
+
+    // User is authorized, now fetch participants
+    db.all(`
+      SELECT r.*, cp.joined_at
+      FROM researchers r
+      INNER JOIN conference_participants cp ON r.id = cp.researcher_id
+      WHERE cp.conference_id = ?
+      ORDER BY cp.joined_at ASC
+    `, [id], (err, participants) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
 
     if (!current_user_id) {
       return res.json(participants.map(({ password, ...p }) => p));
@@ -372,6 +395,7 @@ app.get('/api/conferences/:id/participants', (req, res) => {
       });
 
       res.json(participantsWithScores);
+    });
     });
   });
 });

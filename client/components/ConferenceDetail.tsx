@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ResearcherRecommendations from './ResearcherRecommendations';
+import { authenticatedFetch } from '@/utils/auth';
 
 interface Conference {
   id: string;
@@ -52,7 +53,7 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
 
   const fetchConferenceDetails = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/conferences/${conferenceId}`);
+      const response = await authenticatedFetch(`/api/conferences/${conferenceId}`);
       const data = await response.json();
       setConference(data);
     } catch (err) {
@@ -63,8 +64,8 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
   const fetchParticipants = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/conferences/${conferenceId}/participants?current_user_id=${userId}`
+      const response = await authenticatedFetch(
+        `/api/conferences/${conferenceId}/participants?current_user_id=${userId}`
       );
       const data = await response.json();
       setParticipants(data);

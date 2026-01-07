@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { authenticatedFetch } from '@/utils/auth';
 
 interface CreateConferenceProps {
   userId: number;
@@ -38,11 +39,8 @@ export default function CreateConference({ userId, onClose, onSuccess }: CreateC
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/conferences', {
+      const response = await authenticatedFetch('/api/conferences', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           ...formData,
           host_id: userId
