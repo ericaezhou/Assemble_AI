@@ -27,7 +27,7 @@ A discovery tool for research conferences that helps researchers connect with ot
 
 1. Clone the repository and navigate to the project directory:
 ```bash
-cd research_connect
+cd Assemble_AI
 ```
 
 2. Install backend dependencies:
