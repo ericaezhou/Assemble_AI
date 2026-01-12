@@ -1,4 +1,4 @@
-# Research Connect
+# Assemble AI
 
 A discovery tool for research conferences that helps researchers connect with others working on similar topics.
 
