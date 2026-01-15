@@ -52,10 +52,10 @@ const sendVerificationCode = async (email) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: 'Research Connect - Email Verification Code',
+      subject: 'Assemble AI - Email Verification Code',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #4F46E5;">Research Connect Email Verification</h2>
+          <h2 style="color: #4F46E5;">Assemble AI Email Verification</h2>
           <p>Your verification code is:</p>
           <div style="background-color: #F3F4F6; padding: 20px; text-align: center; margin: 20px 0;">
             <h1 style="color: #4F46E5; margin: 0; font-size: 32px; letter-spacing: 5px;">${code}</h1>

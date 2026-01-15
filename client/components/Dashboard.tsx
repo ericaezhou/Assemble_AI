@@ -241,7 +241,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-gradient-to-r from-indigo-500 via-purple-500 to-purple-700 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-5 py-5 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Research Connect</h1>
+          <h1 className="text-2xl font-bold">Assemble AI</h1>
           <div className="flex items-center gap-5">
             <span className="text-sm">Welcome, {user?.name}</span>
             <button

@@ -60,7 +60,7 @@ export default function Login({ onLoginSuccess, onSignupClick }: LoginProps) {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700 p-5">
       <div className="bg-white rounded-xl p-10 max-w-md w-full shadow-2xl">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
-        <p className="text-gray-600 mb-8">Sign in to Research Connect</p>
+        <p className="text-gray-600 mb-8">Sign in to Assemble AI</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>

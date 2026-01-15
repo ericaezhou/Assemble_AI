@@ -135,7 +135,7 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700 p-5">
       <div className="bg-white rounded-xl p-10 max-w-2xl w-full shadow-2xl">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to Research Connect</h1>
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome to Assemble AI</h1>
         <p className="text-gray-600 mb-8">Create your profile to connect with fellow researchers</p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
