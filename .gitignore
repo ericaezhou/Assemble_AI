@@ -4,3 +4,7 @@ client/node_modules/
 .env
 .DS_Store
 client/build/
+.venv/
+matching_service/.venv/
+__pycache__/
+*.pyc
