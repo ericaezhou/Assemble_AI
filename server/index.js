@@ -53,7 +53,14 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
 
 // Signup - Create researcher profile with password
 app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password, institution, research_areas, bio, interests, verificationCode } = req.body;
+  const {
+    name, email, password, verificationCode,
+    occupation, school, major, year, company, title, degree,
+    work_experience_years, research_area, other_description,
+    interest_areas, current_skills, hobbies,
+    // Legacy fields for backward compatibility
+    institution, research_areas, bio, interests
+  } = req.body;
 
   // Verify the email verification code
   const verification = verifyCode(email, verificationCode);
@@ -64,26 +71,44 @@ app.post('/api/auth/signup', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Convert arrays to JSON strings if they're arrays
+    const interestAreasJson = Array.isArray(interest_areas) ? JSON.stringify(interest_areas) : interest_areas;
+    const currentSkillsJson = Array.isArray(current_skills) ? JSON.stringify(current_skills) : current_skills;
+    const hobbiesJson = Array.isArray(hobbies) ? JSON.stringify(hobbies) : hobbies;
+
     const stmt = db.prepare(`
-      INSERT INTO researchers (name, email, password, institution, research_areas, bio, interests)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO researchers (
+        name, email, password,
+        occupation, school, major, year, company, title, degree,
+        work_experience_years, research_area, other_description,
+        interest_areas, current_skills, hobbies,
+        institution, research_areas, bio, interests
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(name, email, hashedPassword, institution, research_areas, bio, interests, function(err) {
-      if (err) {
-        return res.status(400).json({ error: err.message });
+    stmt.run(
+      name, email, hashedPassword,
+      occupation, school, major, year, company, title, degree,
+      work_experience_years, research_area, other_description,
+      interestAreasJson, currentSkillsJson, hobbiesJson,
+      institution, research_areas, bio, interests,
+      function(err) {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        const userId = this.lastID;
+        // Generate JWT token
+        const token = generateToken(userId);
+
+        res.json({
+          id: userId,
+          token,
+          message: 'Profile created successfully'
+        });
       }
-
-      const userId = this.lastID;
-      // Generate JWT token
-      const token = generateToken(userId);
-
-      res.json({
-        id: userId,
-        token,
-        message: 'Profile created successfully'
-      });
-    });
+    );
 
     stmt.finalize();
   } catch (err) {
@@ -145,7 +170,17 @@ app.get('/api/researchers/:id', authenticateToken, (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
-    res.json(row);
+
+    // Parse JSON fields and remove password
+    const { password: _, ...userWithoutPassword } = row;
+    const userData = {
+      ...userWithoutPassword,
+      interest_areas: row.interest_areas ? JSON.parse(row.interest_areas) : [],
+      current_skills: row.current_skills ? JSON.parse(row.current_skills) : [],
+      hobbies: row.hobbies ? JSON.parse(row.hobbies) : [],
+    };
+
+    res.json(userData);
   });
 });
 

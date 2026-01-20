@@ -8,16 +8,32 @@ import CreateConference from './CreateConference';
 import JoinConference from './JoinConference';
 import ConferenceDetail from './ConferenceDetail';
 import Chat from './Chat';
+import UserProfileSection from './UserProfileSection';
 import { authenticatedFetch } from '@/utils/auth';
 
 interface Researcher {
   id: number;
   name: string;
   email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
+  // New onboarding fields
+  occupation?: string;
+  school?: string;
+  major?: string;
+  year?: string;
+  company?: string;
+  title?: string;
+  work_experience_years?: string;
+  degree?: string;
+  research_area?: string;
+  other_description?: string;
+  interest_areas?: string[];
+  current_skills?: string[];
+  hobbies?: string[];
+  // Legacy fields
+  institution?: string;
+  research_areas?: string;
+  bio?: string;
+  interests?: string;
   similarity_score?: number;
 }
 
@@ -257,17 +273,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-5">Your Profile</h2>
-          <div className="bg-white p-6 rounded-xl shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-2">{user?.name}</h3>
-            <p className="text-gray-600 italic mb-4">{user?.institution}</p>
-            <p className="text-gray-700 text-sm mb-3 leading-relaxed">
-              <strong>Research Areas:</strong> {user?.research_areas || 'Not specified'}
-            </p>
-            <p className="text-gray-700 text-sm mb-3 leading-relaxed">
-              <strong>Interests:</strong> {user?.interests || 'Not specified'}
-            </p>
-            <p className="text-gray-600 mt-4 leading-relaxed">{user?.bio}</p>
-          </div>
+          {user && <UserProfileSection user={user} />}
         </div>
 
         <div>
