@@ -8,8 +8,10 @@ import CreateConference from './CreateConference';
 import JoinConference from './JoinConference';
 import ConferenceDetail from './ConferenceDetail';
 import Chat from './Chat';
-import UserProfileSection from './UserProfileSection';
+import MiniProfile from './profile/MiniProfile';
+import TopNav from './layout/TopNav';
 import { authenticatedFetch } from '@/utils/auth';
+import { UserProfile } from '@/store/userStore';
 
 interface Researcher {
   id: number;
@@ -55,7 +57,7 @@ interface Conversation {
 }
 
 interface DashboardProps {
-  user: Researcher | null;
+  user: UserProfile | null;
   onLogout: () => void;
 }
 
@@ -255,25 +257,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gradient-to-r from-indigo-500 via-purple-500 to-purple-700 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Assemble AI</h1>
-          <div className="flex items-center gap-5">
-            <span className="text-sm">Welcome, {user?.name}</span>
-            <button
-              onClick={onLogout}
-              className="bg-white/20 border-2 border-white px-5 py-2 rounded-lg font-semibold hover:bg-white/30 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      <TopNav currentView="dashboard" />
 
-      <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
+      <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-5">Your Profile</h2>
-          {user && <UserProfileSection user={user} />}
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Your Profile</h2>
+          {user && <MiniProfile user={user} />}
         </div>
 
         <div>

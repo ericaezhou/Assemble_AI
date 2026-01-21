@@ -4,65 +4,64 @@ import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
-import { authenticatedFetch } from '@/utils/auth';
-
-interface Researcher {
-  id: number;
-  name: string;
-  email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
-}
+import { useUserStore } from '@/store/userStore';
 
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const [currentUser, setCurrentUser] = useState<Researcher | null>(null);
+  const { user, setUser, fetchUser, logout, isAuthenticated } = useUserStore();
   const [view, setView] = useState<ViewState>('login');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const userId = localStorage.getItem('userId');
-    if (userId) {
-      authenticatedFetch(`/api/researchers/${userId}`)
-        .then(res => res.json())
-        .then(data => {
-          setCurrentUser(data);
+    if (userId && !isAuthenticated) {
+      fetchUser(Number(userId)).then((userData) => {
+        if (userData) {
           setView('dashboard');
-        })
-        .catch(err => {
-          console.error('Error fetching user:', err);
+        } else {
           localStorage.removeItem('userId');
-        });
+          localStorage.removeItem('research_connect_token');
+        }
+        setIsInitialized(true);
+      });
+    } else if (isAuthenticated && user) {
+      setView('dashboard');
+      setIsInitialized(true);
+    } else {
+      setIsInitialized(true);
     }
   }, []);
 
-  const handleLoginSuccess = (userId: number) => {
+  const handleLoginSuccess = async (userId: number) => {
     localStorage.setItem('userId', userId.toString());
-    authenticatedFetch(`/api/researchers/${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setCurrentUser(data);
-        setView('dashboard');
-      });
+    const userData = await fetchUser(userId);
+    if (userData) {
+      setView('dashboard');
+    }
   };
 
-  const handleSignupComplete = (userId: number) => {
+  const handleSignupComplete = async (userId: number) => {
     localStorage.setItem('userId', userId.toString());
-    authenticatedFetch(`/api/researchers/${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setCurrentUser(data);
-        setView('dashboard');
-      });
+    const userData = await fetchUser(userId);
+    if (userData) {
+      setView('dashboard');
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userId');
-    setCurrentUser(null);
+    logout();
     setView('login');
   };
+
+  // Show loading state while checking auth
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -79,7 +78,7 @@ export default function Home() {
         />
       )}
       {view === 'dashboard' && (
-        <Dashboard user={currentUser} onLogout={handleLogout} />
+        <Dashboard user={user} onLogout={handleLogout} />
       )}
     </>
   );
