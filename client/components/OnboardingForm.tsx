@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { setToken } from '@/utils/auth';
+import { signUp } from '@/utils/auth';
 
 interface OnboardingFormProps {
-  onComplete: (userId: number) => void;
+  onComplete: (userId: string) => void;
   onBackToLogin: () => void;
 }
 
@@ -17,80 +17,22 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
     institution: '',
     research_areas: '',
     bio: '',
-    interests: '',
-    verificationCode: ''
+    interests: ''
   });
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sendingCode, setSendingCode] = useState(false);
-  const [codeSent, setCodeSent] = useState(false);
-  const [verificationMessage, setVerificationMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-
-    // Reset code sent status if email changes
-    if (e.target.name === 'email') {
-      setCodeSent(false);
-      setVerificationMessage('');
-    }
-  };
-
-  const handleSendVerificationCode = async () => {
-    if (!formData.email) {
-      setError('Please enter your email address first');
-      return;
-    }
-
-    setError('');
-    setVerificationMessage('');
-    setSendingCode(true);
-
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/send-verification-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: formData.email })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setCodeSent(true);
-        if (data.devMode) {
-          setVerificationMessage(`Development mode: Your code is ${data.code}`);
-        } else {
-          setVerificationMessage('Verification code sent! Check your email.');
-        }
-      } else {
-        setError(data.error || 'Failed to send verification code');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setSendingCode(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!codeSent) {
-      setError('Please verify your email first by requesting a verification code');
-      return;
-    }
-
-    if (!formData.verificationCode) {
-      setError('Please enter the verification code');
-      return;
-    }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
@@ -105,28 +47,31 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
     setLoading(true);
 
     try {
-      const { confirmPassword, ...signupData } = formData;
-      const response = await fetch('http://localhost:5000/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(signupData)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store JWT token in localStorage
-        if (data.token) {
-          setToken(data.token);
+      // Sign up with Supabase Auth (client-side)
+      const result = await signUp(
+        formData.email,
+        formData.password,
+        {
+          name: formData.name,
+          institution: formData.institution,
+          research_areas: formData.research_areas,
+          bio: formData.bio,
+          interests: formData.interests
         }
-        onComplete(data.id);
-      } else {
-        setError(data.error || 'Failed to create profile');
+      );
+
+      // Check if email confirmation is required
+      if (result.needsEmailConfirmation) {
+        alert('Account created! Please check your email to confirm your account, then sign in.');
+        onBackToLogin();
+        return;
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+
+      // Session exists, user is immediately logged in
+      // Call success callback with user ID (UUID)
+      onComplete(result.user.id);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -168,37 +113,7 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
                 required
                 className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
               />
-              <button
-                type="button"
-                onClick={handleSendVerificationCode}
-                disabled={sendingCode || !formData.email}
-                className="px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-              >
-                {sendingCode ? 'Sending...' : codeSent ? 'Resend Code' : 'Get Code'}
-              </button>
             </div>
-            {verificationMessage && (
-              <p className={`mt-2 text-sm ${verificationMessage.includes('Development') ? 'text-orange-600' : 'text-green-600'}`}>
-                {verificationMessage}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="verificationCode" className="block mb-2 text-gray-700 font-medium text-sm">
-              Verification Code *
-            </label>
-            <input
-              type="text"
-              id="verificationCode"
-              name="verificationCode"
-              value={formData.verificationCode}
-              onChange={handleChange}
-              required
-              placeholder="Enter 6-digit code"
-              maxLength={6}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
-            />
           </div>
 
           <div>

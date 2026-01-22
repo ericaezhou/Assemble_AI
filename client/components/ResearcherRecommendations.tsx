@@ -4,7 +4,7 @@ import { useState } from 'react';
 import ResearcherCard from './ResearcherCard';
 
 interface Researcher {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
   institution: string;
@@ -16,9 +16,9 @@ interface Researcher {
 
 interface ResearcherRecommendationsProps {
   researchers: Researcher[];
-  currentUserId: number;
+  currentUserId: string;
   title?: string;
-  onConnect?: (researcherId: number) => void;
+  onConnect?: (researcherId: string) => void;
 }
 
 export default function ResearcherRecommendations({

@@ -1,53 +1,155 @@
 /**
- * Authentication utility for managing JWT tokens and making authenticated API calls
+ * Authentication utility using Supabase Auth
+ * Auth happens directly in the browser - no Express proxy needed
  */
 
-const TOKEN_KEY = 'research_connect_token';
-const API_BASE_URL = 'http://localhost:5000';
+import { supabase } from './supabase';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 /**
- * Store JWT token in localStorage
+ * Sign up a new user with Supabase Auth
+ * The backend will automatically create a profile via database trigger
  */
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export async function signUp(
+  email: string,
+  password: string,
+  profileData: {
+    name: string;
+    institution?: string;
+    research_areas?: string;
+    bio?: string;
+    interests?: string;
+  }
+) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        name: profileData.name
+      }
+    }
+  });
+
+  if (error) throw error;
+  if (!data.user) throw new Error('Failed to create user');
+
+  // If there's no session, email confirmation is required
+  // Don't try to update profile yet - wait until they confirm email
+  if (!data.session) {
+    return {
+      user: data.user,
+      session: null,
+      needsEmailConfirmation: true
+    };
+  }
+
+  // Session exists, user can access immediately - update profile with additional fields
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      institution: profileData.institution,
+      research_areas: profileData.research_areas,
+      bio: profileData.bio,
+      interests: profileData.interests
+    })
+    .eq('id', data.user.id);
+
+  if (profileError) throw profileError;
+
+  return {
+    user: data.user,
+    session: data.session,
+    needsEmailConfirmation: false
+  };
 }
 
 /**
- * Get JWT token from localStorage
+ * Sign in with email and password
  */
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+export async function signIn(email: string, password: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) throw error;
+  if (!data.user) throw new Error('Failed to sign in');
+
+  return { user: data.user, session: data.session };
 }
 
 /**
- * Remove JWT token from localStorage
+ * Sign out the current user
  */
-export function removeToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+export async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) throw error;
 }
 
 /**
- * Check if user is authenticated (has a token)
+ * Get the current session
  */
-export function isAuthenticated(): boolean {
-  return getToken() !== null;
+export async function getSession() {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return session;
 }
 
 /**
- * Make an authenticated API request
- * Automatically includes Authorization header and handles authentication errors
+ * Get JWT token for backend API calls
+ */
+export async function getToken(): Promise<string | null> {
+  const session = await getSession();
+  return session?.access_token || null;
+}
+
+/**
+ * Check if user is authenticated
+ */
+export async function isAuthenticated(): Promise<boolean> {
+  const session = await getSession();
+  return session !== null;
+}
+
+/**
+ * Get current user
+ * Returns null if no session exists (not an error)
+ */
+export async function getCurrentUser() {
+  // First check if there's a session to avoid AuthSessionMissingError
+  const { data: { session } } = await supabase.auth.getSession();
+
+  if (!session) {
+    return null; // No session, user not logged in
+  }
+
+  // Session exists, get the user
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  return user;
+}
+
+/**
+ * Make an authenticated API request to your Express backend
+ *
+ * Flow: Gets JWT token from Supabase → Sends to Express with Authorization header
+ * Your Express middleware verifies the token and grants access to protected routes
+ *
+ * Use this for: /api/researchers, /api/conferences, /api/messages, etc.
  */
 export async function authenticatedFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = getToken();
+  const token = await getToken();
 
   if (!token) {
-    throw new Error('No authentication token found');
+    throw new Error('No authentication token found. Please sign in.');
   }
 
-  // Add Authorization header
+  // Add Authorization header with Supabase JWT
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
@@ -67,10 +169,10 @@ export async function authenticatedFetch(
       // 401 = Token is missing, expired, or invalid
       const data = await response.json().catch(() => ({ error: 'Authentication failed' }));
 
-      // Clear the token and throw auth error
-      removeToken();
+      // Sign out to clear the session
+      await signOut();
 
-      const error = new Error(data.error || 'Session expired. Please log in again.');
+      const error = new Error(data.error || 'Session expired. Please sign in again.');
       (error as any).isAuthError = true;
       (error as any).status = response.status;
       throw error;
@@ -78,7 +180,6 @@ export async function authenticatedFetch(
 
     if (response.status === 403) {
       // 403 = Token is valid but user doesn't have permission
-      // Don't clear token - just throw error
       const data = await response.json().catch(() => ({ error: 'Access denied' }));
 
       const error = new Error(data.error || 'Access denied.');
@@ -99,7 +200,8 @@ export async function authenticatedFetch(
 }
 
 /**
- * Make an unauthenticated API request (for login, signup, etc.)
+ * Make an unauthenticated API request to your Express backend
+ * Use this for public endpoints that don't require authentication
  */
 export async function unauthenticatedFetch(
   endpoint: string,
@@ -119,8 +221,9 @@ export async function unauthenticatedFetch(
 }
 
 /**
- * Logout user by removing token
+ * Legacy function for backwards compatibility
+ * Just calls signOut() - use signOut() directly in new code
  */
-export function logout(): void {
-  removeToken();
+export async function logout(): Promise<void> {
+  await signOut();
 }
