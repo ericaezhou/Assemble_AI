@@ -62,7 +62,6 @@ export default function OnboardingForm({ onComplete, onBackToLogin }: Onboarding
 
       // Check if email confirmation is required
       if (result.needsEmailConfirmation) {
-        alert('Account created! Please check your email to confirm your account, then sign in.');
         onBackToLogin();
         return;
       }
