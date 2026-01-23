@@ -9,7 +9,7 @@ import { useUserStore } from '@/store/userStore';
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const { user, setUser, fetchUser, logout, isAuthenticated } = useUserStore();
+  const { user, fetchUser, isAuthenticated } = useUserStore();
   const [view, setView] = useState<ViewState>('login');
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -49,11 +49,6 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    setView('login');
-  };
-
   // Show loading state while checking auth
   if (!isInitialized) {
     return (
@@ -78,7 +73,7 @@ export default function Home() {
         />
       )}
       {view === 'dashboard' && (
-        <Dashboard user={user} onLogout={handleLogout} />
+        <Dashboard user={user} />
       )}
     </>
   );

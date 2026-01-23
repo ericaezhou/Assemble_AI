@@ -4,11 +4,10 @@ import Link from 'next/link';
 import { useUserStore } from '@/store/userStore';
 
 interface TopNavProps {
-  onNavigate?: (view: string) => void;
   currentView?: string;
 }
 
-export default function TopNav({ onNavigate, currentView }: TopNavProps) {
+export default function TopNav({ currentView }: TopNavProps) {
   const { user, logout } = useUserStore();
 
   const handleLogout = () => {
@@ -33,16 +32,16 @@ export default function TopNav({ onNavigate, currentView }: TopNavProps) {
             {/* Navigation Links */}
             {user && (
               <div className="hidden sm:flex items-center space-x-1">
-                <button
-                  onClick={() => onNavigate?.('dashboard')}
+                <Link
+                  href="/"
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    currentView === 'dashboard'
+                    currentView === 'home'
                       ? 'bg-indigo-50 text-indigo-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  Dashboard
-                </button>
+                  Home
+                </Link>
                 <Link
                   href={`/profile/${user.id}`}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

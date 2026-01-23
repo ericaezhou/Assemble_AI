@@ -337,7 +337,13 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
 
 // Create conference (Protected)
 app.post('/api/conferences', authenticateToken, (req, res) => {
-  const { name, location, start_date, end_date, host_id } = req.body;
+  const {
+    name, location, location_type, virtual_link,
+    start_date, start_time, end_date, end_time,
+    price_type, price_amount, capacity, require_approval,
+    description, rsvp_questions,
+    host_id
+  } = req.body;
 
   // Authorize: user can only create conferences as themselves
   if (req.userId !== host_id) {
@@ -347,29 +353,40 @@ app.post('/api/conferences', authenticateToken, (req, res) => {
   const conferenceId = crypto.randomBytes(4).toString('hex').toUpperCase();
 
   const stmt = db.prepare(`
-    INSERT INTO conferences (id, name, location, start_date, end_date, host_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO conferences (
+      id, name, location, location_type, virtual_link,
+      start_date, start_time, end_date, end_time,
+      price_type, price_amount, capacity, require_approval,
+      description, rsvp_questions, host_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(conferenceId, name, location, start_date, end_date, host_id, function(err) {
-    if (err) {
-      return res.status(400).json({ error: err.message });
-    }
-
-    const participantStmt = db.prepare(`
-      INSERT INTO conference_participants (conference_id, researcher_id)
-      VALUES (?, ?)
-    `);
-
-    participantStmt.run(conferenceId, host_id, function(err) {
+  stmt.run(
+    conferenceId, name, location, location_type || 'in-person', virtual_link,
+    start_date, start_time, end_date, end_time,
+    price_type || 'free', price_amount, capacity, require_approval ? 1 : 0,
+    description, rsvp_questions, host_id,
+    function(err) {
       if (err) {
         return res.status(400).json({ error: err.message });
       }
-      res.json({ id: conferenceId, message: 'Conference created successfully' });
-    });
 
-    participantStmt.finalize();
-  });
+      const participantStmt = db.prepare(`
+        INSERT INTO conference_participants (conference_id, researcher_id)
+        VALUES (?, ?)
+      `);
+
+      participantStmt.run(conferenceId, host_id, function(err) {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
+        res.json({ id: conferenceId, message: 'Event created successfully' });
+      });
+
+      participantStmt.finalize();
+    }
+  );
 
   stmt.finalize();
 });
