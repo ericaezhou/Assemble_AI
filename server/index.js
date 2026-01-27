@@ -53,7 +53,14 @@ app.post('/api/auth/send-verification-code', async (req, res) => {
 
 // Signup - Create researcher profile with password
 app.post('/api/auth/signup', async (req, res) => {
-  const { name, email, password, institution, research_areas, bio, interests, verificationCode } = req.body;
+  const {
+    name, email, password, verificationCode,
+    occupation, school, major, year, company, title, degree,
+    work_experience_years, research_area, other_description,
+    interest_areas, current_skills, hobbies,
+    // Legacy fields for backward compatibility
+    institution, research_areas, bio, interests
+  } = req.body;
 
   // Verify the email verification code
   const verification = verifyCode(email, verificationCode);
@@ -64,26 +71,44 @@ app.post('/api/auth/signup', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Convert arrays to JSON strings if they're arrays
+    const interestAreasJson = Array.isArray(interest_areas) ? JSON.stringify(interest_areas) : interest_areas;
+    const currentSkillsJson = Array.isArray(current_skills) ? JSON.stringify(current_skills) : current_skills;
+    const hobbiesJson = Array.isArray(hobbies) ? JSON.stringify(hobbies) : hobbies;
+
     const stmt = db.prepare(`
-      INSERT INTO researchers (name, email, password, institution, research_areas, bio, interests)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO researchers (
+        name, email, password,
+        occupation, school, major, year, company, title, degree,
+        work_experience_years, research_area, other_description,
+        interest_areas, current_skills, hobbies,
+        institution, research_areas, bio, interests
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(name, email, hashedPassword, institution, research_areas, bio, interests, function(err) {
-      if (err) {
-        return res.status(400).json({ error: err.message });
+    stmt.run(
+      name, email, hashedPassword,
+      occupation, school, major, year, company, title, degree,
+      work_experience_years, research_area, other_description,
+      interestAreasJson, currentSkillsJson, hobbiesJson,
+      institution, research_areas, bio, interests,
+      function(err) {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
+
+        const userId = this.lastID;
+        // Generate JWT token
+        const token = generateToken(userId);
+
+        res.json({
+          id: userId,
+          token,
+          message: 'Profile created successfully'
+        });
       }
-
-      const userId = this.lastID;
-      // Generate JWT token
-      const token = generateToken(userId);
-
-      res.json({
-        id: userId,
-        token,
-        message: 'Profile created successfully'
-      });
-    });
+    );
 
     stmt.finalize();
   } catch (err) {
@@ -145,7 +170,100 @@ app.get('/api/researchers/:id', authenticateToken, (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
-    res.json(row);
+
+    // Parse JSON fields and remove password
+    const { password: _, ...userWithoutPassword } = row;
+    const userData = {
+      ...userWithoutPassword,
+      interest_areas: row.interest_areas ? JSON.parse(row.interest_areas) : [],
+      current_skills: row.current_skills ? JSON.parse(row.current_skills) : [],
+      hobbies: row.hobbies ? JSON.parse(row.hobbies) : [],
+    };
+
+    res.json(userData);
+  });
+});
+
+// Update researcher profile (Protected - user can only update their own profile)
+app.put('/api/researchers/:id', authenticateToken, authorizeUser, (req, res) => {
+  const { id } = req.params;
+  const {
+    name, occupation, school, major, year, company, title, degree,
+    work_experience_years, research_area, other_description,
+    interest_areas, current_skills, hobbies,
+    // Legacy fields
+    institution, research_areas, bio, interests
+  } = req.body;
+
+  // Build dynamic update query based on provided fields
+  const updates = [];
+  const values = [];
+
+  if (name !== undefined) { updates.push('name = ?'); values.push(name); }
+  if (occupation !== undefined) { updates.push('occupation = ?'); values.push(occupation); }
+  if (school !== undefined) { updates.push('school = ?'); values.push(school); }
+  if (major !== undefined) { updates.push('major = ?'); values.push(major); }
+  if (year !== undefined) { updates.push('year = ?'); values.push(year); }
+  if (company !== undefined) { updates.push('company = ?'); values.push(company); }
+  if (title !== undefined) { updates.push('title = ?'); values.push(title); }
+  if (degree !== undefined) { updates.push('degree = ?'); values.push(degree); }
+  if (work_experience_years !== undefined) { updates.push('work_experience_years = ?'); values.push(work_experience_years); }
+  if (research_area !== undefined) { updates.push('research_area = ?'); values.push(research_area); }
+  if (other_description !== undefined) { updates.push('other_description = ?'); values.push(other_description); }
+  if (interest_areas !== undefined) {
+    const json = Array.isArray(interest_areas) ? JSON.stringify(interest_areas) : interest_areas;
+    updates.push('interest_areas = ?');
+    values.push(json);
+  }
+  if (current_skills !== undefined) {
+    const json = Array.isArray(current_skills) ? JSON.stringify(current_skills) : current_skills;
+    updates.push('current_skills = ?');
+    values.push(json);
+  }
+  if (hobbies !== undefined) {
+    const json = Array.isArray(hobbies) ? JSON.stringify(hobbies) : hobbies;
+    updates.push('hobbies = ?');
+    values.push(json);
+  }
+  // Legacy fields
+  if (institution !== undefined) { updates.push('institution = ?'); values.push(institution); }
+  if (research_areas !== undefined) { updates.push('research_areas = ?'); values.push(research_areas); }
+  if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
+  if (interests !== undefined) { updates.push('interests = ?'); values.push(interests); }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  values.push(id);
+
+  const query = `UPDATE researchers SET ${updates.join(', ')} WHERE id = ?`;
+
+  db.run(query, values, function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Researcher not found' });
+    }
+
+    // Fetch and return the updated profile
+    db.get('SELECT * FROM researchers WHERE id = ?', [id], (err, row) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      // Parse JSON fields and remove password
+      const { password: _, ...userWithoutPassword } = row;
+      const userData = {
+        ...userWithoutPassword,
+        interest_areas: row.interest_areas ? JSON.parse(row.interest_areas) : [],
+        current_skills: row.current_skills ? JSON.parse(row.current_skills) : [],
+        hobbies: row.hobbies ? JSON.parse(row.hobbies) : [],
+      };
+
+      res.json(userData);
+    });
   });
 });
 
@@ -219,7 +337,13 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
 
 // Create conference (Protected)
 app.post('/api/conferences', authenticateToken, (req, res) => {
-  const { name, location, start_date, end_date, host_id } = req.body;
+  const {
+    name, location, location_type, virtual_link,
+    start_date, start_time, end_date, end_time,
+    price_type, price_amount, capacity, require_approval,
+    description, rsvp_questions,
+    host_id
+  } = req.body;
 
   // Authorize: user can only create conferences as themselves
   if (req.userId !== host_id) {
@@ -229,29 +353,40 @@ app.post('/api/conferences', authenticateToken, (req, res) => {
   const conferenceId = crypto.randomBytes(4).toString('hex').toUpperCase();
 
   const stmt = db.prepare(`
-    INSERT INTO conferences (id, name, location, start_date, end_date, host_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO conferences (
+      id, name, location, location_type, virtual_link,
+      start_date, start_time, end_date, end_time,
+      price_type, price_amount, capacity, require_approval,
+      description, rsvp_questions, host_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(conferenceId, name, location, start_date, end_date, host_id, function(err) {
-    if (err) {
-      return res.status(400).json({ error: err.message });
-    }
-
-    const participantStmt = db.prepare(`
-      INSERT INTO conference_participants (conference_id, researcher_id)
-      VALUES (?, ?)
-    `);
-
-    participantStmt.run(conferenceId, host_id, function(err) {
+  stmt.run(
+    conferenceId, name, location, location_type || 'in-person', virtual_link,
+    start_date, start_time, end_date, end_time,
+    price_type || 'free', price_amount, capacity, require_approval ? 1 : 0,
+    description, rsvp_questions, host_id,
+    function(err) {
       if (err) {
         return res.status(400).json({ error: err.message });
       }
-      res.json({ id: conferenceId, message: 'Conference created successfully' });
-    });
 
-    participantStmt.finalize();
-  });
+      const participantStmt = db.prepare(`
+        INSERT INTO conference_participants (conference_id, researcher_id)
+        VALUES (?, ?)
+      `);
+
+      participantStmt.run(conferenceId, host_id, function(err) {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
+        res.json({ id: conferenceId, message: 'Event created successfully' });
+      });
+
+      participantStmt.finalize();
+    }
+  );
 
   stmt.finalize();
 });

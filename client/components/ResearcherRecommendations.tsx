@@ -7,10 +7,10 @@ interface Researcher {
   id: number;
   name: string;
   email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
+  institution?: string;
+  research_areas?: string;
+  bio?: string;
+  interests?: string;
   similarity_score?: number;
 }
 
