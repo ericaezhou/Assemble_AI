@@ -52,12 +52,12 @@ results = engine.host_match("AI agents meetup", users, params)
 engine.host_match(host_text, users, params) → List[RankedUser]
 ```
 
-### User ↔ User (Experience)
+### User ↔ User (Matching By Experience)
 ```python
 engine.match_experience(users, params, top_k=5) → Dict[UserId, List[RankedUser]]
 ```
 
-### User ↔ User (Needs)
+### User ↔ User (Matching by User Needs)
 ```python
 engine.match_needs(users, params, mode=NeedMatchMode.RECIPROCAL) → Dict[UserId, List[RankedUser]]
 ```

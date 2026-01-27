@@ -1,40 +1,32 @@
-# src/matching/engine.py
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .types import (
-    MatchRationale,
+from .matching_pojo import (
     MatchingParams,
-    NeedMatchMode,
     RankedUser,
     UserId,
-    UserPair,
     UserProfile,
 )
 from .adapters import Embedder, Retriever, Reranker, build_user_vectors
 from .algos import (
-    Edge,
-    calculate_multi_dim_score,  # 你已放在 algos.py 里（按你最新实现）
+    calculate_similarity_score,
     cosine_sim,
     mmr_select,
-    build_top_l_edges,
-    greedy_max_weight_matching,
 )
 
 
 # =========================
-# 0) Matching Engine
+# Matching Engine
 # =========================
 
 @dataclass
 class MatchingEngine:
     """
-    ⭐纯算法入口（不依赖外部服务）：
-      - host_match: 主办方文本 -> 推荐参会用户列表
-      - match_experience: 用户间「经历/兴趣/目标」综合匹配
-      - match_needs: 用户间「需求」匹配（reciprocal/bipartite）
+    Simplified matching engine with two scenarios:
+      1. host_match: Host text -> recommended users
+      2. match_users: User <-> User experience matching
     """
     embedder: Embedder
     retriever: Retriever
@@ -42,7 +34,6 @@ class MatchingEngine:
 
     def __post_init__(self) -> None:
         if self.reranker is None:
-            # 延迟导入避免循环依赖
             from .adapters import NoOpReranker
             self.reranker = NoOpReranker()
 
@@ -51,47 +42,50 @@ class MatchingEngine:
     # =========================
 
     def host_match(
-        self,
-        host_text: str,
-        users: Sequence[UserProfile],
-        params: MatchingParams,
-        *,
-        query_language: Optional[str] = None,
-        require_same_language: bool = False,
+            self,
+            host_text: str,
+            users: Sequence[UserProfile],
+            params: MatchingParams,
+            *,
+            use_mmr: bool = True,
+            mmr_lambda: float = 0.7,
     ) -> List[RankedUser]:
         """
-        主办方匹配用户：
-          1) embed host_text
-          2) recall top_n candidates (by v_profile)
-          3) compute final score (multi-dim)
-          4) MMR select top_k
-          5) optional rerank + rationale
+        Host matching: recommend users for an event.
+
+        Simplified flow:
+          1. Embed host_text
+          2. Recall top_n candidates by profile similarity
+          3. Score candidates
+          4. Optional MMR diversity selection
+          5. Return top_k results
+
+        Args:
+            host_text: Event description
+            users: All users
+            params: Matching parameters
+            use_mmr: Whether to apply MMR diversity
+            mmr_lambda: MMR diversity parameter (0.7 = more relevance)
         """
         params.validate_logic()
 
-        # 0) 确保用户向量存在（MVP：engine 内部可以帮你补齐）
-        # 生产里你也可以把这步放到 service 初始化阶段
+        # Ensure user vectors exist
         build_user_vectors(users, self.embedder, build_profile=True, overwrite=False)
 
         # 1) Query embedding
         q_vec = self.embedder.encode_one(host_text)
 
-        # 2) Recall
-        recalled = self.retriever.recall_host_candidates(
+        # 2) Recall candidates
+        recalled = self.retriever.recall_candidates(
             query_vector=q_vec,
             users=users,
             top_n=params.host_recall_top_n,
-            require_same_language=require_same_language,
-            query_language=query_language,
         )
 
-        # recalled: List[(UserProfile, recall_sim)]
-        # 3) Rerank scoring（这里用 multi-dim：exp/interest/goal）
+        # 3) Score candidates
         ranked: List[RankedUser] = []
         for u, recall_sim in recalled:
-            # host_text 没有 exp/goal 等拆分字段，因此 host->user 的多维打分我们用 profile 向量召回相似度为主，
-            # 再用 u 的 exp/interest/goal 做补充（MVP：直接用 recall_sim 作为 relevance）
-            # 你想更强：可以把 host_text embed 成 “host_profile_vec”，再分别对 exp/interest/goal 做 cosine 并加权。
+            # Use recall similarity as the score
             score = float(recall_sim)
             ranked.append(
                 RankedUser(
@@ -103,63 +97,77 @@ class MatchingEngine:
                 )
             )
 
-        # 4) MMR select Top-K（需要向量：用 user.v_profile）
-        # 为了 MMR 的多样性选择，我们把 RankedUser 映射回对应 UserProfile 的 v_profile
-        user_by_id: Dict[UserId, UserProfile] = {u.user_id: u for u in users}
+        # Sort by score
+        ranked.sort(key=lambda x: x.score, reverse=True)
 
-        def _get_rel(x: RankedUser) -> float:
-            return x.score
+        # 4) MMR diversity selection (optional)
+        if use_mmr and len(ranked) > params.host_return_top_k:
+            user_by_id: Dict[UserId, UserProfile] = {u.user_id: u for u in users}
 
-        def _get_vec(x: RankedUser):
-            up = user_by_id.get(x.user_id)
-            return up.v_profile if up is not None else None
+            def _get_rel(x: RankedUser) -> float:
+                return x.score
 
-        mmr_selected = mmr_select(
-            items=ranked,
-            k=params.host_return_top_k,
-            lam=params.host_mmr_lambda,
-            get_relevance=_get_rel,
-            get_vector=_get_vec,
-        )
+            def _get_vec(x: RankedUser):
+                up = user_by_id.get(x.user_id)
+                return up.v_profile if up is not None else None
 
-        # 5) Optional rerank (and rationale)
-        reranked = self.reranker.rerank_host(host_text, mmr_selected, params)
+            ranked = mmr_select(
+                items=ranked,
+                k=params.host_return_top_k,
+                lam=mmr_lambda,
+                get_relevance=_get_rel,
+                get_vector=_get_vec,
+            )
+        else:
+            ranked = ranked[:params.host_return_top_k]
 
-        return reranked
+        # 5) Optional rerank (can add LLM rationale here)
+        ranked = self.reranker.rerank_host(host_text, ranked, params)
+
+        return ranked
 
     # =========================
-    # 2) User <-> User (Experience)
+    # 2) User <-> User Matching
     # =========================
 
-    def match_experience(
+    def match_users(
             self,
             users: Sequence[UserProfile],
             params: MatchingParams,
             *,
-            top_k: int = 5,
+            top_k: Optional[int] = None,
             apply_mmr: bool = True,
-            mmr_lambda: Optional[float] = None,
-            min_score: float = 0.02,
+            mmr_lambda: float = 0.5,
+            min_score: Optional[float] = None,
             past_pair_counts: Optional[Dict[Tuple[UserId, UserId], int]] = None,
     ) -> Dict[UserId, List[RankedUser]]:
         """
-        ✅ 体验匹配（推荐列表版，不是 1v1 配对）
-        输出：每个用户的 Top-K 推荐对象列表（允许一个人出现在很多人的列表里）
+        User-to-user matching based on experience and interests.
 
-        - top_k：每人推荐几位
-        - min_score：过滤掉低相关（避免“硬凑”）
-        - apply_mmr：是否做多样性（避免全推荐同一类人）
+        Returns: For each user, a list of top-K recommended matches
+
+        Args:
+            users: All users
+            params: Matching parameters
+            top_k: Number of recommendations per user (default: params.user_top_k)
+            apply_mmr: Whether to apply diversity
+            mmr_lambda: MMR parameter (0.5 = balance)
+            min_score: Minimum score threshold (default: params.min_score)
+            past_pair_counts: History of past matches for penalty
         """
         params.validate_logic()
+
+        top_k = top_k or params.user_top_k
+        min_score = min_score if min_score is not None else params.min_score
         past_pair_counts = past_pair_counts or {}
 
-        # 确保向量存在
+        # Ensure vectors exist
         build_user_vectors(users, self.embedder, build_profile=True, overwrite=False)
 
         user_list = list(users)
         user_by_id = {u.user_id: u for u in user_list}
 
-        # 小工具：历史惩罚（可选）
+        # Helper: apply history penalty
         def apply_history(score: float, a: UserId, b: UserId) -> float:
             key = (a, b) if a < b else (b, a)
             cnt = int(past_pair_counts.get(key, 0))
@@ -171,18 +179,20 @@ class MatchingEngine:
 
         for u in user_list:
             candidates: List[RankedUser] = []
+
             for v in user_list:
                 if v.user_id == u.user_id:
                     continue
 
-                score, dbg = calculate_multi_dim_score(u, v, params)
+                # Calculate similarity score
+                score, dbg = calculate_similarity_score(u, v, params)
 
-                # 历史惩罚
+                # Apply history penalty
                 score2 = apply_history(float(score), u.user_id, v.user_id)
                 if score2 != score:
                     dbg["after_history"] = round(float(score2), 4)
 
-                # 过滤低分，避免“硬凑”
+                # Filter low scores
                 if score2 < min_score:
                     continue
 
@@ -194,14 +204,11 @@ class MatchingEngine:
                     )
                 )
 
-            # 先按相关性排序
+            # Sort by score
             candidates.sort(key=lambda x: x.score, reverse=True)
 
-            # 多样性（可选）
+            # Apply MMR diversity (optional)
             if apply_mmr and candidates:
-                lam = mmr_lambda if mmr_lambda is not None else params.host_mmr_lambda
-
-                # 用 v_profile 做多样性向量
                 def _get_rel(x: RankedUser) -> float:
                     return x.score
 
@@ -212,134 +219,7 @@ class MatchingEngine:
                 candidates = mmr_select(
                     items=candidates,
                     k=min(top_k, len(candidates)),
-                    lam=lam,
-                    get_relevance=_get_rel,
-                    get_vector=_get_vec,
-                )
-            else:
-                candidates = candidates[:top_k]
-
-            results[u.user_id] = candidates
-
-        return results
-
-    # =========================
-    # 3) User <-> User (Needs)
-    # =========================
-
-    def match_needs(
-            self,
-            users: Sequence[UserProfile],
-            params: MatchingParams,
-            *,
-            mode: NeedMatchMode = NeedMatchMode.RECIPROCAL,
-            top_k: int = 5,
-            apply_mmr: bool = False,  # needs 一般不强调多样性，默认 False
-            mmr_lambda: Optional[float] = None,
-            min_score: float = 0.02,
-            past_pair_counts: Optional[Dict[Tuple[UserId, UserId], int]] = None,
-    ) -> Dict[UserId, List[RankedUser]]:
-        """
-        ✅ 需求匹配（Top-K 推荐版，不做 1v1 配对）
-        返回：每个用户的 Top-K 推荐对象列表（允许同一个人被很多人推荐）
-
-        mode:
-          - RECIPROCAL: 互惠（考虑双方 need）
-          - BIPARTITE: 先占位（后续可做供需角色拆分）
-        """
-        params.validate_logic()
-        past_pair_counts = past_pair_counts or {}
-
-        build_user_vectors(users, self.embedder, build_profile=True, overwrite=False)
-
-        user_list = list(users)
-        user_by_id: Dict[UserId, UserProfile] = {u.user_id: u for u in user_list}
-
-        # 历史惩罚（可选）
-        def apply_history(score: float, a: UserId, b: UserId) -> float:
-            key = (a, b) if a < b else (b, a)
-            cnt = int(past_pair_counts.get(key, 0))
-            if cnt <= 0:
-                return score
-            return score * (params.history_penalty ** cnt)
-
-        results: Dict[UserId, List[RankedUser]] = {}
-
-        for u in user_list:
-            # needs 匹配：一般只对“有 need_text 的用户”输出推荐
-            if not u.has_need():
-                results[u.user_id] = []
-                continue
-
-            strong: List[RankedUser] = []
-            weak: List[RankedUser] = []
-
-            for v in user_list:
-                if v.user_id == u.user_id:
-                    continue
-
-                # 1) 单向满足度：u 的 need -> v 的 profile
-                u_need_v = 0.0
-                if u.v_need is not None and v.v_profile is not None:
-                    u_need_v = cosine_sim(u.v_need, v.v_profile)
-
-                if mode == NeedMatchMode.RECIPROCAL:
-                    # 2) 互惠：v 的 need -> u 的 profile（如果 v 没 need，就为 0）
-                    v_need_u = 0.0
-                    if v.v_need is not None and u.v_profile is not None:
-                        v_need_u = cosine_sim(v.v_need, u.v_profile)
-
-                    # 3) base：多维相似（可选，能提升“聊得来”）
-                    base, dbg_base = calculate_multi_dim_score(u, v, params)
-
-                    # MVP：soft reciprocal（你现在的配方）
-                    score = 0.5 * base + 0.25 * u_need_v + 0.25 * v_need_u
-                    dbg = {
-                        **(dbg_base or {}),
-                        "u_need_v": round(float(u_need_v), 4),
-                        "v_need_u": round(float(v_need_u), 4),
-                        "base": round(float(base), 4),
-                        "needs_total": round(float(score), 4),
-                    }
-                else:
-                    # BIPARTITE 先做一个单向版占位（后续再做供需拆分）
-                    score = u_need_v
-                    dbg = {"u_need_v": round(float(u_need_v), 4), "needs_total": round(float(score), 4)}
-
-                score2 = apply_history(float(score), u.user_id, v.user_id)
-                if score2 != score:
-                    dbg["after_history"] = round(float(score2), 4)
-
-                # 过滤：避免硬凑
-                if score2 >= min_score:
-                    strong.append(RankedUser(user_id=v.user_id, score=float(score2), debug_info=dbg))
-                else:
-                    weak.append(
-                        RankedUser(user_id=v.user_id, score=float(score2), debug_info={**dbg, "fallback": True}))
-
-            strong.sort(key=lambda x: x.score, reverse=True)
-            weak.sort(key=lambda x: x.score, reverse=True)
-
-            candidates = strong
-            # 不足 top_k 就用弱相关补齐（可选：如果你不想补齐就删掉这段）
-            if len(candidates) < top_k:
-                candidates = candidates + weak[: (top_k - len(candidates))]
-
-            # 多样性（可选）
-            if apply_mmr and candidates:
-                lam = mmr_lambda if mmr_lambda is not None else params.host_mmr_lambda
-
-                def _get_rel(x: RankedUser) -> float:
-                    return x.score
-
-                def _get_vec(x: RankedUser):
-                    up = user_by_id.get(x.user_id)
-                    return up.v_profile if up is not None else None
-
-                candidates = mmr_select(
-                    items=candidates,
-                    k=min(top_k, len(candidates)),
-                    lam=lam,
+                    lam=mmr_lambda,
                     get_relevance=_get_rel,
                     get_vector=_get_vec,
                 )

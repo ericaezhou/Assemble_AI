@@ -1,0 +1,49 @@
+table_name,column_name,data_type
+conference_participants,researcher_id,uuid
+conference_participants,conference_id,text
+conference_participants,joined_at,timestamp with time zone
+conferences,host_id,uuid
+conferences,created_at,timestamp with time zone
+conferences,location,text
+conferences,start_date,text
+conferences,end_date,text
+conferences,id,text
+conferences,name,text
+conversations,participant2_id,uuid
+conversations,last_message_at,timestamp with time zone
+conversations,id,bigint
+conversations,created_at,timestamp with time zone
+conversations,participant1_id,uuid
+messages,id,bigint
+messages,is_system_message,boolean
+messages,content,text
+messages,created_at,timestamp with time zone
+messages,conversation_id,bigint
+messages,sender_id,uuid
+profiles,github,text
+profiles,linkedin,text
+profiles,school,text
+profiles,major,text
+profiles,year,text
+profiles,expected_grad_date,text
+profiles,company,text
+profiles,id,uuid
+profiles,updated_at,timestamp with time zone
+profiles,created_at,timestamp with time zone
+profiles,title,text
+profiles,work_experience_years,text
+profiles,research_areas,text
+profiles,institution,text
+profiles,publications,text
+profiles,short_answer,text
+profiles,bio,text
+profiles,interests,text
+profiles,degree,text
+profiles,other_description,text
+profiles,research_area,text
+profiles,interest_areas,text
+profiles,current_skills,text
+profiles,hobbies,text
+profiles,name,text
+profiles,email,text
+profiles,occupation,text

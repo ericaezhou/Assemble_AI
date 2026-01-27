@@ -5,16 +5,16 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from .types import UserId, UserProfile, Vector, MatchingParams
+from .matching_pojo import UserId, UserProfile, Vector, MatchingParams
 
 
 # =========================
-# 1) 数据结构与基础工具
+# 1) Data Structures & Basic Tools
 # =========================
 
 @dataclass(frozen=True)
 class Edge:
-    """图匹配中的一条边（无向）"""
+    """Edge in matching graph"""
     user_a: UserId
     user_b: UserId
     score: float
@@ -26,7 +26,7 @@ class Edge:
 
 
 def cosine_sim(u: Vector, v: Vector) -> float:
-    """基础余弦相似度（算法层自包含：不依赖 adapters）"""
+    """Basic cosine similarity"""
     a = np.asarray(u, dtype=np.float32)
     b = np.asarray(v, dtype=np.float32)
     denom = (np.linalg.norm(a) * np.linalg.norm(b)) + 1e-12
@@ -36,61 +36,69 @@ def cosine_sim(u: Vector, v: Vector) -> float:
 
 
 def safe_cosine_sim(u: Optional[Vector], v: Optional[Vector]) -> float:
-    """安全的余弦相似度：处理 None 向量情况"""
+    """Safe cosine similarity handling None vectors"""
     if u is None or v is None:
         return 0.0
     return cosine_sim(u, v)
 
 
 # =========================
-# 2) 核心评分逻辑 (融合多维度)
+# 2) Core Scoring Logic (Simplified: exp + interest only)
 # =========================
 
-def calculate_multi_dim_score(
-    u1: UserProfile,
-    u2: UserProfile,
-    params: MatchingParams
+def calculate_similarity_score(
+        u1: UserProfile,
+        u2: UserProfile,
+        params: MatchingParams
 ) -> Tuple[float, Dict[str, Any]]:
     """
-    结合 UserProfile 多个向量字段计算加权分。
-    返回: (综合得分, 调试信息字典)
+    Simplified multi-dimension score using only exp and interest.
+
+    Returns: (total_score, debug_info)
     """
     s_exp = safe_cosine_sim(u1.v_exp, u2.v_exp)
-    s_int = safe_cosine_sim(u1.v_interest, u2.v_interest)
-    s_goal = safe_cosine_sim(u1.v_goal, u2.v_goal)
+    s_interest = safe_cosine_sim(u1.v_interest, u2.v_interest)
 
-    # 这里假设 params 的权重和大致为 1.0（建议在 service 初始化时 params.validate_logic()）
+    # Weighted sum (params should ensure weights sum to 1.0)
     total_score = (
-        s_exp * params.w_exp +
-        s_int * params.w_interest +
-        s_goal * params.w_goal
+            s_exp * params.w_exp +
+            s_interest * params.w_interest
     )
 
     debug_info = {
         "exp_sim": round(s_exp, 4),
-        "int_sim": round(s_int, 4),
-        "goal_sim": round(s_goal, 4),
+        "interest_sim": round(s_interest, 4),
         "weighted_total": round(total_score, 4),
     }
+
     return float(total_score), debug_info
 
 
 # =========================
-# 3) MMR 多样性选择 (Host->Users)
+# 3) MMR Diversity Selection
 # =========================
 
 def mmr_select(
-    items: Sequence[Any],
-    k: int,
-    lam: float,
-    *,
-    get_relevance: Callable[[Any], float],
-    get_vector: Callable[[Any], Optional[Vector]],
+        items: Sequence[Any],
+        k: int,
+        lam: float,
+        *,
+        get_relevance: Callable[[Any], float],
+        get_vector: Callable[[Any], Optional[Vector]],
 ) -> List[Any]:
     """
-    MMR 选择算法：在相关性和多样性之间平衡。
-    - 不要求 items 已按相关性排序
-    - 缺向量 -> 退化为纯 relevance（不会被惩罚）
+    MMR (Maximal Marginal Relevance) selection for diversity.
+
+    Formula: MMR = λ × relevance - (1-λ) × max_similarity_to_selected
+
+    Args:
+        items: Candidate items
+        k: Number of items to select
+        lam: Trade-off parameter (0 < λ <= 1)
+             λ=1.0: pure relevance
+             λ=0.5: balance relevance and diversity
+        get_relevance: Function to get relevance score
+        get_vector: Function to get vector for similarity
     """
     if k <= 0 or not items:
         return []
@@ -98,118 +106,125 @@ def mmr_select(
         raise ValueError("lam must be in (0, 1].")
 
     items = list(items)
-    if len(items) <= k:
-        return items
+    k = min(k, len(items))
 
-    rel_scores = [float(get_relevance(x)) for x in items]
-    remaining_idx = list(range(len(items)))
-    selected_idx: List[int] = []
+    selected: List[Any] = []
+    remaining = items.copy()
 
-    # 1) 选第一个：relevance 最大
-    first = int(np.argmax(np.asarray(rel_scores, dtype=np.float32)))
-    selected_idx.append(first)
-    remaining_idx.remove(first)
+    # Get vectors upfront for selected items
+    selected_vecs: List[Optional[Vector]] = []
 
-    # 2) 迭代选
-    while len(selected_idx) < k and remaining_idx:
-        best_i = None
-        best_score = -1e18
-        best_rel = -1e18
-
-        for i in remaining_idx:
-            relevance = rel_scores[i]
-            vi = get_vector(items[i])
-
-            if vi is None:
-                mmr_score = relevance
-            else:
-                max_sim = 0.0
-                for sj in selected_idx:
-                    vj = get_vector(items[sj])
-                    if vj is not None:
-                        max_sim = max(max_sim, cosine_sim(vi, vj))
-                mmr_score = lam * relevance - (1.0 - lam) * max_sim
-
-            # tie-break：mmr_score -> relevance -> index（保证稳定）
-            if (mmr_score > best_score) or (
-                mmr_score == best_score and (relevance > best_rel or (relevance == best_rel and (best_i is None or i < best_i)))
-            ):
-                best_score = mmr_score
-                best_rel = relevance
-                best_i = i
-
-        if best_i is None:
+    for _ in range(k):
+        if not remaining:
             break
-        selected_idx.append(best_i)
-        remaining_idx.remove(best_i)
 
-    return [items[i] for i in selected_idx]
+        best_item = None
+        best_mmr = float('-inf')
+
+        for item in remaining:
+            rel = get_relevance(item)
+
+            # Diversity penalty (similarity to already selected)
+            diversity_penalty = 0.0
+            item_vec = get_vector(item)
+
+            if item_vec is not None and selected_vecs:
+                # Max similarity to any selected item
+                sims = []
+                for sel_vec in selected_vecs:
+                    if sel_vec is not None:
+                        sims.append(cosine_sim(item_vec, sel_vec))
+
+                if sims:
+                    diversity_penalty = max(sims)
+
+            # MMR score
+            mmr_score = lam * rel - (1.0 - lam) * diversity_penalty
+
+            if mmr_score > best_mmr:
+                best_mmr = mmr_score
+                best_item = item
+
+        if best_item is not None:
+            selected.append(best_item)
+            remaining.remove(best_item)
+            selected_vecs.append(get_vector(best_item))
+
+    return selected
 
 
 # =========================
-# 4) 用户配对逻辑 (User<->User)
+# 4) Graph Construction (Optional - for future use)
 # =========================
 
 def build_top_l_edges(
-    users: Sequence[UserProfile],
-    l: int,
-    params: MatchingParams,
-    weight_fn: Callable[[UserProfile, UserProfile, MatchingParams], Tuple[float, Dict[str, Any]]],
-    *,
-    min_score: float = 0.0,
+        users: Sequence[UserProfile],
+        params: MatchingParams,
+        top_l: int,
+        *,
+        past_pair_counts: Optional[Dict[Tuple[UserId, UserId], int]] = None,
 ) -> List[Edge]:
     """
-    构图：为每个用户寻找 Top-L 个最匹配的邻居（无向去重）。
+    Build graph edges: for each user, keep only top L neighbors.
+    Simplified version without goal and needs.
     """
-    users = list(users)
-    n = len(users)
-    if n < 2 or l <= 0:
+    past_pair_counts = past_pair_counts or {}
+    user_list = list(users)
+    edges: List[Edge] = []
+
+    for u in user_list:
+        neighbors: List[Tuple[UserProfile, float, Dict]] = []
+
+        for v in user_list:
+            if v.user_id == u.user_id:
+                continue
+
+            score, dbg = calculate_similarity_score(u, v, params)
+
+            # Apply history penalty
+            key = (u.user_id, v.user_id) if u.user_id < v.user_id else (v.user_id, u.user_id)
+            cnt = past_pair_counts.get(key, 0)
+            if cnt > 0:
+                score = score * (params.history_penalty ** cnt)
+                dbg["after_history"] = round(score, 4)
+
+            neighbors.append((v, float(score), dbg))
+
+        # Sort by score and take top L
+        neighbors.sort(key=lambda x: x[1], reverse=True)
+        top_neighbors = neighbors[:top_l]
+
+        # Create edges
+        for v, score, dbg in top_neighbors:
+            edges.append(Edge(
+                user_a=u.user_id,
+                user_b=v.user_id,
+                score=score,
+                debug_info=dbg
+            ))
+
+    return edges
+
+
+def greedy_max_weight_matching(edges: List[Edge]) -> List[Edge]:
+    """
+    Greedy algorithm for maximum weight matching.
+
+    Returns: List of selected edges (1v1 pairs)
+    """
+    if not edges:
         return []
 
-    edge_map: Dict[Tuple[UserId, UserId], Edge] = {}
+    # Sort edges by score (descending)
+    sorted_edges = sorted(edges, key=lambda e: e.score, reverse=True)
 
-    for i in range(n):
-        ui = users[i]
-        candidates: List[Tuple[float, UserId, Dict[str, Any]]] = []
+    matched: List[Edge] = []
+    used_users: set = set()
 
-        for j in range(n):
-            if i == j:
-                continue
-            score, dbg = weight_fn(ui, users[j], params)
-            if score < min_score:
-                continue
-            candidates.append((float(score), users[j].user_id, dbg or {}))
+    for edge in sorted_edges:
+        if edge.user_a not in used_users and edge.user_b not in used_users:
+            matched.append(edge)
+            used_users.add(edge.user_a)
+            used_users.add(edge.user_b)
 
-        candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        for score, vid, dbg in candidates[:l]:
-            a, b = (ui.user_id, vid) if ui.user_id < vid else (vid, ui.user_id)
-            key = (a, b)
-            if key not in edge_map or score > edge_map[key].score:
-                edge_map[key] = Edge(user_a=a, user_b=b, score=score, debug_info=dbg)
-
-    return list(edge_map.values())
-
-
-def greedy_max_weight_matching(edges: Sequence[Edge]) -> List[Edge]:
-    """
-    贪心最大权重匹配：按分数从高到低配对，确保每个人只出现一次。
-    """
-    sorted_edges = sorted(
-        edges,
-        key=lambda e: (e.score, e.sorted_ids[0], e.sorted_ids[1]),
-        reverse=True,
-    )
-
-    matched: set[UserId] = set()
-    result: List[Edge] = []
-
-    for e in sorted_edges:
-        if e.user_a in matched or e.user_b in matched:
-            continue
-        matched.add(e.user_a)
-        matched.add(e.user_b)
-        result.append(e)
-
-    # 稳定排序（便于测试）
-    result.sort(key=lambda e: e.sorted_ids)
-    return result
+    return matched

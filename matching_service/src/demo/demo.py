@@ -15,7 +15,7 @@ SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from matching.types import MatchingParams, UserProfile, NeedMatchMode  # noqa: E402
+from matching.matching_pojo import MatchingParams, UserProfile  # noqa: E402
 from matching.adapters import TfidfEmbedder, InMemoryRetriever, NoOpReranker, build_user_vectors  # noqa: E402
 from matching.engine import MatchingEngine  # noqa: E402
 
