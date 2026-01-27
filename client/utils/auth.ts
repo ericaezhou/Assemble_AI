@@ -16,10 +16,19 @@ export async function signUp(
   password: string,
   profileData: {
     name: string;
-    institution?: string;
-    research_areas?: string;
-    bio?: string;
-    interests?: string;
+    occupation?: string;
+    school?: string;
+    major?: string;
+    year?: string;
+    company?: string;
+    title?: string;
+    work_experience_years?: string;
+    degree?: string;
+    research_area?: string;
+    other_description?: string;
+    interest_areas?: string[];
+    current_skills?: string[];
+    hobbies?: string[];
   }
 ) {
   const { data, error } = await supabase.auth.signUp({
@@ -49,10 +58,19 @@ export async function signUp(
   const { error: profileError } = await supabase
     .from('profiles')
     .update({
-      institution: profileData.institution,
-      research_areas: profileData.research_areas,
-      bio: profileData.bio,
-      interests: profileData.interests
+      occupation: profileData.occupation,
+      school: profileData.school,
+      major: profileData.major,
+      year: profileData.year,
+      company: profileData.company,
+      title: profileData.title,
+      work_experience_years: profileData.work_experience_years,
+      degree: profileData.degree,
+      research_area: profileData.research_area,
+      other_description: profileData.other_description,
+      interest_areas: profileData.interest_areas,
+      current_skills: profileData.current_skills,
+      hobbies: profileData.hobbies
     })
     .eq('id', data.user.id);
 

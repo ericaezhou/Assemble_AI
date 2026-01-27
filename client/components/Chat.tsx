@@ -7,7 +7,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 interface Message {
   id: number;
   conversation_id: number;
-  sender_id: number;
+  sender_id: string;
   sender_name: string;
   content: string;
   is_system_message: boolean;
@@ -16,7 +16,7 @@ interface Message {
 
 interface ChatProps {
   conversationId: number;
-  currentUserId: number;
+  currentUserId: string;
   otherUserName: string;
   onBack: () => void;
 }

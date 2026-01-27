@@ -182,3 +182,28 @@ CREATE POLICY "Service role can manage conversations" ON public.conversations
 DROP POLICY IF EXISTS "Service role can manage messages" ON public.messages;
 CREATE POLICY "Service role can manage messages" ON public.messages
   FOR ALL USING (true);
+
+-- Rename columns to match DATABASE_SCHEMA.md
+ALTER TABLE public.profiles RENAME COLUMN current_company TO company;
+ALTER TABLE public.profiles RENAME COLUMN current_title TO title;
+ALTER TABLE public.profiles RENAME COLUMN yoe TO work_experience_years;
+
+-- Add missing columns
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS degree text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS other_description text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS research_area text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS interest_areas text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_skills text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS hobbies text;
+
+-- Add extra conference fields
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS location_type text DEFAULT 'in-person';
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS virtual_link text;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS start_time text;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS end_time text;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS price_type text DEFAULT 'free';
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS price_amount numeric;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS capacity integer;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS require_approval boolean DEFAULT false;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS description text;
+ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS rsvp_questions text;

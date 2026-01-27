@@ -23,7 +23,7 @@ app.get('/api/researchers', async (req, res) => {
       .from('profiles')
       .select('*');
 
-    if (error) {
+if (error) {
       return res.status(500).json({ error: error.message });
     }
     res.json(profiles || []);
@@ -46,7 +46,63 @@ app.get('/api/researchers/:id', authenticateToken, async (req, res) => {
     if (error || !profile) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
-    res.json(profile);
+res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update researcher profile (Protected - user can only update their own profile)
+app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, res) => {
+  const { id } = req.params;
+  const {
+    name, occupation, school, major, year, company, title, degree,
+    work_experience_years, research_area, other_description,
+    interest_areas, current_skills, hobbies
+  } = req.body;
+
+  // Build dynamic update object based on provided fields
+  const updates = {};
+
+  if (name !== undefined) updates.name = name;
+  if (occupation !== undefined) updates.occupation = occupation;
+  if (school !== undefined) updates.school = school;
+  if (major !== undefined) updates.major = major;
+  if (year !== undefined) updates.year = year;
+  if (company !== undefined) updates.company = company;
+  if (title !== undefined) updates.title = title;
+  if (degree !== undefined) updates.degree = degree;
+  if (work_experience_years !== undefined) updates.work_experience_years = work_experience_years;
+  if (research_area !== undefined) updates.research_area = research_area;
+  if (other_description !== undefined) updates.other_description = other_description;
+  if (interest_areas !== undefined) updates.interest_areas = interest_areas;
+  if (current_skills !== undefined) updates.current_skills = current_skills;
+  if (hobbies !== undefined) updates.hobbies = hobbies;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No fields to update' });
+  }
+
+  // Add updated_at timestamp
+  updates.updated_at = new Date().toISOString();
+
+  try {
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    if (!updatedProfile) {
+      return res.status(404).json({ error: 'Researcher not found' });
+    }
+
+    res.json(updatedProfile);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -142,7 +198,13 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
 
 // Create conference (Protected)
 app.post('/api/conferences', authenticateToken, async (req, res) => {
-  const { name, location, start_date, end_date, host_id } = req.body;
+  const {
+    name, location, location_type, virtual_link,
+    start_date, start_time, end_date, end_time,
+    price_type, price_amount, capacity, require_approval,
+    description, rsvp_questions,
+    host_id
+  } = req.body;
 
   // Authorize: user can only create conferences as themselves
   if (req.userId !== host_id) {
@@ -159,8 +221,18 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
         id: conferenceId,
         name,
         location,
+        location_type: location_type || 'in-person',
+        virtual_link,
         start_date,
+        start_time,
         end_date,
+        end_time,
+        price_type: price_type || 'free',
+        price_amount,
+        capacity,
+        require_approval: require_approval || false,
+        description,
+        rsvp_questions,
         host_id
       });
 
@@ -180,7 +252,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: participantError.message });
     }
 
-    res.json({ id: conferenceId, message: 'Conference created successfully' });
+    res.json({ id: conferenceId, message: 'Event created successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -5,21 +5,12 @@ import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
 import { authenticatedFetch, getCurrentUser, signOut } from '@/utils/auth';
-
-interface Researcher {
-  id: string; // Changed from number to string (UUID)
-  name: string;
-  email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
-}
+import { useUserStore } from '@/store/userStore';
 
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const [currentUser, setCurrentUser] = useState<Researcher | null>(null);
+  const { user, setUser, clearUser } = useUserStore();
   const [view, setView] = useState<ViewState>('login');
   const [loading, setLoading] = useState(true);
 
@@ -27,13 +18,19 @@ export default function Home() {
     // Check if user is already signed in via Supabase session
     const checkAuth = async () => {
       try {
-        const user = await getCurrentUser();
-        if (user) {
+        const authUser = await getCurrentUser();
+        if (authUser) {
           // User is authenticated, fetch their profile from backend
-          const res = await authenticatedFetch(`/api/researchers/${user.id}`);
-          const data = await res.json();
-          setCurrentUser(data);
-          setView('dashboard');
+          const res = await authenticatedFetch(`/api/researchers/${authUser.id}`);
+          if (res.ok) {
+            const profileData = await res.json();
+            setUser(profileData);
+            setView('dashboard');
+          } else {
+            // Profile fetch failed, clear session
+            await signOut();
+            clearUser();
+          }
         }
       } catch (err) {
         console.error('Error checking auth:', err);
@@ -44,14 +41,18 @@ export default function Home() {
     };
 
     checkAuth();
-  }, []);
+  }, [setUser, clearUser]);
 
   const handleLoginSuccess = async (userId: string) => {
     try {
       const res = await authenticatedFetch(`/api/researchers/${userId}`);
-      const data = await res.json();
-      setCurrentUser(data);
-      setView('dashboard');
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
+        setView('dashboard');
+      } else {
+        console.error('Failed to fetch user profile after login');
+      }
     } catch (err) {
       console.error('Error fetching user after login:', err);
     }
@@ -60,23 +61,18 @@ export default function Home() {
   const handleSignupComplete = async (userId: string) => {
     try {
       const res = await authenticatedFetch(`/api/researchers/${userId}`);
-      const data = await res.json();
-      setCurrentUser(data);
-      setView('dashboard');
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
+        setView('dashboard');
+      } else {
+        console.error('Failed to fetch user profile after signup');
+      }
     } catch (err) {
       console.error('Error fetching user after signup:', err);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(); // Sign out from Supabase
-      setCurrentUser(null);
-      setView('login');
-    } catch (err) {
-      console.error('Error signing out:', err);
-    }
-  };
 
   // Show loading state while checking authentication
   if (loading) {
@@ -102,7 +98,7 @@ export default function Home() {
         />
       )}
       {view === 'dashboard' && (
-        <Dashboard user={currentUser} onLogout={handleLogout} />
+        <Dashboard user={user} />
       )}
     </>
   );

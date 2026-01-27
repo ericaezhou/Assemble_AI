@@ -4,28 +4,34 @@ import { useState, useEffect } from 'react';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import { authenticatedFetch } from '@/utils/auth';
 
-interface Conference {
+interface Event {
   id: string;
   name: string;
   location: string;
+  location_type?: string;
+  virtual_link?: string;
   start_date: string;
+  start_time?: string;
   end_date: string;
+  end_time?: string;
   host_id: number;
+  price_type?: string;
+  capacity?: number;
 }
 
 interface Participant {
   id: number;
   name: string;
   email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
+  institution?: string;
+  research_areas?: string;
+  bio?: string;
+  interests?: string;
   similarity_score?: number;
 }
 
-interface ConferenceDetailProps {
-  conferenceId: string;
+interface EventDetailProps {
+  eventId: string;
   userId: number;
   onBack: () => void;
 }
@@ -33,8 +39,8 @@ interface ConferenceDetailProps {
 type SortField = 'name' | 'institution' | 'research_areas' | 'interests';
 type SortOrder = 'asc' | 'desc';
 
-export default function ConferenceDetail({ conferenceId, userId, onBack }: ConferenceDetailProps) {
-  const [conference, setConference] = useState<Conference | null>(null);
+export default function EventDetail({ eventId, userId, onBack }: EventDetailProps) {
+  const [event, setEvent] = useState<Event | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,21 +49,21 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
   useEffect(() => {
-    fetchConferenceDetails();
+    fetchEventDetails();
     fetchParticipants();
-  }, [conferenceId]);
+  }, [eventId]);
 
   useEffect(() => {
     filterAndSortParticipants();
   }, [searchQuery, participants, sortField, sortOrder]);
 
-  const fetchConferenceDetails = async () => {
+  const fetchEventDetails = async () => {
     try {
-      const response = await authenticatedFetch(`/api/conferences/${conferenceId}`);
+      const response = await authenticatedFetch(`/api/conferences/${eventId}`);
       const data = await response.json();
-      setConference(data);
+      setEvent(data);
     } catch (err) {
-      console.error('Error fetching conference:', err);
+      console.error('Error fetching event:', err);
     }
   };
 
@@ -65,7 +71,7 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
     setLoading(true);
     try {
       const response = await authenticatedFetch(
-        `/api/conferences/${conferenceId}/participants?current_user_id=${userId}`
+        `/api/conferences/${eventId}/participants?current_user_id=${userId}`
       );
       const data = await response.json();
       setParticipants(data);
@@ -79,7 +85,6 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
   const filterAndSortParticipants = () => {
     let filtered = participants;
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = participants.filter(p =>
@@ -90,7 +95,6 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
       );
     }
 
-    // Sort by selected field
     const sorted = [...filtered].sort((a, b) => {
       let aValue = a[sortField] || '';
       let bValue = b[sortField] || '';
@@ -106,9 +110,13 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
     setFilteredParticipants(sorted);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string, timeString?: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const formatted = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    if (timeString) {
+      return `${formatted} at ${timeString}`;
+    }
+    return formatted;
   };
 
   const handleSort = (field: SortField) => {
@@ -120,10 +128,21 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
     }
   };
 
-  if (!conference) {
+  const getLocationDisplay = () => {
+    if (!event) return '';
+    if (event.location_type === 'virtual') {
+      return 'Virtual Event';
+    }
+    if (event.location_type === 'hybrid') {
+      return `${event.location} + Virtual`;
+    }
+    return event.location || 'Location TBD';
+  };
+
+  if (!event) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Loading conference details...</p>
+        <p className="text-gray-600">Loading event details...</p>
       </div>
     );
   }
@@ -139,68 +158,80 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back to Conferences
+            Back to Events
           </button>
 
-          <h1 className="text-3xl font-bold mb-2">{conference.name}</h1>
+          <h1 className="text-3xl font-bold mb-2">{event.name}</h1>
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{conference.location}</span>
+              {event.location_type === 'virtual' ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+              <span>{getLocationDisplay()}</span>
             </div>
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              <span>{formatDate(conference.start_date)} - {formatDate(conference.end_date)}</span>
+              <span>
+                {formatDate(event.start_date, event.start_time)}
+                {event.end_date && event.end_date !== event.start_date && (
+                  <> - {formatDate(event.end_date, event.end_time)}</>
+                )}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-              <span>{participants.length} Participants</span>
+              <span>{participants.length} Attendees</span>
             </div>
+            {event.price_type === 'free' && (
+              <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-medium">
+                Free
+              </span>
+            )}
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto p-5 md:p-10 space-y-8">
-        {/* Recommended Participants Section */}
         <ResearcherRecommendations
           researchers={participants}
           currentUserId={userId}
           title="Recommended to Meet"
         />
 
-        {/* All Participants Section */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-5">All Participants</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-5">All Attendees</h2>
 
-          {/* Search Bar */}
           <div className="mb-5">
             <input
               type="text"
               placeholder="Search by name, school, research areas, or interests..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
             />
           </div>
 
           {loading ? (
             <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-              Loading participants...
+              Loading attendees...
             </p>
           ) : filteredParticipants.length === 0 ? (
             <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-              {searchQuery ? 'No participants found matching your search.' : 'No participants yet.'}
+              {searchQuery ? 'No attendees found matching your search.' : 'No attendees yet.'}
             </p>
           ) : (
             <div className="bg-white rounded-xl shadow-md overflow-hidden">
-              {/* Table Header */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
@@ -262,7 +293,6 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
                 </table>
               </div>
 
-              {/* Scrollable Table Body */}
               <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                 <table className="w-full">
                   <tbody className="divide-y divide-gray-200">
@@ -309,10 +339,9 @@ export default function ConferenceDetail({ conferenceId, userId, onBack }: Confe
                 </table>
               </div>
 
-              {/* Table Footer with Count */}
               <div className="bg-gray-50 px-6 py-3 border-t border-gray-200">
                 <p className="text-sm text-gray-600">
-                  Showing {filteredParticipants.length} participant{filteredParticipants.length !== 1 ? 's' : ''}
+                  Showing {filteredParticipants.length} attendee{filteredParticipants.length !== 1 ? 's' : ''}
                   {searchQuery && ` matching "${searchQuery}"`}
                 </p>
               </div>
