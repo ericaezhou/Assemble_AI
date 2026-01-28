@@ -4,56 +4,81 @@ import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
+import { authenticatedFetch, getCurrentUser, signOut } from '@/utils/auth';
 import { useUserStore } from '@/store/userStore';
 
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const { user, fetchUser, isAuthenticated } = useUserStore();
+  const { user, setUser, clearUser } = useUserStore();
   const [view, setView] = useState<ViewState>('login');
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    if (userId && !isAuthenticated) {
-      fetchUser(Number(userId)).then((userData) => {
-        if (userData) {
-          setView('dashboard');
-        } else {
-          localStorage.removeItem('userId');
-          localStorage.removeItem('research_connect_token');
+    // Check if user is already signed in via Supabase session
+    const checkAuth = async () => {
+      try {
+        const authUser = await getCurrentUser();
+        if (authUser) {
+          // User is authenticated, fetch their profile from backend
+          const res = await authenticatedFetch(`/api/researchers/${authUser.id}`);
+          if (res.ok) {
+            const profileData = await res.json();
+            setUser(profileData);
+            setView('dashboard');
+          } else {
+            // Profile fetch failed, clear session
+            await signOut();
+            clearUser();
+          }
         }
-        setIsInitialized(true);
-      });
-    } else if (isAuthenticated && user) {
-      setView('dashboard');
-      setIsInitialized(true);
-    } else {
-      setIsInitialized(true);
-    }
-  }, []);
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        // User not authenticated, stay on login view
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleLoginSuccess = async (userId: number) => {
-    localStorage.setItem('userId', userId.toString());
-    const userData = await fetchUser(userId);
-    if (userData) {
-      setView('dashboard');
+    checkAuth();
+  }, [setUser, clearUser]);
+
+  const handleLoginSuccess = async (userId: string) => {
+    try {
+      const res = await authenticatedFetch(`/api/researchers/${userId}`);
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
+        setView('dashboard');
+      } else {
+        console.error('Failed to fetch user profile after login');
+      }
+    } catch (err) {
+      console.error('Error fetching user after login:', err);
     }
   };
 
-  const handleSignupComplete = async (userId: number) => {
-    localStorage.setItem('userId', userId.toString());
-    const userData = await fetchUser(userId);
-    if (userData) {
-      setView('dashboard');
+  const handleSignupComplete = async (userId: string) => {
+    try {
+      const res = await authenticatedFetch(`/api/researchers/${userId}`);
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
+        setView('dashboard');
+      } else {
+        console.error('Failed to fetch user profile after signup');
+      }
+    } catch (err) {
+      console.error('Error fetching user after signup:', err);
     }
   };
 
-  // Show loading state while checking auth
-  if (!isInitialized) {
+
+  // Show loading state while checking authentication
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700">
+        <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }

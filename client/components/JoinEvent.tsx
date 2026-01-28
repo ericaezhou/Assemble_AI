@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
 
 interface JoinEventProps {
-  userId: number;
+  userId: string;
   onClose: () => void;
   onSuccess: () => void;
 }

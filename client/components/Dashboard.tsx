@@ -13,8 +13,10 @@ import TopNav from './layout/TopNav';
 import { authenticatedFetch } from '@/utils/auth';
 import { UserProfile } from '@/store/userStore';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
 interface Researcher {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
   occupation?: string;
@@ -53,8 +55,8 @@ interface Event {
 }
 
 interface Conversation {
-  id: number;
-  other_user_id: number;
+  id: number; // Conversation IDs are still bigint/number from database
+  other_user_id: string; // User IDs are now UUIDs
   other_user_name: string;
   last_message: string;
   last_message_time: string;
@@ -115,7 +117,7 @@ export default function Dashboard({ user }: DashboardProps) {
     if (!user) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/conversations/user/${user.id}`);
+      const response = await fetch(`${API_BASE_URL}/api/conversations/user/${user.id}`);
       const data = await response.json();
       setConversations(data);
     } catch (err) {
@@ -171,7 +173,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/researchers/search/${encodeURIComponent(query)}`);
+      const response = await fetch(`${API_BASE_URL}/api/researchers/search/${encodeURIComponent(query)}`);
       const data = await response.json();
       setSearchResults(data.filter((r: Researcher) => r.id !== user?.id));
     } catch (err) {
@@ -188,11 +190,11 @@ export default function Dashboard({ user }: DashboardProps) {
     fetchEvents();
   };
 
-  const handleConnect = async (otherUserId: number) => {
+  const handleConnect = async (otherUserId: string) => {
     if (!user) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/conversations', {
+      const response = await fetch(`${API_BASE_URL}/api/conversations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -384,7 +386,7 @@ export default function Dashboard({ user }: DashboardProps) {
             <>
               <ResearcherRecommendations
                 researchers={recommendations}
-                currentUserId={user?.id || 0}
+                currentUserId={user?.id || ''}
                 title="Recommended for You"
                 onConnect={handleConnect}
               />

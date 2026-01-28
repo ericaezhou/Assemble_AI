@@ -1,7 +1,7 @@
 import ConversationalOnboarding from './onboarding/ConversationalOnboarding';
 
 interface OnboardingFormProps {
-  onComplete: (userId: number) => void;
+  onComplete: (userId: string) => void;
   onBackToLogin: () => void;
 }
 

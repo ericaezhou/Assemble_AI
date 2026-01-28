@@ -10,8 +10,8 @@ interface TopNavProps {
 export default function TopNav({ currentView }: TopNavProps) {
   const { user, logout } = useUserStore();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     // Redirect to login page
     window.location.href = '/';
   };

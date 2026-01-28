@@ -2,11 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const db = require('./database');
-const { sendVerificationCode, verifyCode } = require('./emailService');
-const { generateToken, authenticateToken, authorizeUser } = require('./middleware/auth');
+const { supabase } = require('./supabaseClient');
+const { authenticateToken, authorizeUser } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -14,329 +12,192 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 
-// Send verification code to email
-app.post('/api/auth/send-verification-code', async (req, res) => {
-  const { email } = req.body;
+// NOTE: Auth (signup/login) now happens client-side via Supabase
+// The frontend calls Supabase Auth directly, then uses the JWT token
+// to authenticate with these Express endpoints
 
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
-
-  // Basic email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
-
-  // Check if email already exists
-  db.get('SELECT id FROM researchers WHERE email = ?', [email], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (user) {
-      return res.status(400).json({ error: 'Email already registered' });
-    }
-
-    try {
-      const result = await sendVerificationCode(email);
-      res.json({
-        success: true,
-        message: 'Verification code sent to your email',
-        devMode: result.devMode,
-        code: result.devMode ? result.code : undefined // Only include code in dev mode
-      });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-});
-
-// Signup - Create researcher profile with password
-app.post('/api/auth/signup', async (req, res) => {
-  const {
-    name, email, password, verificationCode,
-    occupation, school, major, year, company, title, degree,
-    work_experience_years, research_area, other_description,
-    interest_areas, current_skills, hobbies,
-    // Legacy fields for backward compatibility
-    institution, research_areas, bio, interests
-  } = req.body;
-
-  // Verify the email verification code
-  const verification = verifyCode(email, verificationCode);
-  if (!verification.valid) {
-    return res.status(400).json({ error: verification.message });
-  }
-
+// Get all researchers (profiles)
+app.get('/api/researchers', async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*');
 
-    // Convert arrays to JSON strings if they're arrays
-    const interestAreasJson = Array.isArray(interest_areas) ? JSON.stringify(interest_areas) : interest_areas;
-    const currentSkillsJson = Array.isArray(current_skills) ? JSON.stringify(current_skills) : current_skills;
-    const hobbiesJson = Array.isArray(hobbies) ? JSON.stringify(hobbies) : hobbies;
-
-    const stmt = db.prepare(`
-      INSERT INTO researchers (
-        name, email, password,
-        occupation, school, major, year, company, title, degree,
-        work_experience_years, research_area, other_description,
-        interest_areas, current_skills, hobbies,
-        institution, research_areas, bio, interests
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      name, email, hashedPassword,
-      occupation, school, major, year, company, title, degree,
-      work_experience_years, research_area, other_description,
-      interestAreasJson, currentSkillsJson, hobbiesJson,
-      institution, research_areas, bio, interests,
-      function(err) {
-        if (err) {
-          return res.status(400).json({ error: err.message });
-        }
-
-        const userId = this.lastID;
-        // Generate JWT token
-        const token = generateToken(userId);
-
-        res.json({
-          id: userId,
-          token,
-          message: 'Profile created successfully'
-        });
-      }
-    );
-
-    stmt.finalize();
+if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+    res.json(profiles || []);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to create account' });
+    res.status(500).json({ error: err.message });
   }
-});
-
-// Login - Authenticate researcher
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-
-  db.get('SELECT * FROM researchers WHERE email = ?', [email], async (err, user) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    try {
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Generate JWT token
-      const token = generateToken(user.id);
-
-      const { password: _, ...userWithoutPassword } = user;
-      res.json({
-        user: userWithoutPassword,
-        token,
-        message: 'Login successful'
-      });
-    } catch (err) {
-      res.status(500).json({ error: 'Login failed' });
-    }
-  });
-});
-
-// Get all researchers
-app.get('/api/researchers', (req, res) => {
-  db.all('SELECT * FROM researchers', [], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    res.json(rows);
-  });
 });
 
 // Get researcher by ID (Protected)
-app.get('/api/researchers/:id', authenticateToken, (req, res) => {
+app.get('/api/researchers/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.get('SELECT * FROM researchers WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!row) {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !profile) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
-
-    // Parse JSON fields and remove password
-    const { password: _, ...userWithoutPassword } = row;
-    const userData = {
-      ...userWithoutPassword,
-      interest_areas: row.interest_areas ? JSON.parse(row.interest_areas) : [],
-      current_skills: row.current_skills ? JSON.parse(row.current_skills) : [],
-      hobbies: row.hobbies ? JSON.parse(row.hobbies) : [],
-    };
-
-    res.json(userData);
-  });
+res.json(profile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update researcher profile (Protected - user can only update their own profile)
-app.put('/api/researchers/:id', authenticateToken, authorizeUser, (req, res) => {
+app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, res) => {
   const { id } = req.params;
   const {
     name, occupation, school, major, year, company, title, degree,
     work_experience_years, research_area, other_description,
-    interest_areas, current_skills, hobbies,
-    // Legacy fields
-    institution, research_areas, bio, interests
+    interest_areas, current_skills, hobbies
   } = req.body;
 
-  // Build dynamic update query based on provided fields
-  const updates = [];
-  const values = [];
+  // Build dynamic update object based on provided fields
+  const updates = {};
 
-  if (name !== undefined) { updates.push('name = ?'); values.push(name); }
-  if (occupation !== undefined) { updates.push('occupation = ?'); values.push(occupation); }
-  if (school !== undefined) { updates.push('school = ?'); values.push(school); }
-  if (major !== undefined) { updates.push('major = ?'); values.push(major); }
-  if (year !== undefined) { updates.push('year = ?'); values.push(year); }
-  if (company !== undefined) { updates.push('company = ?'); values.push(company); }
-  if (title !== undefined) { updates.push('title = ?'); values.push(title); }
-  if (degree !== undefined) { updates.push('degree = ?'); values.push(degree); }
-  if (work_experience_years !== undefined) { updates.push('work_experience_years = ?'); values.push(work_experience_years); }
-  if (research_area !== undefined) { updates.push('research_area = ?'); values.push(research_area); }
-  if (other_description !== undefined) { updates.push('other_description = ?'); values.push(other_description); }
-  if (interest_areas !== undefined) {
-    const json = Array.isArray(interest_areas) ? JSON.stringify(interest_areas) : interest_areas;
-    updates.push('interest_areas = ?');
-    values.push(json);
-  }
-  if (current_skills !== undefined) {
-    const json = Array.isArray(current_skills) ? JSON.stringify(current_skills) : current_skills;
-    updates.push('current_skills = ?');
-    values.push(json);
-  }
-  if (hobbies !== undefined) {
-    const json = Array.isArray(hobbies) ? JSON.stringify(hobbies) : hobbies;
-    updates.push('hobbies = ?');
-    values.push(json);
-  }
-  // Legacy fields
-  if (institution !== undefined) { updates.push('institution = ?'); values.push(institution); }
-  if (research_areas !== undefined) { updates.push('research_areas = ?'); values.push(research_areas); }
-  if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
-  if (interests !== undefined) { updates.push('interests = ?'); values.push(interests); }
+  if (name !== undefined) updates.name = name;
+  if (occupation !== undefined) updates.occupation = occupation;
+  if (school !== undefined) updates.school = school;
+  if (major !== undefined) updates.major = major;
+  if (year !== undefined) updates.year = year;
+  if (company !== undefined) updates.company = company;
+  if (title !== undefined) updates.title = title;
+  if (degree !== undefined) updates.degree = degree;
+  if (work_experience_years !== undefined) updates.work_experience_years = work_experience_years;
+  if (research_area !== undefined) updates.research_area = research_area;
+  if (other_description !== undefined) updates.other_description = other_description;
+  if (interest_areas !== undefined) updates.interest_areas = interest_areas;
+  if (current_skills !== undefined) updates.current_skills = current_skills;
+  if (hobbies !== undefined) updates.hobbies = hobbies;
 
-  if (updates.length === 0) {
+  if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
   }
 
-  values.push(id);
+  // Add updated_at timestamp
+  updates.updated_at = new Date().toISOString();
 
-  const query = `UPDATE researchers SET ${updates.join(', ')} WHERE id = ?`;
+  try {
+    const { data: updatedProfile, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
 
-  db.run(query, values, function(err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
-    if (this.changes === 0) {
+
+    if (!updatedProfile) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
 
-    // Fetch and return the updated profile
-    db.get('SELECT * FROM researchers WHERE id = ?', [id], (err, row) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-
-      // Parse JSON fields and remove password
-      const { password: _, ...userWithoutPassword } = row;
-      const userData = {
-        ...userWithoutPassword,
-        interest_areas: row.interest_areas ? JSON.parse(row.interest_areas) : [],
-        current_skills: row.current_skills ? JSON.parse(row.current_skills) : [],
-        hobbies: row.hobbies ? JSON.parse(row.hobbies) : [],
-      };
-
-      res.json(userData);
-    });
-  });
+    res.json(updatedProfile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Search researchers
-app.get('/api/researchers/search/:query', (req, res) => {
+app.get('/api/researchers/search/:query', async (req, res) => {
   const { query } = req.params;
-  const searchPattern = `%${query}%`;
 
-  db.all(`
-    SELECT * FROM researchers
-    WHERE name LIKE ?
-       OR research_areas LIKE ?
-       OR interests LIKE ?
-       OR institution LIKE ?
-  `, [searchPattern, searchPattern, searchPattern, searchPattern], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('*');
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
-    res.json(rows);
-  });
+    
+    // Filter results manually
+    const searchLower = query.toLowerCase();
+    const filtered = (profiles || []).filter(p => {
+      return (
+        p.name?.toLowerCase().includes(searchLower) ||
+        p.research_areas?.toLowerCase().includes(searchLower) ||
+        p.interests?.toLowerCase().includes(searchLower) ||
+        p.institution?.toLowerCase().includes(searchLower)
+      );
+    });
+    
+    res.json(filtered);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get recommendations for a researcher (Protected)
-app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser, (req, res) => {
+app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser, async (req, res) => {
   const { id } = req.params;
 
-  // First get the current researcher's profile
-  db.get('SELECT * FROM researchers WHERE id = ?', [id], (err, researcher) => {
-    if (err || !researcher) {
+  try {
+    // First get the current researcher's profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (profileError || !profile) {
       return res.status(404).json({ error: 'Researcher not found' });
     }
 
-    const userInterests = researcher.interests ? researcher.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-    const userResearchAreas = researcher.research_areas ? researcher.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+    const userInterests = profile.interests ? profile.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+    const userResearchAreas = profile.research_areas ? profile.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
 
     // Get all other researchers
-    db.all('SELECT * FROM researchers WHERE id != ?', [id], (err, rows) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+    const { data: otherProfiles, error: othersError } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', id);
 
-      // Calculate similarity scores
-      const recommendations = rows.map(other => {
-        const otherInterests = other.interests ? other.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-        const otherResearchAreas = other.research_areas ? other.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+    if (othersError) {
+      return res.status(500).json({ error: othersError.message });
+    }
 
-        // Count matching interests and research areas
-        const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
-        const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
+    // Calculate similarity scores
+    const recommendations = (otherProfiles || []).map(other => {
+      const otherInterests = other.interests ? other.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+      const otherResearchAreas = other.research_areas ? other.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
 
-        const score = matchingInterests * 2 + matchingResearchAreas * 3;
+      // Count matching interests and research areas
+      const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
+      const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
 
-        return {
-          ...other,
-          similarity_score: score
-        };
-      });
+      const score = matchingInterests * 2 + matchingResearchAreas * 3;
 
-      // Sort by similarity score (highest first) and return top matches
-      // Remove password field from all recommendations
-      const cleanedRecommendations = recommendations.map(({ password, ...r }) => r);
-      cleanedRecommendations.sort((a, b) => b.similarity_score - a.similarity_score);
-
-      // Return top 20 recommendations (including those with score 0)
-      res.json(cleanedRecommendations.slice(0, 20));
+      return {
+        ...other,
+        similarity_score: score
+      };
     });
-  });
+
+    // Sort by similarity score (highest first) and return top matches
+    recommendations.sort((a, b) => b.similarity_score - a.similarity_score);
+
+    // Return top 20 recommendations (including those with score 0)
+    res.json(recommendations.slice(0, 20));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Conference endpoints
 
 // Create conference (Protected)
-app.post('/api/conferences', authenticateToken, (req, res) => {
+app.post('/api/conferences', authenticateToken, async (req, res) => {
   const {
     name, location, location_type, virtual_link,
     start_date, start_time, end_date, end_time,
@@ -352,47 +213,53 @@ app.post('/api/conferences', authenticateToken, (req, res) => {
 
   const conferenceId = crypto.randomBytes(4).toString('hex').toUpperCase();
 
-  const stmt = db.prepare(`
-    INSERT INTO conferences (
-      id, name, location, location_type, virtual_link,
-      start_date, start_time, end_date, end_time,
-      price_type, price_amount, capacity, require_approval,
-      description, rsvp_questions, host_id
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
-  stmt.run(
-    conferenceId, name, location, location_type || 'in-person', virtual_link,
-    start_date, start_time, end_date, end_time,
-    price_type || 'free', price_amount, capacity, require_approval ? 1 : 0,
-    description, rsvp_questions, host_id,
-    function(err) {
-      if (err) {
-        return res.status(400).json({ error: err.message });
-      }
-
-      const participantStmt = db.prepare(`
-        INSERT INTO conference_participants (conference_id, researcher_id)
-        VALUES (?, ?)
-      `);
-
-      participantStmt.run(conferenceId, host_id, function(err) {
-        if (err) {
-          return res.status(400).json({ error: err.message });
-        }
-        res.json({ id: conferenceId, message: 'Event created successfully' });
+  try {
+    // Create conference
+    const { error: conferenceError } = await supabase
+      .from('conferences')
+      .insert({
+        id: conferenceId,
+        name,
+        location,
+        location_type: location_type || 'in-person',
+        virtual_link,
+        start_date,
+        start_time,
+        end_date,
+        end_time,
+        price_type: price_type || 'free',
+        price_amount,
+        capacity,
+        require_approval: require_approval || false,
+        description,
+        rsvp_questions,
+        host_id
       });
 
-      participantStmt.finalize();
+    if (conferenceError) {
+      return res.status(400).json({ error: conferenceError.message });
     }
-  );
 
-  stmt.finalize();
+    // Add host as participant
+    const { error: participantError } = await supabase
+      .from('conference_participants')
+      .insert({
+        conference_id: conferenceId,
+        researcher_id: host_id
+      });
+
+    if (participantError) {
+      return res.status(400).json({ error: participantError.message });
+    }
+
+    res.json({ id: conferenceId, message: 'Event created successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Join conference (Protected)
-app.post('/api/conferences/:id/join', authenticateToken, (req, res) => {
+app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { researcher_id } = req.body;
 
@@ -401,314 +268,462 @@ app.post('/api/conferences/:id/join', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Access denied. You can only join conferences as yourself.' });
   }
 
-  db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!conference) {
+  try {
+    // Check if conference exists
+    const { data: conference, error: conferenceError } = await supabase
+      .from('conferences')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (conferenceError || !conference) {
       return res.status(404).json({ error: 'Conference not found' });
     }
 
-    db.get(
-      'SELECT * FROM conference_participants WHERE conference_id = ? AND researcher_id = ?',
-      [id, researcher_id],
-      (err, existing) => {
-        if (existing) {
-          return res.status(400).json({ error: 'Already joined this conference' });
-        }
+    // Check if already joined
+    const { data: existing, error: checkError } = await supabase
+      .from('conference_participants')
+      .select('*')
+      .eq('conference_id', id)
+      .eq('researcher_id', researcher_id)
+      .single();
 
-        const stmt = db.prepare(`
-          INSERT INTO conference_participants (conference_id, researcher_id)
-          VALUES (?, ?)
-        `);
+    if (existing) {
+      return res.status(400).json({ error: 'Already joined this conference' });
+    }
 
-        stmt.run(id, researcher_id, function(err) {
-          if (err) {
-            return res.status(400).json({ error: err.message });
-          }
-          res.json({ message: 'Joined conference successfully', conference });
-        });
+    // Join conference
+    const { error: joinError } = await supabase
+      .from('conference_participants')
+      .insert({
+        conference_id: id,
+        researcher_id
+      });
 
-        stmt.finalize();
-      }
-    );
-  });
+    if (joinError) {
+      return res.status(400).json({ error: joinError.message });
+    }
+
+    res.json({ message: 'Joined conference successfully', conference });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get user's conferences (Protected - user can only view their own conferences)
-app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, (req, res) => {
+app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, async (req, res) => {
   const { id } = req.params;
 
-  db.all(`
-    SELECT c.*,
-           CASE WHEN c.host_id = ? THEN 1 ELSE 0 END as is_host
-    FROM conferences c
-    INNER JOIN conference_participants cp ON c.id = cp.conference_id
-    WHERE cp.researcher_id = ?
-    ORDER BY c.start_date ASC
-  `, [id, id], (err, rows) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    // Get conferences where user is a participant
+    const { data: participants, error: participantsError } = await supabase
+      .from('conference_participants')
+      .select('conference_id')
+      .eq('researcher_id', id);
+
+    if (participantsError) {
+      return res.status(500).json({ error: participantsError.message });
     }
-    res.json(rows);
-  });
+
+    if (!participants || participants.length === 0) {
+      return res.json([]);
+    }
+
+    const conferenceIds = participants.map(p => p.conference_id);
+
+    // Get conference details
+    const { data: conferences, error: conferencesError } = await supabase
+      .from('conferences')
+      .select('*')
+      .in('id', conferenceIds)
+      .order('start_date', { ascending: true });
+
+    if (conferencesError) {
+      return res.status(500).json({ error: conferencesError.message });
+    }
+
+    // Add is_host field
+    const conferencesWithHost = (conferences || []).map(c => ({
+      ...c,
+      is_host: c.host_id === id ? 1 : 0
+    }));
+
+    res.json(conferencesWithHost);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get conference by ID (Protected - auth only, allows viewing any conference)
-app.get('/api/conferences/:id', authenticateToken, (req, res) => {
+app.get('/api/conferences/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
-  db.get('SELECT * FROM conferences WHERE id = ?', [id], (err, conference) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!conference) {
+  try {
+    const { data: conference, error } = await supabase
+      .from('conferences')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !conference) {
       return res.status(404).json({ error: 'Conference not found' });
     }
     res.json(conference);
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get conference participants with details (Protected - only conference participants can view)
-app.get('/api/conferences/:id/participants', authenticateToken, (req, res) => {
+app.get('/api/conferences/:id/participants', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { current_user_id } = req.query;
 
-  // First check if the authenticated user is part of this conference
-  db.get(`
-    SELECT * FROM conference_participants
-    WHERE conference_id = ? AND researcher_id = ?
-  `, [id, req.userId], (err, participation) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    if (!participation) {
+  try {
+    // First check if the authenticated user is part of this conference
+    const { data: participation, error: checkError } = await supabase
+      .from('conference_participants')
+      .select('*')
+      .eq('conference_id', id)
+      .eq('researcher_id', req.userId)
+      .single();
+
+    if (checkError || !participation) {
       return res.status(403).json({ error: 'Access denied. You must be a participant of this conference.' });
     }
 
     // User is authorized, now fetch participants
-    db.all(`
-      SELECT r.*, cp.joined_at
-      FROM researchers r
-      INNER JOIN conference_participants cp ON r.id = cp.researcher_id
-      WHERE cp.conference_id = ?
-      ORDER BY cp.joined_at ASC
-    `, [id], (err, participants) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+    // First get participant IDs
+    const { data: participantRecords, error: participantsError } = await supabase
+      .from('conference_participants')
+      .select('researcher_id, joined_at')
+      .eq('conference_id', id)
+      .order('joined_at', { ascending: true });
+
+    if (participantsError) {
+      return res.status(500).json({ error: participantsError.message });
+    }
+
+    if (!participantRecords || participantRecords.length === 0) {
+      return res.json([]);
+    }
+
+    // Get profile details for each participant
+    const profileIds = participantRecords.map(p => p.researcher_id);
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', profileIds);
+
+    if (profilesError) {
+      return res.status(500).json({ error: profilesError.message });
+    }
+
+    // Combine participant data with profile data
+    const flattenedParticipants = participantRecords.map(record => {
+      const profile = profiles.find(p => p.id === record.researcher_id);
+      return {
+        ...profile,
+        joined_at: record.joined_at
+      };
+    });
 
     if (!current_user_id) {
-      return res.json(participants.map(({ password, ...p }) => p));
+      return res.json(flattenedParticipants);
     }
 
     // Get current user's data to calculate similarity
-    db.get('SELECT * FROM researchers WHERE id = ?', [current_user_id], (err, currentUser) => {
-      if (err || !currentUser) {
-        return res.json(participants.map(({ password, ...p }) => p));
+    const { data: currentUser, error: userError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', current_user_id)
+      .single();
+
+    if (userError || !currentUser) {
+      return res.json(flattenedParticipants);
+    }
+
+    const userInterests = currentUser.interests ? currentUser.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+    const userResearchAreas = currentUser.research_areas ? currentUser.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+
+    const participantsWithScores = flattenedParticipants.map(participant => {
+      if (participant.id === current_user_id) {
+        return { ...participant, similarity_score: 0 };
       }
 
-      const userInterests = currentUser.interests ? currentUser.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-      const userResearchAreas = currentUser.research_areas ? currentUser.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+      const otherInterests = participant.interests ? participant.interests.toLowerCase().split(',').map(i => i.trim()) : [];
+      const otherResearchAreas = participant.research_areas ? participant.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
 
-      const participantsWithScores = participants.map(participant => {
-        if (participant.id === parseInt(current_user_id)) {
-          const { password, ...cleanParticipant } = participant;
-          return { ...cleanParticipant, similarity_score: 0 };
-        }
+      const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
+      const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
 
-        const otherInterests = participant.interests ? participant.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-        const otherResearchAreas = participant.research_areas ? participant.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
+      const score = matchingInterests * 2 + matchingResearchAreas * 3;
 
-        const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
-        const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
-
-        const score = matchingInterests * 2 + matchingResearchAreas * 3;
-
-        const { password, ...cleanParticipant } = participant;
-        return { ...cleanParticipant, similarity_score: score };
-      });
-
-      res.json(participantsWithScores);
+      return { ...participant, similarity_score: score };
     });
-    });
-  });
+
+    res.json(participantsWithScores);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get or create conversation between two users
-app.post('/api/conversations', (req, res) => {
+app.post('/api/conversations', async (req, res) => {
   const { user1_id, user2_id } = req.body;
 
-  // Ensure consistent ordering (lower ID always as participant1)
-  const participant1_id = Math.min(user1_id, user2_id);
-  const participant2_id = Math.max(user1_id, user2_id);
+  // Ensure consistent ordering (lexicographically smaller UUID always as participant1)
+  const participant1_id = user1_id < user2_id ? user1_id : user2_id;
+  const participant2_id = user1_id < user2_id ? user2_id : user1_id;
 
-  // Check if conversation already exists
-  db.get(`
-    SELECT * FROM conversations
-    WHERE participant1_id = ? AND participant2_id = ?
-  `, [participant1_id, participant2_id], (err, conversation) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    // Check if conversation already exists
+    const { data: existingConversation, error: checkError } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('participant1_id', participant1_id)
+      .eq('participant2_id', participant2_id)
+      .single();
 
-    if (conversation) {
+    if (existingConversation) {
       // Conversation exists, return it
-      return res.json(conversation);
+      return res.json(existingConversation);
     }
 
     // Create new conversation
-    db.run(`
-      INSERT INTO conversations (participant1_id, participant2_id)
-      VALUES (?, ?)
-    `, [participant1_id, participant2_id], function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
+    const { data: newConversation, error: createError } = await supabase
+      .from('conversations')
+      .insert({
+        participant1_id,
+        participant2_id
+      })
+      .select()
+      .single();
 
-      const conversationId = this.lastID;
+    if (createError) {
+      return res.status(500).json({ error: createError.message });
+    }
 
-      // Get both users' data to generate intro message
-      db.get('SELECT * FROM researchers WHERE id = ?', [user1_id], (err, user1) => {
-        if (err) {
-          return res.status(500).json({ error: err.message });
-        }
+    const conversationId = newConversation.id;
 
-        db.get('SELECT * FROM researchers WHERE id = ?', [user2_id], (err, user2) => {
-          if (err) {
-            return res.status(500).json({ error: err.message });
-          }
+    // Get both users' data to generate intro message
+    const { data: user1, error: user1Error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user1_id)
+      .single();
 
-          // Find common interests
-          const user1Interests = user1.interests ? user1.interests.split(',').map(i => i.trim()) : [];
-          const user2Interests = user2.interests ? user2.interests.split(',').map(i => i.trim()) : [];
-          const commonInterests = user1Interests.filter(i =>
-            user2Interests.some(j => j.toLowerCase() === i.toLowerCase())
-          );
+    if (user1Error) {
+      return res.status(500).json({ error: user1Error.message });
+    }
 
-          // Generate intro message
-          let introMessage;
-          if (commonInterests.length > 0) {
-            const interestList = commonInterests.slice(0, 3).join(', ');
-            introMessage = `Hi ${user1.name} and ${user2.name}! Looks like you might be interested in chatting about ${interestList}!`;
-          } else {
-            introMessage = `Hi ${user1.name} and ${user2.name}! Welcome to your conversation. Feel free to introduce yourselves and discuss your research!`;
-          }
+    const { data: user2, error: user2Error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user2_id)
+      .single();
 
-          // Insert system intro message
-          db.run(`
-            INSERT INTO messages (conversation_id, sender_id, content, is_system_message)
-            VALUES (?, ?, ?, 1)
-          `, [conversationId, user1_id, introMessage], (err) => {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
+    if (user2Error) {
+      return res.status(500).json({ error: user2Error.message });
+    }
 
-            // Return the new conversation
-            db.get('SELECT * FROM conversations WHERE id = ?', [conversationId], (err, newConversation) => {
-              if (err) {
-                return res.status(500).json({ error: err.message });
-              }
-              res.json(newConversation);
-            });
-          });
-        });
+    // Find common interests
+    const user1Interests = user1.interests ? user1.interests.split(',').map(i => i.trim()) : [];
+    const user2Interests = user2.interests ? user2.interests.split(',').map(i => i.trim()) : [];
+    const commonInterests = user1Interests.filter(i =>
+      user2Interests.some(j => j.toLowerCase() === i.toLowerCase())
+    );
+
+    // Generate intro message
+    let introMessage;
+    if (commonInterests.length > 0) {
+      const interestList = commonInterests.slice(0, 3).join(', ');
+      introMessage = `Hi ${user1.name} and ${user2.name}! Looks like you might be interested in chatting about ${interestList}!`;
+    } else {
+      introMessage = `Hi ${user1.name} and ${user2.name}! Welcome to your conversation. Feel free to introduce yourselves and discuss your research!`;
+    }
+
+    // Insert system intro message
+    const { error: messageError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user1_id,
+        content: introMessage,
+        is_system_message: true
       });
-    });
-  });
+
+    if (messageError) {
+      return res.status(500).json({ error: messageError.message });
+    }
+
+    res.json(newConversation);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get user's conversations
-app.get('/api/conversations/user/:userId', (req, res) => {
+app.get('/api/conversations/user/:userId', async (req, res) => {
   const { userId } = req.params;
 
-  db.all(`
-    SELECT
-      c.*,
-      CASE
-        WHEN c.participant1_id = ? THEN c.participant2_id
-        ELSE c.participant1_id
-      END as other_user_id,
-      CASE
-        WHEN c.participant1_id = ? THEN r2.name
-        ELSE r1.name
-      END as other_user_name,
-      m.content as last_message,
-      m.created_at as last_message_time
-    FROM conversations c
-    LEFT JOIN researchers r1 ON c.participant1_id = r1.id
-    LEFT JOIN researchers r2 ON c.participant2_id = r2.id
-    LEFT JOIN (
-      SELECT conversation_id, content, created_at
-      FROM messages
-      WHERE id IN (
-        SELECT MAX(id) FROM messages GROUP BY conversation_id
-      )
-    ) m ON c.id = m.conversation_id
-    WHERE c.participant1_id = ? OR c.participant2_id = ?
-    ORDER BY c.last_message_at DESC
-  `, [userId, userId, userId, userId], (err, conversations) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    // Get conversations where user is a participant
+    const { data: conversations, error: conversationsError } = await supabase
+      .from('conversations')
+      .select('*')
+      .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
+      .order('last_message_at', { ascending: false });
+
+    if (conversationsError) {
+      return res.status(500).json({ error: conversationsError.message });
     }
-    res.json(conversations);
-  });
+
+    if (!conversations || conversations.length === 0) {
+      return res.json([]);
+    }
+
+    // Get participant details
+    const participantIds = new Set();
+    conversations.forEach(conv => {
+      participantIds.add(conv.participant1_id);
+      participantIds.add(conv.participant2_id);
+    });
+
+    const { data: participants, error: participantsError } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', Array.from(participantIds));
+
+    if (participantsError) {
+      return res.status(500).json({ error: participantsError.message });
+    }
+
+    const participantMap = new Map((participants || []).map(p => [p.id, p]));
+
+    // Get last message for each conversation
+    const conversationsWithMessages = await Promise.all(
+      conversations.map(async (conv) => {
+        const { data: lastMessage } = await supabase
+          .from('messages')
+          .select('content, created_at')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        const otherUserId = conv.participant1_id === userId 
+          ? conv.participant2_id 
+          : conv.participant1_id;
+        const otherUser = participantMap.get(otherUserId);
+
+        return {
+          ...conv,
+          other_user_id: otherUserId,
+          other_user_name: otherUser?.name || null,
+          last_message: lastMessage?.content || null,
+          last_message_time: lastMessage?.created_at || null
+        };
+      })
+    );
+
+    res.json(conversationsWithMessages);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get messages in a conversation
-app.get('/api/conversations/:id/messages', (req, res) => {
+app.get('/api/conversations/:id/messages', async (req, res) => {
   const { id } = req.params;
 
-  db.all(`
-    SELECT m.*, r.name as sender_name
-    FROM messages m
-    LEFT JOIN researchers r ON m.sender_id = r.id
-    WHERE m.conversation_id = ?
-    ORDER BY m.created_at ASC
-  `, [id], (err, messages) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    const { data: messages, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
-    res.json(messages);
-  });
+
+    if (!messages || messages.length === 0) {
+      return res.json([]);
+    }
+
+    // Get sender names
+    const senderIds = [...new Set(messages.map(m => m.sender_id))];
+    const { data: senders, error: sendersError } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', senderIds);
+
+    if (sendersError) {
+      return res.status(500).json({ error: sendersError.message });
+    }
+
+    const senderMap = new Map((senders || []).map(s => [s.id, s]));
+
+    // Add sender names to messages
+    const messagesWithNames = messages.map(m => ({
+      ...m,
+      sender_name: senderMap.get(m.sender_id)?.name || null
+    }));
+
+    res.json(messagesWithNames);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Send a message
-app.post('/api/messages', (req, res) => {
+app.post('/api/messages', async (req, res) => {
   const { conversation_id, sender_id, content } = req.body;
 
-  db.run(`
-    INSERT INTO messages (conversation_id, sender_id, content)
-    VALUES (?, ?, ?)
-  `, [conversation_id, sender_id, content], function(err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+  try {
+    // Insert message
+    const { data: newMessage, error: insertError } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id,
+        sender_id,
+        content
+      })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
     }
 
-    // Update conversation's last_message_at
-    db.run(`
-      UPDATE conversations
-      SET last_message_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [conversation_id], (err) => {
-      if (err) {
-        console.error('Failed to update conversation timestamp:', err);
-      }
-    });
+    // Get sender name
+    const { data: sender, error: senderError } = await supabase
+      .from('profiles')
+      .select('name')
+      .eq('id', sender_id)
+      .single();
 
-    // Return the new message
-    db.get(`
-      SELECT m.*, r.name as sender_name
-      FROM messages m
-      LEFT JOIN researchers r ON m.sender_id = r.id
-      WHERE m.id = ?
-    `, [this.lastID], (err, message) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json(message);
-    });
-  });
+    // Update conversation's last_message_at
+    const { error: updateError } = await supabase
+      .from('conversations')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('id', conversation_id);
+
+    if (updateError) {
+      console.error('Failed to update conversation timestamp:', updateError);
+    }
+
+    // Add sender name to message
+    const messageWithName = {
+      ...newMessage,
+      sender_name: sender?.name || null
+    };
+
+    res.json(messageWithName);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {

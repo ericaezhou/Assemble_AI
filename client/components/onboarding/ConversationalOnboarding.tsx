@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { setToken } from '@/utils/auth';
+import { signUp } from '@/utils/auth';
 import { onboardingQuestions, getVisibleQuestions, QuestionConfig } from '@/utils/onboardingQuestions';
 import { INTEREST_AREAS, SKILLS, HOBBIES } from '@/utils/profileOptions';
 import QuestionContainer from './QuestionContainer';
@@ -14,7 +14,7 @@ import VerificationQuestion from './questions/VerificationQuestion';
 import CompletionScreen from './questions/CompletionScreen';
 
 interface ConversationalOnboardingProps {
-  onComplete: (userId: number) => void;
+  onComplete: (userId: string) => void;
   onBackToLogin: () => void;
 }
 
@@ -132,25 +132,42 @@ export default function ConversationalOnboarding({
     setLoading(true);
 
     try {
-      const { confirmPassword, ...signupData } = formData;
-      const response = await fetch('http://localhost:5000/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupData),
-      });
+      const { confirmPassword, verificationCode, ...profileFields } = formData;
 
-      const data = await response.json();
-
-      if (response.ok) {
-        if (data.token) {
-          setToken(data.token);
+      // Use Supabase auth signUp
+      const result = await signUp(
+        formData.email,
+        formData.password,
+        {
+          name: profileFields.name,
+          occupation: profileFields.occupation,
+          school: profileFields.school,
+          major: profileFields.major,
+          year: profileFields.year,
+          company: profileFields.company,
+          title: profileFields.title,
+          work_experience_years: profileFields.work_experience_years,
+          degree: profileFields.degree,
+          research_area: profileFields.research_area,
+          other_description: profileFields.other_description,
+          interest_areas: profileFields.interest_areas,
+          current_skills: profileFields.current_skills,
+          hobbies: profileFields.hobbies,
         }
-        onComplete(data.id);
-      } else {
-        setErrors({ completion: data.error || 'Failed to create profile' });
+      );
+
+      // Check if email confirmation is required
+      if (result.needsEmailConfirmation) {
+        setErrors({ completion: 'Please check your email to confirm your account, then sign in.' });
+        // Optionally redirect to login after a delay
+        setTimeout(() => onBackToLogin(), 3000);
+        return;
       }
-    } catch (err) {
-      setErrors({ completion: 'Network error. Please try again.' });
+
+      // Success - pass the UUID to parent
+      onComplete(result.user.id);
+    } catch (err: any) {
+      setErrors({ completion: err.message || 'Failed to create profile. Please try again.' });
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { authenticatedFetch } from '@/utils/auth';
+import { authenticatedFetch, signOut } from '@/utils/auth';
 
 export interface UserProfile {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
   occupation?: string;
@@ -16,14 +16,9 @@ export interface UserProfile {
   degree?: string;
   research_area?: string;
   other_description?: string;
-  interest_areas: string[];
-  current_skills: string[];
-  hobbies: string[];
-  // Legacy fields
-  institution?: string;
-  research_areas?: string;
-  bio?: string;
-  interests?: string;
+  interest_areas?: string[];
+  current_skills?: string[];
+  hobbies?: string[];
 }
 
 interface UserState {
@@ -41,9 +36,9 @@ interface UserState {
   setError: (error: string | null) => void;
 
   // Async actions
-  fetchUser: (userId: number) => Promise<UserProfile | null>;
+  fetchUser: (userId: string) => Promise<UserProfile | null>;
   saveProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 export const useUserStore = create<UserState>()(
@@ -67,7 +62,7 @@ export const useUserStore = create<UserState>()(
 
       setError: (error) => set({ error }),
 
-      fetchUser: async (userId: number) => {
+      fetchUser: async (userId: string) => {
         set({ isLoading: true, error: null });
         try {
           const response = await authenticatedFetch(`/api/researchers/${userId}`);
@@ -116,9 +111,12 @@ export const useUserStore = create<UserState>()(
         }
       },
 
-      logout: () => {
-        localStorage.removeItem('research_connect_token');
-        localStorage.removeItem('userId');
+      logout: async () => {
+        try {
+          await signOut(); // Sign out from Supabase
+        } catch (err) {
+          console.error('Error signing out:', err);
+        }
         set({ user: null, isAuthenticated: false, error: null });
       },
     }),

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { setToken } from '@/utils/auth';
+import { signIn } from '@/utils/auth';
 
 interface LoginProps {
-  onLoginSuccess: (userId: number) => void;
+  onLoginSuccess: (userId: string) => void;
   onSignupClick: () => void;
 }
 
@@ -30,27 +30,14 @@ export default function Login({ onLoginSuccess, onSignupClick }: LoginProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
+      // Sign in with Supabase Auth (client-side)
+      const { user } = await signIn(formData.email, formData.password);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Store JWT token in localStorage
-        if (data.token) {
-          setToken(data.token);
-        }
-        onLoginSuccess(data.user.id);
-      } else {
-        setError(data.error || 'Login failed');
-      }
-    } catch (err) {
-      setError('Network error. Please try again.');
+      // Session and token are automatically stored by Supabase
+      // Call success callback with user ID (UUID)
+      onLoginSuccess(user.id);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 'use client';
 
 interface Researcher {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
   institution?: string;
@@ -13,7 +13,7 @@ interface Researcher {
 
 interface ResearcherCardProps {
   researcher: Researcher;
-  onConnect?: (researcherId: number) => void;
+  onConnect?: (researcherId: string) => void;
 }
 
 export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
