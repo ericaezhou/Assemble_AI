@@ -3,7 +3,7 @@ Profile DTO - User/Researcher profile data model
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Union, Any
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 
@@ -33,9 +33,9 @@ class ProfileDTO(BaseModel):
     expected_grad_date: Optional[str] = Field(None, description="Expected graduation date")
 
     # Research related
-    research_areas: Optional[str] = Field(None, description="Research areas (plural)")
+    research_areas: Optional[List[str]] = Field(None, description="Research areas (plural)")
     research_area: Optional[str] = Field(None, description="Research area (singular)")
-    interest_areas: Optional[str] = Field(None, description="Areas of interest")
+    interest_areas: Optional[List[str]] = Field(None, description="Areas of interest")
     interests: Optional[str] = Field(None, description="General interests")
     publications: Optional[str] = Field(None, description="Publications")
 
@@ -45,8 +45,8 @@ class ProfileDTO(BaseModel):
     work_experience_years: Optional[str] = Field(None, description="Years of work experience")
 
     # Skills and hobbies
-    current_skills: Optional[str] = Field(None, description="Current skills")
-    hobbies: Optional[str] = Field(None, description="Hobbies")
+    current_skills: Optional[List[str]] = Field(None, description="Current skills")
+    hobbies: Optional[List[str]] = Field(None, description="Hobbies")
 
     # Social media
     github: Optional[str] = Field(None, description="GitHub profile URL")
