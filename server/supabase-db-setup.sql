@@ -192,9 +192,9 @@ ALTER TABLE public.profiles RENAME COLUMN yoe TO work_experience_years;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS degree text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS other_description text;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS research_area text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS interest_areas text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_skills text;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS hobbies text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS interest_areas text[];
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_skills text[];
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS hobbies text[];
 
 -- Add extra conference fields
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS location_type text DEFAULT 'in-person';

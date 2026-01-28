@@ -57,15 +57,6 @@ export const onboardingQuestions: QuestionConfig[] = [
     },
   },
 
-  // Verification code
-  {
-    id: 'verification',
-    type: 'verification',
-    question: "Let's verify that email",
-    subtitle: 'We sent a code to',
-    field: 'verificationCode',
-  },
-
   // Password
   {
     id: 'password',

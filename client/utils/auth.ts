@@ -45,7 +45,6 @@ export async function signUp(
   if (!data.user) throw new Error('Failed to create user');
 
   // If there's no session, email confirmation is required
-  // Don't try to update profile yet - wait until they confirm email
   if (!data.session) {
     return {
       user: data.user,
@@ -55,6 +54,21 @@ export async function signUp(
   }
 
   // Session exists, user can access immediately - update profile with additional fields
+  // Small delay to ensure the trigger has created the profile row
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // Check if profile exists (created by database trigger)
+  const { data: existingProfile, error: fetchError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', data.user.id)
+    .single();
+
+  if (fetchError || !existingProfile) {
+    throw new Error('Profile creation failed. Please try again.');
+  }
+
+  // Update profile with additional fields from onboarding
   const { error: profileError } = await supabase
     .from('profiles')
     .update({
