@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../research_connect.db');
+const dbPath = path.join(__dirname, '../assemble_ai.db');
 const db = new sqlite3.Database(dbPath);
 
 async function cleanupTestData() {

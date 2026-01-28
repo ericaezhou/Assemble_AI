@@ -4,65 +4,84 @@ import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
-import { authenticatedFetch } from '@/utils/auth';
-
-interface Researcher {
-  id: number;
-  name: string;
-  email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
-}
+import { authenticatedFetch, getCurrentUser, signOut } from '@/utils/auth';
+import { useUserStore } from '@/store/userStore';
 
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const [currentUser, setCurrentUser] = useState<Researcher | null>(null);
+  const { user, setUser, clearUser } = useUserStore();
   const [view, setView] = useState<ViewState>('login');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
-    if (userId) {
-      authenticatedFetch(`/api/researchers/${userId}`)
-        .then(res => res.json())
-        .then(data => {
-          setCurrentUser(data);
-          setView('dashboard');
-        })
-        .catch(err => {
-          console.error('Error fetching user:', err);
-          localStorage.removeItem('userId');
-        });
+    // Check if user is already signed in via Supabase session
+    const checkAuth = async () => {
+      try {
+        const authUser = await getCurrentUser();
+        if (authUser) {
+          // User is authenticated, fetch their profile from backend
+          const res = await authenticatedFetch(`/api/researchers/${authUser.id}`);
+          if (res.ok) {
+            const profileData = await res.json();
+            setUser(profileData);
+            setView('dashboard');
+          } else {
+            // Profile fetch failed, clear session
+            await signOut();
+            clearUser();
+          }
+        }
+      } catch (err) {
+        console.error('Error checking auth:', err);
+        // User not authenticated, stay on login view
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [setUser, clearUser]);
+
+  const handleLoginSuccess = async (userId: string) => {
+    try {
+      const res = await authenticatedFetch(`/api/researchers/${userId}`);
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
+        setView('dashboard');
+      } else {
+        console.error('Failed to fetch user profile after login');
+      }
+    } catch (err) {
+      console.error('Error fetching user after login:', err);
     }
-  }, []);
+  };
 
-  const handleLoginSuccess = (userId: number) => {
-    localStorage.setItem('userId', userId.toString());
-    authenticatedFetch(`/api/researchers/${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setCurrentUser(data);
+  const handleSignupComplete = async (userId: string) => {
+    try {
+      const res = await authenticatedFetch(`/api/researchers/${userId}`);
+      if (res.ok) {
+        const profileData = await res.json();
+        setUser(profileData);
         setView('dashboard');
-      });
+      } else {
+        console.error('Failed to fetch user profile after signup');
+      }
+    } catch (err) {
+      console.error('Error fetching user after signup:', err);
+    }
   };
 
-  const handleSignupComplete = (userId: number) => {
-    localStorage.setItem('userId', userId.toString());
-    authenticatedFetch(`/api/researchers/${userId}`)
-      .then(res => res.json())
-      .then(data => {
-        setCurrentUser(data);
-        setView('dashboard');
-      });
-  };
 
-  const handleLogout = () => {
-    localStorage.removeItem('userId');
-    setCurrentUser(null);
-    setView('login');
-  };
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -79,7 +98,7 @@ export default function Home() {
         />
       )}
       {view === 'dashboard' && (
-        <Dashboard user={currentUser} onLogout={handleLogout} />
+        <Dashboard user={user} />
       )}
     </>
   );

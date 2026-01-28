@@ -1,5 +1,5 @@
 {
-  "name": "research-connect",
+  "name": "assemble-ai",
   "version": "1.0.0",
   "description": "Research conference discovery tool",
   "main": "server/index.js",
@@ -18,7 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "bcrypt": "^6.0.0",
+    "@supabase/supabase-js": "^2.90.1",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

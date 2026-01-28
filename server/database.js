@@ -1,7 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'research_connect.db');
+const dbPath = path.join(__dirname, 'assemble_ai.db');
 const db = new sqlite3.Database(dbPath);
 
 // Initialize database schema
@@ -24,9 +24,19 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS conferences (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      location TEXT NOT NULL,
+      location TEXT,
+      location_type TEXT DEFAULT 'in-person',
+      virtual_link TEXT,
       start_date TEXT NOT NULL,
-      end_date TEXT NOT NULL,
+      start_time TEXT,
+      end_date TEXT,
+      end_time TEXT,
+      price_type TEXT DEFAULT 'free',
+      price_amount REAL,
+      capacity INTEGER,
+      require_approval BOOLEAN DEFAULT 0,
+      description TEXT,
+      rsvp_questions TEXT,
       host_id INTEGER NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (host_id) REFERENCES researchers(id)

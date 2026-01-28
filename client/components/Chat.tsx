@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+
 interface Message {
   id: number;
   conversation_id: number;
-  sender_id: number;
+  sender_id: string;
   sender_name: string;
   content: string;
   is_system_message: boolean;
@@ -14,7 +16,7 @@ interface Message {
 
 interface ChatProps {
   conversationId: number;
-  currentUserId: number;
+  currentUserId: string;
   otherUserName: string;
   onBack: () => void;
 }
@@ -40,7 +42,7 @@ export default function Chat({ conversationId, currentUserId, otherUserName, onB
 
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`http://localhost:5000/api/conversations/${conversationId}/messages`);
+      const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`);
       const data = await response.json();
       setMessages(data);
     } catch (error) {
@@ -58,7 +60,7 @@ export default function Chat({ conversationId, currentUserId, otherUserName, onB
     setSending(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/messages', {
+      const response = await fetch(`${API_BASE_URL}/api/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

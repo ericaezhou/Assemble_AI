@@ -3,13 +3,13 @@
 import { useState } from 'react';
 
 interface Researcher {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
+  institution?: string;
+  research_areas?: string;
+  bio?: string;
+  interests?: string;
   similarity_score?: number;
 }
 

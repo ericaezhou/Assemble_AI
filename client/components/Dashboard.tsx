@@ -3,65 +3,88 @@
 import { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
 import ResearcherRecommendations from './ResearcherRecommendations';
-import ConferenceCard from './ConferenceCard';
-import CreateConference from './CreateConference';
-import JoinConference from './JoinConference';
-import ConferenceDetail from './ConferenceDetail';
+import EventCard from './EventCard';
+import CreateEvent from './CreateEvent';
+import JoinEvent from './JoinEvent';
+import EventDetail from './EventDetail';
 import Chat from './Chat';
+import MiniProfile from './profile/MiniProfile';
+import TopNav from './layout/TopNav';
 import { authenticatedFetch } from '@/utils/auth';
+import { UserProfile } from '@/store/userStore';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
 interface Researcher {
-  id: number;
+  id: string; // UUID from Supabase Auth
   name: string;
   email: string;
-  institution: string;
-  research_areas: string;
-  bio: string;
-  interests: string;
+  occupation?: string;
+  school?: string;
+  major?: string;
+  year?: string;
+  company?: string;
+  title?: string;
+  work_experience_years?: string;
+  degree?: string;
+  research_area?: string;
+  other_description?: string;
+  interest_areas?: string[];
+  current_skills?: string[];
+  hobbies?: string[];
+  institution?: string;
+  research_areas?: string;
+  bio?: string;
+  interests?: string;
   similarity_score?: number;
 }
 
-interface Conference {
+interface Event {
   id: string;
   name: string;
   location: string;
+  location_type?: string;
+  virtual_link?: string;
   start_date: string;
+  start_time?: string;
   end_date: string;
+  end_time?: string;
   is_host: number;
+  price_type?: string;
+  capacity?: number;
 }
 
 interface Conversation {
-  id: number;
-  other_user_id: number;
+  id: number; // Conversation IDs are still bigint/number from database
+  other_user_id: string; // User IDs are now UUIDs
   other_user_name: string;
   last_message: string;
   last_message_time: string;
 }
 
 interface DashboardProps {
-  user: Researcher | null;
-  onLogout: () => void;
+  user: UserProfile | null;
 }
 
-type ActiveView = 'conferences' | 'researchers' | 'connections';
+type ActiveView = 'events' | 'researchers' | 'connections';
 
-export default function Dashboard({ user, onLogout }: DashboardProps) {
-  const [activeView, setActiveView] = useState<ActiveView>('conferences');
+export default function Dashboard({ user }: DashboardProps) {
+  const [activeView, setActiveView] = useState<ActiveView>('events');
   const [recommendations, setRecommendations] = useState<Researcher[]>([]);
   const [searchResults, setSearchResults] = useState<Researcher[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [conferences, setConferences] = useState<Conference[]>([]);
-  const [showCreateConference, setShowCreateConference] = useState(false);
-  const [showJoinConference, setShowJoinConference] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedConferenceId, setSelectedConferenceId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<{ id: number; otherUserName: string } | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchRecommendations();
-      fetchConferences();
+      fetchEvents();
       fetchConversations();
     }
   }, [user]);
@@ -78,15 +101,15 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   };
 
-  const fetchConferences = async () => {
+  const fetchEvents = async () => {
     if (!user) return;
 
     try {
       const response = await authenticatedFetch(`/api/researchers/${user.id}/conferences`);
       const data = await response.json();
-      setConferences(data);
+      setEvents(data);
     } catch (err) {
-      console.error('Error fetching conferences:', err);
+      console.error('Error fetching events:', err);
     }
   };
 
@@ -94,7 +117,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     if (!user) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/conversations/user/${user.id}`);
+      const response = await fetch(`${API_BASE_URL}/api/conversations/user/${user.id}`);
       const data = await response.json();
       setConversations(data);
     } catch (err) {
@@ -108,33 +131,33 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleCreateSuccess = (conferenceId: string) => {
-    setShowCreateConference(false);
-    fetchConferences();
-    handleCopyId(conferenceId);
+  const handleCreateSuccess = (eventId: string) => {
+    setShowCreateEvent(false);
+    fetchEvents();
+    handleCopyId(eventId);
   };
 
   const handleJoinSuccess = () => {
-    setShowJoinConference(false);
-    fetchConferences();
+    setShowJoinEvent(false);
+    fetchEvents();
   };
 
-  const groupConferences = () => {
+  const groupEvents = () => {
     const now = new Date();
-    const upcoming: Conference[] = [];
-    const current: Conference[] = [];
-    const past: Conference[] = [];
+    const upcoming: Event[] = [];
+    const current: Event[] = [];
+    const past: Event[] = [];
 
-    conferences.forEach(conf => {
-      const startDate = new Date(conf.start_date);
-      const endDate = new Date(conf.end_date);
+    events.forEach(event => {
+      const startDate = new Date(event.start_date);
+      const endDate = new Date(event.end_date);
 
       if (now < startDate) {
-        upcoming.push(conf);
+        upcoming.push(event);
       } else if (now >= startDate && now <= endDate) {
-        current.push(conf);
+        current.push(event);
       } else {
-        past.push(conf);
+        past.push(event);
       }
     });
 
@@ -150,7 +173,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/researchers/search/${encodeURIComponent(query)}`);
+      const response = await fetch(`${API_BASE_URL}/api/researchers/search/${encodeURIComponent(query)}`);
       const data = await response.json();
       setSearchResults(data.filter((r: Researcher) => r.id !== user?.id));
     } catch (err) {
@@ -158,20 +181,20 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     }
   };
 
-  const handleConferenceClick = (conferenceId: string) => {
-    setSelectedConferenceId(conferenceId);
+  const handleEventClick = (eventId: string) => {
+    setSelectedEventId(eventId);
   };
 
-  const handleBackToConferences = () => {
-    setSelectedConferenceId(null);
-    fetchConferences(); // Refresh conferences when coming back
+  const handleBackToEvents = () => {
+    setSelectedEventId(null);
+    fetchEvents();
   };
 
-  const handleConnect = async (otherUserId: number) => {
+  const handleConnect = async (otherUserId: string) => {
     if (!user) return;
 
     try {
-      const response = await fetch('http://localhost:5000/api/conversations', {
+      const response = await fetch(`${API_BASE_URL}/api/conversations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -184,7 +207,6 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
       const conversation = await response.json();
 
-      // Search in both recommendations and search results to find the researcher
       const otherUser = [...recommendations, ...searchResults].find((r: Researcher) => r.id === otherUserId);
 
       if (otherUser) {
@@ -192,7 +214,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           id: conversation.id,
           otherUserName: otherUser.name
         });
-        fetchConversations(); // Refresh conversation list
+        fetchConversations();
       }
     } catch (err) {
       console.error('Error creating/getting conversation:', err);
@@ -209,10 +231,10 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
   const handleBackToDashboard = () => {
     setActiveConversation(null);
-    fetchConversations(); // Refresh conversations
+    fetchConversations();
   };
 
-  const { upcoming, current, past } = groupConferences();
+  const { upcoming, current, past } = groupEvents();
 
   // Show chat if a conversation is active
   if (activeConversation && user) {
@@ -226,61 +248,38 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     );
   }
 
-  // Show conference detail page if a conference is selected
-  if (selectedConferenceId && user) {
+  // Show event detail page if an event is selected
+  if (selectedEventId && user) {
     return (
-      <ConferenceDetail
-        conferenceId={selectedConferenceId}
+      <EventDetail
+        eventId={selectedEventId}
         userId={user.id}
-        onBack={handleBackToConferences}
+        onBack={handleBackToEvents}
       />
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gradient-to-r from-indigo-500 via-purple-500 to-purple-700 text-white shadow-lg">
-        <div className="max-w-7xl mx-auto px-5 py-5 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Research Connect</h1>
-          <div className="flex items-center gap-5">
-            <span className="text-sm">Welcome, {user?.name}</span>
-            <button
-              onClick={onLogout}
-              className="bg-white/20 border-2 border-white px-5 py-2 rounded-lg font-semibold hover:bg-white/30 transition-colors"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
+      <TopNav currentView="home" />
 
-      <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[350px_1fr] gap-8">
+      <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-5">Your Profile</h2>
-          <div className="bg-white p-6 rounded-xl shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-2">{user?.name}</h3>
-            <p className="text-gray-600 italic mb-4">{user?.institution}</p>
-            <p className="text-gray-700 text-sm mb-3 leading-relaxed">
-              <strong>Research Areas:</strong> {user?.research_areas || 'Not specified'}
-            </p>
-            <p className="text-gray-700 text-sm mb-3 leading-relaxed">
-              <strong>Interests:</strong> {user?.interests || 'Not specified'}
-            </p>
-            <p className="text-gray-600 mt-4 leading-relaxed">{user?.bio}</p>
-          </div>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Your Profile</h2>
+          {user && <MiniProfile user={user} />}
         </div>
 
         <div>
           <div className="flex gap-3 mb-5 border-b border-gray-200">
             <button
-              onClick={() => setActiveView('conferences')}
+              onClick={() => setActiveView('events')}
               className={`px-4 py-2 font-semibold transition-colors ${
-                activeView === 'conferences'
+                activeView === 'events'
                   ? 'text-indigo-600 border-b-2 border-indigo-600'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
-              Conferences
+              Events
             </button>
             <button
               onClick={() => setActiveView('researchers')}
@@ -304,32 +303,32 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             </button>
           </div>
 
-          {activeView === 'conferences' ? (
+          {activeView === 'events' ? (
             <>
               <div className="flex gap-3 mb-5">
                 <button
-                  onClick={() => setShowCreateConference(true)}
+                  onClick={() => setShowCreateEvent(true)}
                   className="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all"
                 >
-                  Create Conference
+                  Create Event
                 </button>
                 <button
-                  onClick={() => setShowJoinConference(true)}
+                  onClick={() => setShowJoinEvent(true)}
                   className="px-5 py-2.5 border-2 border-indigo-500 text-indigo-600 rounded-lg font-semibold hover:bg-indigo-50 transition-colors"
                 >
-                  Join Conference
+                  Join Event
                 </button>
               </div>
 
               {copiedId && (
                 <div className="mb-5 bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm">
-                  Conference ID copied to clipboard!
+                  Event ID copied to clipboard!
                 </div>
               )}
 
-              {conferences.length === 0 ? (
+              {events.length === 0 ? (
                 <p className="text-center text-gray-600 py-10 bg-white rounded-xl">
-                  No conferences yet. Create or join a conference to get started!
+                  No events yet. Create or join an event to get started!
                 </p>
               ) : (
                 <div className="space-y-8">
@@ -337,12 +336,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Current</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {current.map(conference => (
-                          <ConferenceCard
-                            key={conference.id}
-                            conference={conference}
+                        {current.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
                             onCopyId={handleCopyId}
-                            onClick={handleConferenceClick}
+                            onClick={handleEventClick}
                           />
                         ))}
                       </div>
@@ -353,12 +352,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {upcoming.map(conference => (
-                          <ConferenceCard
-                            key={conference.id}
-                            conference={conference}
+                        {upcoming.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
                             onCopyId={handleCopyId}
-                            onClick={handleConferenceClick}
+                            onClick={handleEventClick}
                           />
                         ))}
                       </div>
@@ -369,12 +368,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Past</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {past.map(conference => (
-                          <ConferenceCard
-                            key={conference.id}
-                            conference={conference}
+                        {past.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
                             onCopyId={handleCopyId}
-                            onClick={handleConferenceClick}
+                            onClick={handleEventClick}
                           />
                         ))}
                       </div>
@@ -387,12 +386,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             <>
               <ResearcherRecommendations
                 researchers={recommendations}
-                currentUserId={user?.id || 0}
+                currentUserId={user?.id || ''}
                 title="Recommended for You"
                 onConnect={handleConnect}
               />
 
-              {/* Search Section */}
               <div>
                 <SearchBar
                   onSearch={handleSearch}
@@ -441,18 +439,18 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         </div>
       </div>
 
-      {showCreateConference && user && (
-        <CreateConference
+      {showCreateEvent && user && (
+        <CreateEvent
           userId={user.id}
-          onClose={() => setShowCreateConference(false)}
+          onClose={() => setShowCreateEvent(false)}
           onSuccess={handleCreateSuccess}
         />
       )}
 
-      {showJoinConference && user && (
-        <JoinConference
+      {showJoinEvent && user && (
+        <JoinEvent
           userId={user.id}
-          onClose={() => setShowJoinConference(false)}
+          onClose={() => setShowJoinEvent(false)}
           onSuccess={handleJoinSuccess}
         />
       )}
