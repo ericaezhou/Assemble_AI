@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../research_connect.db');
+const dbPath = path.join(__dirname, '../assemble_ai.db');
 const db = new sqlite3.Database(dbPath);
 
 // Test user data with diverse schools, interests, and research areas
