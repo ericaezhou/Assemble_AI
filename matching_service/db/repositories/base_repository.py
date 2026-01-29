@@ -42,6 +42,7 @@ class BaseRepository(Generic[T]):
         Returns:
             DTO object
         """
+
         return self.dto_class(**data)
     
     def _convert_to_dto_list(self, data_list: List[Dict[str, Any]]) -> List[T]:

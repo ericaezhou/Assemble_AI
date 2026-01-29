@@ -16,18 +16,17 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   const userId = params.userId as string;
-  const isOwnProfile = currentUser?.id === Number(userId);
+  const isOwnProfile = currentUser?.id === userId;
 
   useEffect(() => {
-    // Check authentication
-    const token = localStorage.getItem('research_connect_token');
-    if (!token) {
+    // Check authentication via Zustand store
+    if (!isAuthenticated) {
       router.push('/');
       return;
     }
 
     fetchProfile();
-  }, [userId]);
+  }, [userId, isAuthenticated, router]);
 
   const fetchProfile = async () => {
     setIsLoading(true);

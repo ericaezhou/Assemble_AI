@@ -54,7 +54,7 @@ def main():
     # )
 
     match = service.find_matches_with_reasons(
-        user_id="target.id",
+        user_id=target.id,
         top_k=5,
         min_score=0.00,
         apply_mmr=True,
