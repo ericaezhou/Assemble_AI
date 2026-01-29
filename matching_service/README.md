@@ -76,18 +76,61 @@ pip install numpy scikit-learn pydantic sentence-transformers torch
 
 ## Service API
 
-Start the service:
+Start the service (default embedder is `qwen` if not set):
 
 ```bash
 python app.py
 ```
 
-Select embedder model via env vars:
+## Step-by-step (local)
+
+1) Create and activate a virtual environment (once):
+
+```bash
+cd matching_service
+python -m venv .venv
+.\.venv\Scripts\activate
+```
+
+2) Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+3) Configure Supabase credentials (create `matching_service/.env`):
+
+```
+SUPABASE_URL=...
+SUPABASE_KEY=...
+```
+
+4) (Optional) Select embedder model via env vars (set these **before** running `app.py`):
 
 ```bash
 set EMBEDDER_TYPE=bge-m3
 set EMBEDDER_MODEL=BAAI/bge-m3
 set DEVICE=cpu
+```
+
+Example: use Qwen explicitly (optional):
+
+```bash
+set EMBEDDER_TYPE=qwen
+set EMBEDDER_MODEL=Qwen/Qwen3-Embedding-0.6B
+set DEVICE=cpu
+```
+
+5) Start the service:
+
+```bash
+python app.py
+```
+
+6) Test the API (example):
+
+```bash
+python .\test\test_app.py
 ```
 
 API endpoint:
