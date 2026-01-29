@@ -2,28 +2,7 @@
 
 import { useState } from 'react';
 import ResearcherCard from './ResearcherCard';
-
-interface Researcher {
-  id: string; // UUID from Supabase Auth
-  name: string;
-  email: string;
-  occupation?: string;
-  school?: string;
-  major?: string;
-  year?: string;
-  company?: string;
-  title?: string;
-  work_experience_years?: string;
-  degree?: string;
-  research_area?: string;
-  other_description?: string;
-  interest_areas?: string[];
-  current_skills?: string[];
-  hobbies?: string[];
-  github?: string;
-  linkedin?: string;
-  similarity_score?: number;
-}
+import { Researcher } from '@/types/profile';
 
 interface ResearcherRecommendationsProps {
   researchers: Researcher[];

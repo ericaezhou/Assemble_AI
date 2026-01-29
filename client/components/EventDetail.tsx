@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import { authenticatedFetch } from '@/utils/auth';
+import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 
 interface Event {
   id: string;
@@ -17,28 +18,6 @@ interface Event {
   host_id: string;
   price_type?: string;
   capacity?: number;
-}
-
-interface Participant {
-  id: string;
-  name: string;
-  email: string;
-  occupation?: string;
-  school?: string;
-  major?: string;
-  year?: string;
-  company?: string;
-  title?: string;
-  work_experience_years?: string;
-  degree?: string;
-  research_area?: string;
-  other_description?: string;
-  interest_areas?: string[];
-  current_skills?: string[];
-  hobbies?: string[];
-  github?: string;
-  linkedin?: string;
-  similarity_score?: number;
 }
 
 interface EventDetailProps {
@@ -93,12 +72,6 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
     }
   };
 
-  // Helper to get institution (school or company based on occupation)
-  const getInstitution = (p: Participant) => p.school || p.company || '';
-
-  // Helper to get interests as a string for searching/sorting
-  const getInterests = (p: Participant) => p.interest_areas?.join(', ') || '';
-
   const filterAndSortParticipants = () => {
     let filtered = participants;
 
@@ -108,7 +81,7 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
         p.name.toLowerCase().includes(query) ||
         getInstitution(p).toLowerCase().includes(query) ||
         p.research_area?.toLowerCase().includes(query) ||
-        getInterests(p).toLowerCase().includes(query)
+        getInterestsString(p).toLowerCase().includes(query)
       );
     }
 
@@ -120,14 +93,14 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
         aValue = getInstitution(a).toLowerCase();
         bValue = getInstitution(b).toLowerCase();
       } else if (sortField === 'interests') {
-        aValue = getInterests(a).toLowerCase();
-        bValue = getInterests(b).toLowerCase();
+        aValue = getInterestsString(a).toLowerCase();
+        bValue = getInterestsString(b).toLowerCase();
       } else if (sortField === 'research_areas') {
         aValue = (a.research_area || '').toLowerCase();
         bValue = (b.research_area || '').toLowerCase();
-      } else {
-        aValue = (a[sortField] || '').toLowerCase();
-        bValue = (b[sortField] || '').toLowerCase();
+      } else if (sortField === 'name') {
+        aValue = (a.name || '').toLowerCase();
+        bValue = (b.name || '').toLowerCase();
       }
 
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;

@@ -1,26 +1,6 @@
 'use client';
 
-interface Researcher {
-  id: string; // UUID from Supabase Auth
-  name: string;
-  email: string;
-  occupation?: string;
-  school?: string;
-  major?: string;
-  year?: string;
-  company?: string;
-  title?: string;
-  work_experience_years?: string;
-  degree?: string;
-  research_area?: string;
-  other_description?: string;
-  interest_areas?: string[];
-  current_skills?: string[];
-  hobbies?: string[];
-  github?: string;
-  linkedin?: string;
-  similarity_score?: number;
-}
+import { Researcher, getInstitution } from '@/types/profile';
 
 interface ResearcherCardProps {
   researcher: Researcher;
@@ -28,9 +8,6 @@ interface ResearcherCardProps {
 }
 
 export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
-  // Helper to get institution (school or company based on occupation)
-  const getInstitution = () => researcher.school || researcher.company || '';
-
   return (
     <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
       <div className="flex justify-between items-start mb-3 gap-2">
@@ -43,7 +20,7 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
       </div>
 
       <p className="text-gray-600 italic text-sm mb-4">
-        {getInstitution() || 'Institution not specified'}
+        {getInstitution(researcher) || 'Institution not specified'}
       </p>
 
       {researcher.research_area && (
