@@ -84,47 +84,11 @@ For security purposes, all necessary API keys stored within the repo's env files
 5. Create or join conferences using conference IDs
 6. View conference details, search participants, and get recommendations
 
-### Loading Test Data
-
-To populate the database with test data for development and testing:
-
-**Load test data:**
-
-```bash
-node server/scripts/load-test-data.js
-```
-
-This will create:
-
-- 30 test users with diverse research interests and institutions
-- 3 test conferences (Test Conference A, B, C)
-- Test users distributed across the conferences (10 users per conference)
-
-Test conference IDs:
-
-- Test Conference A: `TESTA001`
-- Test Conference B: `TESTB002`
-- Test Conference C: `TESTC003`
-
-All test users have:
-
-- Password: `password123`
-- Names ending with `(Dummy)` for easy identification
-
-**Remove test data:**
-
-```bash
-node server/scripts/cleanup-test-data.js
-```
-
-This will remove all test users, test conferences, and their associated data from the database.
-
 ## API Endpoints
 
 ### Authentication
 
-- `POST /api/auth/send-verification-code` - Send verification code to email
-- `POST /api/auth/signup` - Create a new user account (requires verification code)
+- `POST /api/auth/signup` - Create a new user account
 - `POST /api/auth/login` - Login with email and password
 
 ### Researchers
