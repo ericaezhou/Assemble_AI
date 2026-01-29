@@ -202,6 +202,18 @@ class SentenceTransformerEmbedder:
 
 
 # =========================
+# 5b) BGE-M3 Embedder
+# =========================
+
+@dataclass
+class BgeM3Embedder(SentenceTransformerEmbedder):
+    """
+    BAAI/bge-m3 embedder (multilingual, 1024d).
+    """
+    model_name: str = "BAAI/bge-m3"
+
+
+# =========================
 # 6) In-Memory Retriever (Simplified)
 # =========================
 

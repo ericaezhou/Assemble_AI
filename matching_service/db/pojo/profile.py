@@ -33,10 +33,10 @@ class ProfileDTO(BaseModel):
     expected_grad_date: Optional[str] = Field(None, description="Expected graduation date")
 
     # Research related
-    research_areas: Optional[List[str]] = Field(None, description="Research areas (plural)")
+    research_areas: Optional[Union[List[str], str]] = Field(None, description="Research areas (plural)")
     research_area: Optional[str] = Field(None, description="Research area (singular)")
-    interest_areas: Optional[List[str]] = Field(None, description="Areas of interest")
-    interests: Optional[str] = Field(None, description="General interests")
+    interest_areas: Optional[Union[List[str], str]] = Field(None, description="Areas of interest")
+    interests: Optional[Union[List[str], str]] = Field(None, description="General interests")
     publications: Optional[str] = Field(None, description="Publications")
 
     # Work experience
@@ -45,8 +45,8 @@ class ProfileDTO(BaseModel):
     work_experience_years: Optional[str] = Field(None, description="Years of work experience")
 
     # Skills and hobbies
-    current_skills: Optional[List[str]] = Field(None, description="Current skills")
-    hobbies: Optional[List[str]] = Field(None, description="Hobbies")
+    current_skills: Optional[Union[List[str], str]] = Field(None, description="Current skills")
+    hobbies: Optional[Union[List[str], str]] = Field(None, description="Hobbies")
 
     # Social media
     github: Optional[str] = Field(None, description="GitHub profile URL")

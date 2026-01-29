@@ -12,7 +12,7 @@ def main():
         "mmr_lambda": 0.5,
     }
 
-    resp = requests.post(url, json=payload, timeout=60)
+    resp = requests.post(url, json=payload, timeout=180)
 
     print("Status:", resp.status_code)
     # 如果后端返回不是 JSON，这里会抛异常；先 try 一下更稳
