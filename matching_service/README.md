@@ -2,13 +2,12 @@
 
 Smart attendee matching engine for Assemble AI.
 
-## Three Matching Scenarios
+## Matching Scenarios
 
 | Scenario | Method | Description |
 |----------|--------|-------------|
 | **Host → Users** | `host_match()` | Find best attendees for an event |
-| **User ↔ User (Experience)** | `match_experience()` | Match users by background, interests, goals |
-| **User ↔ User (Needs)** | `match_needs()` | Match users by what they're looking for |
+| **User ↔ User** | `match_users()` | Match users by experience + interests |
 
 ## Architecture
 
@@ -19,13 +18,13 @@ algos.py       →  Core algorithms (scoring, MMR, matching)
     ↓
 adapters.py    →  Pluggable components (Embedder, Retriever)
     ↓
-types.py       →  Data models (UserProfile, MatchingParams)
+matching_pojo.py →  Data models (UserProfile, MatchingParams)
 ```
 
 ## Quick Start
 
 ```python
-from matching.types import MatchingParams, UserProfile
+from matching.matching_pojo import MatchingParams, UserProfile
 from matching.adapters import Qwen3Embedder, InMemoryRetriever, build_user_vectors
 from matching.engine import MatchingEngine
 
@@ -52,21 +51,16 @@ results = engine.host_match("AI agents meetup", users, params)
 engine.host_match(host_text, users, params) → List[RankedUser]
 ```
 
-### User ↔ User (Matching By Experience)
+### User ↔ User
 ```python
-engine.match_experience(users, params, top_k=5) → Dict[UserId, List[RankedUser]]
-```
-
-### User ↔ User (Matching by User Needs)
-```python
-engine.match_needs(users, params, mode=NeedMatchMode.RECIPROCAL) → Dict[UserId, List[RankedUser]]
+engine.match_users(users, params, top_k=5) → Dict[UserId, List[RankedUser]]
 ```
 
 ## Core Algorithms
 
 **Multi-dimensional Scoring:**
 ```
-score = 0.5 × cos(exp) + 0.3 × cos(interest) + 0.2 × cos(goal)
+score = w_exp × cos(exp) + w_interest × cos(interest)
 ```
 
 **MMR Diversity Selection:**
@@ -80,8 +74,22 @@ MMR = λ × relevance - (1-λ) × similarity_to_selected
 pip install numpy scikit-learn pydantic sentence-transformers torch
 ```
 
-## Run Demo
+## Service API
+
+Start the service:
 
 ```bash
-python scripts/demo_qwen3.py
+python app.py
 ```
+
+Select embedder model via env vars:
+
+```bash
+set EMBEDDER_TYPE=bge-m3
+set EMBEDDER_MODEL=BAAI/bge-m3
+set DEVICE=cpu
+```
+
+API endpoint:
+
+`POST /api/u2u/matches`
