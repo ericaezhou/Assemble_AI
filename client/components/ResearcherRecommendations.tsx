@@ -7,10 +7,21 @@ interface Researcher {
   id: string; // UUID from Supabase Auth
   name: string;
   email: string;
-  institution?: string;
-  research_areas?: string;
-  bio?: string;
-  interests?: string;
+  occupation?: string;
+  school?: string;
+  major?: string;
+  year?: string;
+  company?: string;
+  title?: string;
+  work_experience_years?: string;
+  degree?: string;
+  research_area?: string;
+  other_description?: string;
+  interest_areas?: string[];
+  current_skills?: string[];
+  hobbies?: string[];
+  github?: string;
+  linkedin?: string;
   similarity_score?: number;
 }
 

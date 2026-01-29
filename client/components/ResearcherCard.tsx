@@ -4,10 +4,21 @@ interface Researcher {
   id: string; // UUID from Supabase Auth
   name: string;
   email: string;
-  institution?: string;
-  research_areas?: string;
-  bio?: string;
-  interests?: string;
+  occupation?: string;
+  school?: string;
+  major?: string;
+  year?: string;
+  company?: string;
+  title?: string;
+  work_experience_years?: string;
+  degree?: string;
+  research_area?: string;
+  other_description?: string;
+  interest_areas?: string[];
+  current_skills?: string[];
+  hobbies?: string[];
+  github?: string;
+  linkedin?: string;
   similarity_score?: number;
 }
 
@@ -17,6 +28,9 @@ interface ResearcherCardProps {
 }
 
 export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
+  // Helper to get institution (school or company based on occupation)
+  const getInstitution = () => researcher.school || researcher.company || '';
+
   return (
     <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
       <div className="flex justify-between items-start mb-3 gap-2">
@@ -29,38 +43,36 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
       </div>
 
       <p className="text-gray-600 italic text-sm mb-4">
-        {researcher.institution || 'Institution not specified'}
+        {getInstitution() || 'Institution not specified'}
       </p>
 
-      {researcher.research_areas && (
+      {researcher.research_area && (
         <div className="mb-3">
-          <strong className="block text-gray-700 text-xs mb-1.5">Research Areas:</strong>
+          <strong className="block text-gray-700 text-xs mb-1.5">Research Area:</strong>
           <div className="flex flex-wrap gap-1.5">
-            {researcher.research_areas.split(',').map((area, index) => (
-              <span key={index} className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-medium">
-                {area.trim()}
-              </span>
-            ))}
+            <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-medium">
+              {researcher.research_area}
+            </span>
           </div>
         </div>
       )}
 
-      {researcher.interests && (
+      {researcher.interest_areas && researcher.interest_areas.length > 0 && (
         <div className="mb-3">
           <strong className="block text-gray-700 text-xs mb-1.5">Interests:</strong>
           <div className="flex flex-wrap gap-1.5">
-            {researcher.interests.split(',').map((interest, index) => (
+            {researcher.interest_areas.map((interest: string, index: number) => (
               <span key={index} className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded text-xs font-medium">
-                {interest.trim()}
+                {interest}
               </span>
             ))}
           </div>
         </div>
       )}
 
-      {researcher.bio && (
+      {researcher.other_description && (
         <p className="text-gray-600 text-sm leading-relaxed mb-3 flex-grow">
-          {researcher.bio.substring(0, 150)}{researcher.bio.length > 150 ? '...' : ''}
+          {researcher.other_description.substring(0, 150)}{researcher.other_description.length > 150 ? '...' : ''}
         </p>
       )}
 
