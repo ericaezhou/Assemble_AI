@@ -430,8 +430,8 @@ class MatchingService:
                 continue
 
             # Extract similarity scores from debug info
-            exp_sim = ranked_user.debug_info.get('exp_sim', 0.0)
-            interest_sim = ranked_user.debug_info.get('interest_sim', 0.0)
+            exp_sim = ranked_user.debug_info.get('exp_sim', 0.1)
+            interest_sim = ranked_user.debug_info.get('interest_sim', 0.1)
             overall_score = ranked_user.score
 
             # Generate match reason
@@ -451,7 +451,9 @@ class MatchingService:
                 'score': overall_score,
                 'reason': reason,  # Human-readable explanation
                 'exp_similarity': exp_sim,
+                'exp_debug': ranked_user.debug_info.get('exp_debug', ''),
                 'interest_similarity': interest_sim,
+                'interest_debug': ranked_user.debug_info.get('interest_debug', ''),
                 'tags': matched_user.tags,
                 'metadata': matched_user.metadata,
             })

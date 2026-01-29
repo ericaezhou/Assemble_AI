@@ -6,16 +6,17 @@ def main():
     url = "http://localhost:5000/api/u2u/matches"
     payload = {
         "target_id": "cc3f65a2-946f-414b-8712-a535ac3830e0",
+        # "target_id": "11111111-1111-1111-1111-111111111111",
         "top_k": 5,
         "min_score": 0.0,
-        "apply_mmr": True,
+        "apply_mmr": False,
         "mmr_lambda": 0.5,
     }
 
     resp = requests.post(url, json=payload, timeout=180)
 
     print("Status:", resp.status_code)
-    # 如果后端返回不是 JSON，这里会抛异常；先 try 一下更稳
+
     try:
         data = resp.json()
         print(json.dumps(data, ensure_ascii=False, indent=2))

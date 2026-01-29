@@ -7,9 +7,6 @@ matching_service/.env
 client/build/
 .venv/
 matching_service/.venv/
-__pycache__/
-*.pyc
-.idea/
 .vscode/
 .pytest_cache/
 .mypy_cache/
@@ -17,3 +14,13 @@ __pycache__/
 .coverage
 dist/
 build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# JetBrains
+.idea/
+*.iml
