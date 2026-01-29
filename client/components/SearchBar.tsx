@@ -1,17 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-interface Researcher {
-  id: string; // UUID from Supabase Auth
-  name: string;
-  email: string;
-  institution?: string;
-  research_areas?: string;
-  bio?: string;
-  interests?: string;
-  similarity_score?: number;
-}
+import { Researcher, getInstitution, getInterestsString } from '@/types/profile';
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
@@ -77,10 +67,10 @@ export default function SearchBar({ onSearch, searchResults, isSearching, onSele
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 italic">{researcher.institution || 'Institution not specified'}</p>
-                {researcher.interests && (
+                <p className="text-sm text-gray-600 italic">{getInstitution(researcher) || 'Institution not specified'}</p>
+                {researcher.interest_areas && researcher.interest_areas.length > 0 && (
                   <p className="text-xs text-gray-500 mt-1 line-clamp-1">
-                    {researcher.interests}
+                    {getInterestsString(researcher)}
                   </p>
                 )}
               </div>

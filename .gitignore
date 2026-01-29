@@ -2,5 +2,25 @@ node_modules/
 client/node_modules/
 *.db
 .env
+matching_service/.env
 .DS_Store
 client/build/
+.venv/
+matching_service/.venv/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# JetBrains
+.idea/
+*.iml

@@ -12,7 +12,12 @@ from service.u2u_service import MatchingService
 app = Flask(__name__)
 
 # ---- Initialize once (important for performance) ----
-SERVICE = MatchingService(device=os.getenv("DEVICE", "cpu"), cache_vectors=True)
+SERVICE = MatchingService(
+    embedder_type=os.getenv("EMBEDDER_TYPE", "qwen"),
+    embedder_model=os.getenv("EMBEDDER_MODEL"),
+    device=os.getenv("DEVICE", "cpu"),
+    cache_vectors=True,
+)
 
 
 def to_jsonable(x: Any) -> Any:

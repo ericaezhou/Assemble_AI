@@ -14,7 +14,14 @@ from uuid import UUID
 
 from db.repositories.profile_repository import ProfileRepository
 from src.matching.matching_pojo import UserProfile, MatchingParams
-from src.matching.adapters import Qwen3Embedder, InMemoryRetriever, build_user_vectors
+from src.matching.adapters import (
+    BgeM3Embedder,
+    Qwen3Embedder,
+    SentenceTransformerEmbedder,
+    InMemoryRetriever,
+    build_user_vectors,
+    Embedder,
+)
 from src.matching.engine import MatchingEngine
 from service.mapper.profile_mapper import profile_dto_to_user_profile, profile_dtos_to_user_profiles
 
@@ -33,7 +40,8 @@ class MatchingService:
 
     def __init__(
             self,
-            embedder_model: str = "Qwen/Qwen3-Embedding-0.6B",
+            embedder_type: str = "qwen",
+            embedder_model: Optional[str] = None,
             device: str = "cpu",
             cache_vectors: bool = True,
     ):
@@ -41,7 +49,8 @@ class MatchingService:
         Initialize matching service.
 
         Args:
-            embedder_model: Model name for embedder
+            embedder_type: "qwen" or "bge-m3" (or "sentence-transformer")
+            embedder_model: Optional model override
             device: Device for computation ("cpu" or "cuda")
             cache_vectors: Whether to cache user vectors in memory
         """
@@ -49,11 +58,10 @@ class MatchingService:
         self.profile_repo = ProfileRepository()
 
         # Initialize matching components
-        self.embedder = Qwen3Embedder(
-            model_name=embedder_model,
+        self.embedder = self._create_embedder(
+            embedder_type=embedder_type,
+            embedder_model=embedder_model,
             device=device,
-            normalize=True,
-            truncate_dim=512,  # Use 512d for faster computation
         )
 
         self.retriever = InMemoryRetriever()
@@ -76,6 +84,45 @@ class MatchingService:
         # Vector cache (optional)
         self.cache_vectors = cache_vectors
         self._user_profile_cache: Dict[str, UserProfile] = {}
+
+    @staticmethod
+    def _create_embedder(
+            *,
+            embedder_type: str,
+            embedder_model: Optional[str],
+            device: str,
+    ) -> Embedder:
+        normalized = (embedder_type or "qwen").strip().lower()
+
+        if normalized in {"qwen", "qwen3", "qwen3-embedding"}:
+            model_name = embedder_model or "Qwen/Qwen3-Embedding-0.6B"
+            return Qwen3Embedder(
+                model_name=model_name,
+                device=device,
+                normalize=True,
+                truncate_dim=512,  # Use 512d for faster computation
+            )
+
+        if normalized in {"bge", "bge-m3", "bge_m3", "baai/bge-m3"}:
+            model_name = embedder_model or "BAAI/bge-m3"
+            return BgeM3Embedder(
+                model_name=model_name,
+                device=device,
+                normalize=True,
+            )
+
+        if normalized in {"sentence-transformer", "sentence_transformer", "st"}:
+            model_name = embedder_model or "BAAI/bge-small-en-v1.5"
+            return SentenceTransformerEmbedder(
+                model_name=model_name,
+                device=device,
+                normalize=True,
+            )
+
+        raise ValueError(
+            f"Unsupported embedder_type: {embedder_type}. "
+            "Use 'qwen', 'bge-m3', or 'sentence-transformer'."
+        )
 
     def _fetch_all_users(self) -> List[UserProfile]:
         """

@@ -13,7 +13,7 @@ def main():
         "mmr_lambda": 0.5,
     }
 
-    resp = requests.post(url, json=payload, timeout=60)
+    resp = requests.post(url, json=payload, timeout=180)
 
     print("Status:", resp.status_code)
 
