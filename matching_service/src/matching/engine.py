@@ -187,19 +187,10 @@ class MatchingEngine:
                 # Calculate similarity score
                 score, dbg = calculate_similarity_score(u, v, params)
 
-                # Apply history penalty
-                score2 = apply_history(float(score), u.user_id, v.user_id)
-                if score2 != score:
-                    dbg["after_history"] = round(float(score2), 4)
-
-                # Filter low scores
-                if score2 < min_score:
-                    continue
-
                 candidates.append(
                     RankedUser(
                         user_id=v.user_id,
-                        score=float(score2),
+                        score=score,
                         debug_info=dbg,
                     )
                 )

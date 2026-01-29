@@ -46,30 +46,81 @@ def safe_cosine_sim(u: Optional[Vector], v: Optional[Vector]) -> float:
 # 2) Core Scoring Logic (Simplified: exp + interest only)
 # =========================
 
-def calculate_similarity_score(
-        u1: UserProfile,
-        u2: UserProfile,
-        params: MatchingParams
+DEFAULT_EPS = 1e-6
+
+def safe_cosine_sim_with_debug(
+    u1: Optional[np.ndarray],
+    u2: Optional[np.ndarray],
+    *,
+    eps: float = DEFAULT_EPS,
+    name: str = "sim",
 ) -> Tuple[float, Dict[str, Any]]:
     """
-    Simplified multi-dimension score using only exp and interest.
+    Cosine similarity with robust fallback:
+    - If any vector is None -> return eps and annotate debug info.
+    """
+    dbg: Dict[str, Any] = {}
 
+    if u1 is None and u2 is None:
+        dbg[f"{name}_status"] = "both_none"
+        dbg[f"{name}_fallback"] = f"eps({eps})"
+        return float(eps), dbg
+
+    if u1 is None:
+        dbg[f"{name}_status"] = "u1_none"
+        dbg[f"{name}_fallback"] = f"eps({eps})"
+        return float(eps), dbg
+
+    if u2 is None:
+        dbg[f"{name}_status"] = "u2_none"
+        dbg[f"{name}_fallback"] = f"eps({eps})"
+        return float(eps), dbg
+
+    denom = (np.linalg.norm(u1) * np.linalg.norm(u2))
+    if denom == 0:
+        dbg[f"{name}_status"] = "zero_norm"
+        dbg[f"{name}_fallback"] = f"eps({eps})"
+        return float(eps), dbg
+
+    sim = float(np.dot(u1, u2) / denom)
+    dbg[f"{name}_status"] = "ok"
+    return sim, dbg
+
+
+def calculate_similarity_score(
+    u1,
+    u2,
+    params,
+    *,
+    eps: float = DEFAULT_EPS,
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Multi-dimension score (exp + interest) with eps fallback for missing vectors.
     Returns: (total_score, debug_info)
     """
-    s_exp = safe_cosine_sim(u1.v_exp, u2.v_exp)
-    s_interest = safe_cosine_sim(u1.v_interest, u2.v_interest)
 
-    # Weighted sum (params should ensure weights sum to 1.0)
-    total_score = (
-            s_exp * params.w_exp +
-            s_interest * params.w_interest
-    )
+    s_exp, dbg_exp = safe_cosine_sim_with_debug(u1.v_exp, u2.v_exp, eps=eps, name="exp")
+    s_interest, dbg_int = safe_cosine_sim_with_debug(u1.v_interest, u2.v_interest, eps=eps, name="interest")
 
-    debug_info = {
-        "exp_sim": round(s_exp, 4),
-        "interest_sim": round(s_interest, 4),
-        "weighted_total": round(total_score, 4),
+    total_score = (s_exp * params.w_exp) + (s_interest * params.w_interest)
+
+    debug_info: Dict[str, Any] = {
+        "exp_sim": round(float(s_exp), 6),
+        "interest_sim": round(float(s_interest), 6),
+        "weighted_total": round(float(total_score), 6),
+        # 额外信息：告诉你是否发生 fallback
+        "exp_debug": dbg_exp,
+        "interest_debug": dbg_int,
     }
+
+    # 可选：如果你想快速看到是否存在缺失向量
+    missing = []
+    if dbg_exp.get("exp_status") != "ok":
+        missing.append(f"exp:{dbg_exp.get('exp_status')}")
+    if dbg_int.get("interest_status") != "ok":
+        missing.append(f"interest:{dbg_int.get('interest_status')}")
+    if missing:
+        debug_info["warnings"] = missing
 
     return float(total_score), debug_info
 
