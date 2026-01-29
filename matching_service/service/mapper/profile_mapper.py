@@ -9,6 +9,27 @@ from db.pojo.profile import ProfileDTO
 from src.matching.matching_pojo import UserProfile
 
 
+def _list_to_text(field_value) -> str:
+    """
+    Helper function to convert list or string to text.
+
+    Args:
+        field_value: Either a list of strings or a string
+
+    Returns:
+        Comma-separated string
+    """
+    if not field_value:
+        return ""
+
+    if isinstance(field_value, list):
+        return ", ".join(field_value)
+    elif isinstance(field_value, str):
+        return field_value.strip()
+
+    return ""
+
+
 def build_exp_text(profile: ProfileDTO) -> str:
     """
     Compose experience text from multiple database fields.
@@ -98,24 +119,24 @@ def build_interest_text(profile: ProfileDTO) -> str:
         parts.append(f"Interests: {profile.interests.strip()}")
 
     # 2. Interest areas
-    if profile.interest_areas and profile.interest_areas.strip():
+    interest_areas_text = _list_to_text(profile.interest_areas)
+    if interest_areas_text:
         # Avoid duplication with interests
-        if not (profile.interests and profile.interest_areas in profile.interests):
-            parts.append(f"Interest areas: {profile.interest_areas.strip()}")
+        if not (profile.interests and interest_areas_text in profile.interests):
+            parts.append(f"Interest areas: {interest_areas_text}")
 
-    # 3. Research areas (combine research_areas and research_area)
-    research_text = None
-    if profile.research_areas and profile.research_areas.strip():
-        research_text = profile.research_areas.strip()
-    elif profile.research_area and profile.research_area.strip():
-        research_text = profile.research_area.strip()
+    # 3. Research areas
+    research_text = _list_to_text(profile.research_areas)
+    if not research_text and profile.research_area:
+        research_text = profile.research_area.strip() if isinstance(profile.research_area, str) else ""
 
     if research_text:
         parts.append(f"Research: {research_text}")
 
     # 4. Hobbies
-    if profile.hobbies and profile.hobbies.strip():
-        parts.append(f"Hobbies: {profile.hobbies.strip()}")
+    hobbies_text = _list_to_text(profile.hobbies)
+    if hobbies_text:
+        parts.append(f"Hobbies: {hobbies_text}")
 
     # 5. Other description (if available)
     if profile.other_description and profile.other_description.strip():
@@ -128,7 +149,7 @@ def build_tags(profile: ProfileDTO) -> List[str]:
     """
     Parse tags from current_skills field.
 
-    Expects comma-separated or semicolon-separated tags.
+    Now handles both List[str] and comma/semicolon-separated strings.
 
     Args:
         profile: ProfileDTO from database
@@ -136,20 +157,29 @@ def build_tags(profile: ProfileDTO) -> List[str]:
     Returns:
         List of tag strings
     """
-    if not profile.current_skills or not profile.current_skills.strip():
+    if not profile.current_skills:
         return []
 
-    # Replace semicolons with commas for uniform parsing
-    skills_text = profile.current_skills.replace(';', ',')
+    if isinstance(profile.current_skills, list):
+        return [tag.strip() for tag in profile.current_skills if tag and tag.strip()]
 
-    # Split and clean
-    tags = []
-    for tag in skills_text.split(','):
-        cleaned = tag.strip()
-        if cleaned:
-            tags.append(cleaned)
+    if isinstance(profile.current_skills, str):
+        if not profile.current_skills.strip():
+            return []
 
-    return tags
+        # Replace semicolons with commas for uniform parsing
+        skills_text = profile.current_skills.replace(';', ',')
+
+        # Split and clean
+        tags = []
+        for tag in skills_text.split(','):
+            cleaned = tag.strip()
+            if cleaned:
+                tags.append(cleaned)
+
+        return tags
+
+    return []
 
 
 def profile_dto_to_user_profile(profile: ProfileDTO) -> UserProfile:

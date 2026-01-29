@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import { authenticatedFetch } from '@/utils/auth';
+import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 
 interface Event {
   id: string;
@@ -14,25 +15,14 @@ interface Event {
   start_time?: string;
   end_date: string;
   end_time?: string;
-  host_id: number;
+  host_id: string;
   price_type?: string;
   capacity?: number;
 }
 
-interface Participant {
-  id: number;
-  name: string;
-  email: string;
-  institution?: string;
-  research_areas?: string;
-  bio?: string;
-  interests?: string;
-  similarity_score?: number;
-}
-
 interface EventDetailProps {
   eventId: string;
-  userId: number;
+  userId: string;
   onBack: () => void;
 }
 
@@ -89,18 +79,29 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
       const query = searchQuery.toLowerCase();
       filtered = participants.filter(p =>
         p.name.toLowerCase().includes(query) ||
-        p.institution?.toLowerCase().includes(query) ||
-        p.research_areas?.toLowerCase().includes(query) ||
-        p.interests?.toLowerCase().includes(query)
+        getInstitution(p).toLowerCase().includes(query) ||
+        p.research_area?.toLowerCase().includes(query) ||
+        getInterestsString(p).toLowerCase().includes(query)
       );
     }
 
     const sorted = [...filtered].sort((a, b) => {
-      let aValue = a[sortField] || '';
-      let bValue = b[sortField] || '';
+      let aValue = '';
+      let bValue = '';
 
-      if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-      if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+      if (sortField === 'institution') {
+        aValue = getInstitution(a).toLowerCase();
+        bValue = getInstitution(b).toLowerCase();
+      } else if (sortField === 'interests') {
+        aValue = getInterestsString(a).toLowerCase();
+        bValue = getInterestsString(b).toLowerCase();
+      } else if (sortField === 'research_areas') {
+        aValue = (a.research_area || '').toLowerCase();
+        bValue = (b.research_area || '').toLowerCase();
+      } else if (sortField === 'name') {
+        aValue = (a.name || '').toLowerCase();
+        bValue = (b.name || '').toLowerCase();
+      }
 
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
@@ -305,16 +306,14 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
                           {participant.name}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700">
-                          {participant.institution || 'Not specified'}
+                          {getInstitution(participant) || 'Not specified'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700">
                           <div className="flex flex-wrap gap-1">
-                            {participant.research_areas ? (
-                              participant.research_areas.split(',').map((area, i) => (
-                                <span key={i} className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">
-                                  {area.trim()}
-                                </span>
-                              ))
+                            {participant.research_area ? (
+                              <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">
+                                {participant.research_area}
+                              </span>
                             ) : (
                               <span className="text-gray-400">Not specified</span>
                             )}
@@ -322,10 +321,10 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-700">
                           <div className="flex flex-wrap gap-1">
-                            {participant.interests ? (
-                              participant.interests.split(',').map((interest, i) => (
+                            {participant.interest_areas && participant.interest_areas.length > 0 ? (
+                              participant.interest_areas.map((interest: string, i: number) => (
                                 <span key={i} className="bg-purple-50 text-purple-700 px-2 py-1 rounded text-xs">
-                                  {interest.trim()}
+                                  {interest}
                                 </span>
                               ))
                             ) : (
