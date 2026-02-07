@@ -5,8 +5,8 @@ import requests
 def main():
     url = "http://localhost:5000/api/u2u/matches"
     payload = {
-        "target_id": "cc3f65a2-946f-414b-8712-a535ac3830e0",
-        # "target_id": "11111111-1111-1111-1111-111111111111",
+        # "target_id": "cc3f65a2-946f-414b-8712-a535ac3830e0",
+        "target_id": "11111111-1111-1111-1111-111111111111",
         "top_k": 5,
         "min_score": 0.0,
         "apply_mmr": False,
