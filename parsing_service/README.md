@@ -11,15 +11,22 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Create `parsing_service/.env`:
+Create `parsing_service/.env` (loaded by `python-dotenv` when Supabase client initializes):
 
 ```
-SUPABASE_URL=...
-SUPABASE_KEY=...
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-4o-mini
-PARSING_PROMPT_ID=pmpt_...
-PARSING_PROMPT_VERSION=   # optional
+SUPABASE_URL=...                            # Supabase project URL
+SUPABASE_SERVICE_ROLE_KEY=...               # preferred; required for insert/update
+# SUPABASE_KEY=...                          # fallback anon key (limited permissions)
+OPENAI_API_KEY=...                          # OpenAI API key
+OPENAI_MODEL=gpt-4o-mini                    # Responses API model name
+OPENAI_BASE_URL=https://api.openai.com/v1   # optional; use proxy/private gateway URL
+PARSING_PROMPT_ID=pmpt_...                  # OpenAI Prompt ID on platform
+PARSING_PROMPT_VERSION=...                  # optional; lock prompt version
+PARSING_JSON_INSTRUCTIONS=Return JSON only. # optional; added to hint for JSON
+PARSING_UPLOAD_DIR=...                      # optional; default parsing_service/uploads
+HOST=127.0.0.1                              # optional; Flask bind host
+PORT=5100                                   # optional; Flask port
+DEBUG=1                                     # optional; 1 enable debug
 ```
 
 ## Run
