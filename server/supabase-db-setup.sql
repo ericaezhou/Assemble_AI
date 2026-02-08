@@ -207,3 +207,22 @@ ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS capacity integer;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS require_approval boolean DEFAULT false;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS rsvp_questions text;
+
+-- Remove legacy columns from profiles
+ALTER TABLE public.profiles 
+  DROP COLUMN IF EXISTS interests,
+  DROP COLUMN IF EXISTS research_areas,
+  DROP COLUMN IF EXISTS institution,
+  DROP COLUMN IF EXISTS short_answer;
+
+-- Move rsvp response to conference_participants table
+ALTER TABLE public.conference_participants 
+  ADD COLUMN IF NOT EXISTS rsvp_responses text[],
+  ADD COLUMN IF NOT EXISTS status text DEFAULT 'registered';
+
+ALTER TABLE public.conferences 
+  ALTER COLUMN rsvp_questions TYPE text[] 
+  USING CASE 
+    WHEN rsvp_questions IS NULL THEN NULL 
+    ELSE ARRAY[rsvp_questions] 
+  END;
