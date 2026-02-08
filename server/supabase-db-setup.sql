@@ -196,6 +196,28 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS interest_areas text[];
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_skills text[];
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS hobbies text[];
 
+-- PARSING_JOBS TABLE
+CREATE TABLE IF NOT EXISTS public.parsing_jobs (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL,
+  file_path text NOT NULL,
+  status text NOT NULL,
+  error text,
+  parsed_data jsonb,
+  parsed_raw jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_parsing_jobs_user_id ON public.parsing_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_parsing_jobs_status ON public.parsing_jobs(status);
+
+ALTER TABLE public.parsing_jobs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role can manage parsing_jobs" ON public.parsing_jobs;
+CREATE POLICY "Service role can manage parsing_jobs" ON public.parsing_jobs
+  FOR ALL USING (true);
+
 -- Add extra conference fields
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS location_type text DEFAULT 'in-person';
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS virtual_link text;
