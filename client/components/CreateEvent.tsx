@@ -398,10 +398,6 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                       {formData.name || 'Event Name'}
                     </h3>
 
-                    {formData.description && (
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">{formData.description}</p>
-                    )}
-
                     <div className="flex items-center gap-3 mb-3 text-sm">
                       <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
