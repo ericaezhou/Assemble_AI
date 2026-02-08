@@ -5,12 +5,15 @@ This service orchestrates:
 1. Fetching user data from database (ProfileRepository)
 2. Converting to matching format (UserProfile)
 3. Running matching algorithm
-4. Generating match reasons
+4. Generating match reasons (via OpenAI API)
 5. Returning results with explanations
 """
-
-from typing import List, Optional, Dict, Tuple
+import json
+import os
+from typing import List, Optional, Dict, Tuple, Any
 from uuid import UUID
+
+from openai import OpenAI
 
 from db.repositories.profile_repository import ProfileRepository
 from src.matching.matching_pojo import UserProfile, MatchingParams
@@ -25,6 +28,26 @@ from src.matching.adapters import (
 from src.matching.engine import MatchingEngine
 from service.mapper.profile_mapper import profile_dto_to_user_profile, profile_dtos_to_user_profiles
 
+from openai import OpenAI
+
+_OPENAI_CLIENT: Any = None
+# GPT_MODEL_NAME = "gpt-5.2"
+GPT_MODEL_NAME = "gpt-4o-mini"
+
+def _get_openai_client() -> OpenAI:
+    global _OPENAI_CLIENT
+    if _OPENAI_CLIENT is None:
+        # OpenAI SDK 会默认从环境变量 OPENAI_API_KEY 读取 key
+        # export OPENAI_API_KEY="..."
+        _OPENAI_CLIENT = OpenAI()
+    return _OPENAI_CLIENT
+
+def _safe_trim(text: str, max_len: int = 3000) -> str:
+    text = (text or "").strip()
+    if len(text) <= max_len:
+        return text
+    # 过长就截断，避免 prompt 过大
+    return text[:max_len].rstrip() + "..."
 
 class MatchingService:
     """
@@ -84,6 +107,11 @@ class MatchingService:
         # Vector cache (optional)
         self.cache_vectors = cache_vectors
         self._user_profile_cache: Dict[str, UserProfile] = {}
+
+        # OpenAI client (created once; reused for reason generation)
+        # Requires environment variable: OPENAI_API_KEY
+        self._openai_client = OpenAI()
+        self._reason_model = os.getenv("OPENAI_REASON_MODEL", GPT_MODEL_NAME)
 
     @staticmethod
     def _create_embedder(
@@ -192,118 +220,141 @@ class MatchingService:
 
     def _generate_match_reason(
             self,
-            user1: UserProfile,
-            user2: UserProfile,
+            user1: "UserProfile",
+            user2: "UserProfile",
             exp_similarity: float,
             interest_similarity: float,
             overall_score: float
     ) -> str:
         """
-        Generate a human-readable reason for why two users match.
-
-        Args:
-            user1: First user profile
-            user2: Second user profile
-            exp_similarity: Experience similarity score (0-1)
-            interest_similarity: Interest similarity score (0-1)
-            overall_score: Overall match score (0-1)
-
-        Returns:
-            String explanation of the match
+        Generate a user-facing match reason *for user1* explaining why user2 is recommended.
+        Input/output signature unchanged.
         """
-        reasons = []
 
-        # Determine match strength
-        if overall_score >= 0.7:
-            strength = "excellent"
-        elif overall_score >= 0.5:
-            strength = "good"
-        elif overall_score >= 0.3:
-            strength = "moderate"
-        else:
-            strength = "potential"
+        u1_exp = _safe_trim(user1.exp_text)
+        u1_int = _safe_trim(user1.interest_text)
+        u2_exp = _safe_trim(user2.exp_text)
+        u2_int = _safe_trim(user2.interest_text)
 
-        # Opening statement
-        reasons.append(f"This is a {strength} match (score: {overall_score:.2f}).")
-
-        # Experience similarity reasoning
-        if exp_similarity >= 0.6:
-            reasons.append(
-                f"Both users have highly similar professional backgrounds (similarity: {exp_similarity:.2f}). "
-                f"They share experience in {user1.role} and {user2.role} roles."
-            )
-        elif exp_similarity >= 0.3:
-            reasons.append(
-                f"The users have complementary professional backgrounds (similarity: {exp_similarity:.2f}). "
-                f"{user1.name}'s experience in {user1.role} could complement {user2.name}'s work in {user2.role}."
-            )
-        else:
-            reasons.append(
-                f"While their professional backgrounds differ, "
-                f"this could lead to valuable cross-disciplinary insights."
+        if not (u1_exp or u1_int or u2_exp or u2_int):
+            return (
+                f"We're recommending {user2.name} because your profiles show matching signals "
+                f"(match score: {overall_score:.2f}), but detailed text descriptions are unavailable."
             )
 
-        # Interest similarity reasoning
-        if interest_similarity >= 0.6:
-            # Find common tags
-            common_tags = set(user1.tags) & set(user2.tags)
-            if common_tags:
-                tags_str = ", ".join(list(common_tags)[:3])
-                reasons.append(
-                    f"They share strong common interests (similarity: {interest_similarity:.2f}), "
-                    f"including: {tags_str}."
-                )
-            else:
-                reasons.append(
-                    f"They share strong common interests (similarity: {interest_similarity:.2f})."
-                )
-        elif interest_similarity >= 0.3:
-            reasons.append(
-                f"They have overlapping interests (similarity: {interest_similarity:.2f}) "
-                f"that could spark engaging conversations."
+        # 关键：面向 user1 的口吻（“推荐给你”），更长但不啰嗦
+        system_msg = (
+            "You write a match explanation shown to USER1 in an event app.\n"
+            "Goal: explain why USER2 is recommended to USER1.\n\n"
+            "Hard rules:\n"
+            "1) Write in second-person to USER1 (use 'you' / 'your'), and refer to USER2 by name.\n"
+            "2) ONLY use information explicitly present in the provided texts (Experience/Interests/Tags). "
+            "Do NOT invent companies, schools, projects, or facts.\n"
+            "3) Length: 4–6 sentences. Not too short.\n"
+            "4) Mention at most 2 concrete overlap points (skills/topics/areas) and at most 1 complement point.\n"
+            "5) Include 1 sentence suggesting 1–2 conversation starters based on the overlaps.\n"
+            "6) Do not mention 'similarity scores' or numeric metrics unless asked; keep it natural.\n"
+            "7) Tone: helpful, specific, professional; no hype words like 'fascinating', 'amazing', 'perfect'."
+        )
+
+        # 给模型更“可控”的输入：把文本按字段分好，并给它 score 做弱引导（但不让它输出数字）
+        payload = {
+            "user1": {
+                "name": user1.name,
+                "role": user1.role or "",
+                "experience_text": u1_exp,
+                "interest_text": u1_int,
+                "tags": list(user1.tags or [])[:12],
+            },
+            "user2": {
+                "name": user2.name,
+                "role": user2.role or "",
+                "experience_text": u2_exp,
+                "interest_text": u2_int,
+                "tags": list(user2.tags or [])[:12],
+            },
+            "signals": {
+                "exp_similarity": float(exp_similarity),
+                "interest_similarity": float(interest_similarity),
+                "overall_score": float(overall_score),
+            },
+        }
+
+        model_name = os.getenv("MATCH_REASON_MODEL", "gpt-4o-mini")
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "description": (
+                        "Second-person explanation to user1 about why user2 is recommended. "
+                        "4-6 sentences, grounded in provided texts only."
+                    )
+                }
+            },
+            "required": ["reason"],
+            "additionalProperties": False
+        }
+
+        try:
+            client = _get_openai_client()
+            resp = client.responses.create(
+                model=model_name,
+                input=[
+                    {"role": "system", "content": system_msg},
+                    {
+                        "role": "user",
+                        "content": (
+                            "Write the recommendation reason.\n\n"
+                            f"DATA:\n{json.dumps(payload, ensure_ascii=False)}"
+                        ),
+                    },
+                ],
+                temperature=0.35,
+                max_output_tokens=200, # 控制输出长度，防止响应时间过长
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "match_reason",
+                        "strict": True,
+                        "schema": schema
+                    }
+                }
             )
 
-        # Add specific connection points
-        connection_points = []
+            raw = (getattr(resp, "output_text", None) or "").strip()
+            if not raw:
+                try:
+                    raw = resp.output[0].content[0].text.strip()
+                except Exception:
+                    raw = ""
 
-        # Check for common tags
-        common_tags = set(user1.tags) & set(user2.tags)
-        if common_tags and len(common_tags) >= 2:
-            connection_points.append(
-                f"shared skills/interests in {', '.join(list(common_tags)[:3])}"
+            data = json.loads(raw)
+            reason = (data.get("reason") or "").strip()
+            if reason:
+                return reason
+
+        except Exception:
+            pass
+
+        # fallback：仍保持 “对 user1 说” 的口吻，并尽量利用 common tags（不写死阈值逻辑）
+        common_tags = list((set(user1.tags or []) & set(user2.tags or [])))[:3]
+        if common_tags:
+            topics = ", ".join(common_tags)
+            return (
+                f"We’re recommending {user2.name} because you share overlapping themes in your profile. "
+                f"Based on what you both mention, you have common ground around {topics}. "
+                f"That overlap can make it easier to start a conversation and compare perspectives. "
+                f"You could ask {user2.name} what they’re currently building or learning in these areas, "
+                f"and share what you’re working on as well."
             )
-
-        # Role-based connections
-        if user1.role and user2.role:
-            role_keywords = {
-                'engineer': ['technical', 'development', 'implementation'],
-                'manager': ['product', 'strategy', 'leadership'],
-                'designer': ['design', 'user experience', 'creativity'],
-                'researcher': ['research', 'innovation', 'analysis'],
-                'scientist': ['data', 'research', 'analysis']
-            }
-
-            for role_type, keywords in role_keywords.items():
-                if (role_type in user1.role.lower() and role_type in user2.role.lower()):
-                    connection_points.append(f"both work in {role_type} roles")
-                    break
-
-        if connection_points:
-            reasons.append(f"Key connection points include: {', '.join(connection_points)}.")
-
-        # Collaborative potential
-        if exp_similarity < 0.5 and interest_similarity >= 0.5:
-            reasons.append(
-                "Their different professional backgrounds combined with shared interests "
-                "create opportunities for innovative collaboration."
-            )
-        elif exp_similarity >= 0.6 and interest_similarity >= 0.6:
-            reasons.append(
-                "Their aligned experience and interests make them ideal collaborators "
-                "for projects in their shared domain."
-            )
-
-        return " ".join(reasons)
+        return (
+            f"We’re recommending {user2.name} because your experience and interests show meaningful overlap. "
+            f"Even if your backgrounds aren’t identical, there’s enough shared context to have a productive chat. "
+            f"A good way to start is to compare what you each care about most in your work or interests, "
+            f"and then see if there’s a topic you’d both like to go deeper on."
+        )
 
     def find_matches_for_user(
             self,

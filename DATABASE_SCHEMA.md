@@ -146,6 +146,23 @@ Creates a new user account with all onboarding data.
 }
 ```
 
+### parsing_jobs
+Tracks resume/photo parsing jobs.
+
+```sql
+CREATE TABLE parsing_jobs (
+  id TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  file_path TEXT NOT NULL,
+  status TEXT NOT NULL,              -- pending/processing/success/failed
+  error TEXT,
+  parsed_data TEXT,                  -- JSON string of parsed profile data
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES researchers(id)
+);
+```
+
 **Response:**
 ```json
 {
