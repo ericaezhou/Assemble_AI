@@ -35,13 +35,12 @@ def parsing_upload():
     user_id = request.form.get("user_id")
     file = request.files.get("file")
 
-    if not user_id:
-        return jsonify({"error": "Missing field: user_id"}), 400
     if not file:
         return jsonify({"error": "Missing file upload"}), 400
 
     try:
-        job_id = PARSING_SERVICE.create_job(UUID(str(user_id)), file)
+        effective_user_id = UUID(str(user_id)) if user_id else UUID("00000000-0000-0000-0000-000000000000")
+        job_id = PARSING_SERVICE.create_job(effective_user_id, file)
         PARSING_SERVICE.start_job(job_id)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -93,6 +92,22 @@ def parsing_confirm():
     try:
         final_data = PARSING_SERVICE.confirm_job(UUID(str(job_id)), overrides=overrides)
         return jsonify(to_jsonable({"job_id": job_id, "status": "confirmed", "parsed_data": final_data}))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.post("/api/parsing/claim")
+def parsing_claim():
+    data = request.get_json(silent=True) or {}
+    job_id = data.get("job_id")
+    user_id = data.get("user_id")
+
+    if not job_id or not user_id:
+        return jsonify({"error": "Missing field: job_id or user_id"}), 400
+
+    try:
+        PARSING_SERVICE.claim_job(UUID(str(job_id)), UUID(str(user_id)))
+        return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 

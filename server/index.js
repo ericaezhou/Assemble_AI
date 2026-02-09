@@ -726,6 +726,71 @@ app.post('/api/messages', async (req, res) => {
   }
 });
 
+// Parsing service proxy routes
+const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
+
+// Upload file for parsing (no auth required — user hasn't signed up yet)
+const multer = require('multer');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post('/api/parsing/upload', upload.single('file'), async (req, res) => {
+  try {
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    const form = new FormData();
+    form.append('file', blob, req.file.originalname);
+    if (req.body.user_id) {
+      form.append('user_id', req.body.user_id);
+    }
+
+    const response = await fetch(`${PARSING_SERVICE_URL}/api/parsing/upload`, {
+      method: 'POST',
+      body: form,
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/parsing/result', async (req, res) => {
+  try {
+    const response = await fetch(`${PARSING_SERVICE_URL}/api/parsing/result?job_id=${encodeURIComponent(req.query.job_id)}`);
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/parsing/confirm', async (req, res) => {
+  try {
+    const response = await fetch(`${PARSING_SERVICE_URL}/api/parsing/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/parsing/claim', async (req, res) => {
+  try {
+    const response = await fetch(`${PARSING_SERVICE_URL}/api/parsing/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

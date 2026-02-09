@@ -125,8 +125,12 @@ export default function Dashboard({ user }: DashboardProps) {
     }
   };
 
-  const handleCopyId = (id: string) => {
-    navigator.clipboard.writeText(id);
+  const handleCopyId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+    } catch {
+      // Clipboard access denied - ignore
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };

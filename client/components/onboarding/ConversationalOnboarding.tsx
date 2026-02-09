@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { signUp } from '@/utils/auth';
-import { onboardingQuestions, getVisibleQuestions, QuestionConfig } from '@/utils/onboardingQuestions';
-import { INTEREST_AREAS, SKILLS, HOBBIES } from '@/utils/profileOptions';
+import { getVisibleQuestions } from '@/utils/onboardingQuestions';
+import { INTEREST_AREAS, SKILLS, HOBBIES, Option } from '@/utils/profileOptions';
+import { uploadForParsing, pollForResult, claimParsingJob, confirmParsing, ParsedData } from '@/utils/parsingApi';
 import QuestionContainer from './QuestionContainer';
 import ImplicitProgress from './ImplicitProgress';
 import WelcomeScreen from './questions/WelcomeScreen';
@@ -11,11 +12,75 @@ import TextQuestion from './questions/TextQuestion';
 import CardSelectQuestion from './questions/CardSelectQuestion';
 import ChipSelectQuestion from './questions/ChipSelectQuestion';
 import VerificationQuestion from './questions/VerificationQuestion';
+import FileUploadQuestion from './questions/FileUploadQuestion';
+import ParsedReviewQuestion from './questions/ParsedReviewQuestion';
 import CompletionScreen from './questions/CompletionScreen';
 
 interface ConversationalOnboardingProps {
   onComplete: (userId: string) => void;
   onBackToLogin: () => void;
+}
+
+function mapOccupation(data: ParsedData): string | null {
+  const raw = (data.occupation || '').trim();
+  if (!raw) {
+    // Infer from other parsed fields
+    if (data.major || data.year) return 'Student';
+    if (data.company || data.title) return 'Professional';
+    if (data.research_area) return 'Researcher';
+    return null;
+  }
+  const lower = raw.toLowerCase();
+  if (['student', 'professional', 'researcher', 'other'].includes(lower)) {
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  }
+  if (/student|undergrad/i.test(lower)) return 'Student';
+  if (/research|professor|postdoc|phd.?candidate|academic/i.test(lower)) return 'Researcher';
+  return 'Professional';
+}
+
+function mapYear(data: ParsedData): string | null {
+  const raw = (data.year || '').trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  const options = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'];
+  const exact = options.find((o) => o.toLowerCase() === lower);
+  if (exact) return exact;
+  if (/fresh|1st|first/i.test(lower)) return 'Freshman';
+  if (/soph|2nd|second/i.test(lower)) return 'Sophomore';
+  if (/junior|3rd|third/i.test(lower)) return 'Junior';
+  if (/senior|4th|fourth/i.test(lower)) return 'Senior';
+  if (/grad|master|phd|doctoral|mba|post/i.test(lower)) return 'Graduate';
+  return null;
+}
+
+function mapDegree(data: ParsedData): string | null {
+  const raw = (data.degree || '').trim();
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (/high.?school|hs\b|ged/i.test(lower)) return 'High School';
+  if (/associate|aa\b|as\b/i.test(lower)) return 'Associate';
+  if (/bachelor|bs\b|ba\b|b\.s|b\.a|bsc|undergrad/i.test(lower)) return "Bachelor's";
+  if (/master|ms\b|ma\b|m\.s|m\.a|msc|mba/i.test(lower)) return "Master's";
+  if (/ph\.?d|doctor/i.test(lower)) return 'PhD';
+  if (/none|n\/a/i.test(lower)) return 'None';
+  const options = ['High School', 'Associate', "Bachelor's", "Master's", 'PhD', 'None'];
+  return options.find((o) => o.toLowerCase() === lower) || null;
+}
+
+function mapExperience(data: ParsedData): string | null {
+  const raw = (data.work_experience_years || '').trim();
+  if (!raw) return null;
+  const options = ['0-1 years', '1-3 years', '3-5 years', '5-10 years', '10+ years'];
+  const exact = options.find((o) => o.toLowerCase() === raw.toLowerCase());
+  if (exact) return exact;
+  const num = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (isNaN(num)) return null;
+  if (num <= 1) return '0-1 years';
+  if (num <= 3) return '1-3 years';
+  if (num <= 5) return '3-5 years';
+  if (num <= 10) return '5-10 years';
+  return '10+ years';
 }
 
 export default function ConversationalOnboarding({
@@ -42,6 +107,7 @@ export default function ConversationalOnboarding({
     interest_areas: [],
     current_skills: [],
     hobbies: [],
+    _parsedData: null,
   });
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
@@ -51,9 +117,111 @@ export default function ConversationalOnboarding({
   const [codeSent, setCodeSent] = useState(false);
   const [verificationMessage, setVerificationMessage] = useState('');
 
+  // Parsing state
+  const [parsingJobId, setParsingJobId] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'parsing' | 'done' | 'error'>('idle');
+  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const pollerRef = useRef<{ cancel: () => void } | null>(null);
+  const maxProgressRef = useRef(0);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      pollerRef.current?.cancel();
+    };
+  }, []);
+
+  const matchToOptions = (parsed: string[], options: Option[]): string[] => {
+    return parsed
+      .map((p) => {
+        const lower = p.toLowerCase().trim();
+        const exact = options.find(
+          (o) => o.value === lower || o.label.toLowerCase() === lower
+        );
+        if (exact) return exact.value;
+        const partial = options.find(
+          (o) =>
+            o.label.toLowerCase().includes(lower) ||
+            lower.includes(o.label.toLowerCase())
+        );
+        return partial?.value ?? null;
+      })
+      .filter(Boolean) as string[];
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setUploadStatus('uploading');
+    try {
+      const { job_id } = await uploadForParsing(file);
+      setParsingJobId(job_id);
+      setUploadStatus('parsing');
+
+      pollerRef.current = pollForResult(
+        job_id,
+        (data) => {
+          setParsedData(data);
+          setUploadStatus('done');
+          setFormData((prev: any) => ({ ...prev, _parsedData: data }));
+        },
+        (errorMsg) => {
+          setUploadStatus('error');
+          setErrors((prev) => ({ ...prev, 'resume-upload': errorMsg }));
+        }
+      );
+    } catch (err: any) {
+      setUploadStatus('error');
+      setErrors((prev) => ({
+        ...prev,
+        'resume-upload': err.message || 'Upload failed',
+      }));
+    }
+  };
+
+  const buildParsedUpdates = (data: ParsedData) => {
+    const updates: any = {};
+    if (data.name) updates.name = data.name;
+    if (data.email) updates.email = data.email;
+    if (data.bio) updates.bio = data.bio;
+    if (data.school) updates.school = data.school;
+    if (data.major) updates.major = data.major;
+    if (data.company) updates.company = data.company;
+    if (data.title) updates.title = data.title;
+    if (data.research_area) updates.research_area = data.research_area;
+    if (data.other_description) updates.other_description = data.other_description;
+
+    // Map card-select fields to exact option values
+    const occupation = mapOccupation(data);
+    if (occupation) updates.occupation = occupation;
+    const year = mapYear(data);
+    if (year) updates.year = year;
+    const degree = mapDegree(data);
+    if (degree) updates.degree = degree;
+    const experience = mapExperience(data);
+    if (experience) updates.work_experience_years = experience;
+
+    if (data.interest_areas?.length) {
+      const matched = matchToOptions(data.interest_areas, INTEREST_AREAS);
+      if (matched.length) updates.interest_areas = matched;
+    }
+    if (data.current_skills?.length) {
+      const matched = matchToOptions(data.current_skills, SKILLS);
+      if (matched.length) updates.current_skills = matched;
+    }
+    if (data.hobbies?.length) {
+      const matched = matchToOptions(data.hobbies, HOBBIES);
+      if (matched.length) updates.hobbies = matched;
+    }
+
+    return updates;
+  };
+
   const visibleQuestions = getVisibleQuestions(formData);
   const currentQuestion = visibleQuestions[currentIndex];
   const totalQuestions = visibleQuestions.length;
+
+  // Progress tracking — only moves forward, never backward
+  const rawProgress = totalQuestions > 1 ? (currentIndex / (totalQuestions - 1)) * 100 : 0;
+  maxProgressRef.current = Math.max(maxProgressRef.current, rawProgress);
 
   const handleSendVerificationCode = async () => {
     if (!formData.email) {
@@ -132,7 +300,12 @@ export default function ConversationalOnboarding({
     setLoading(true);
 
     try {
-      const { confirmPassword, verificationCode, ...profileFields } = formData;
+      const {
+        confirmPassword,
+        verificationCode,
+        _parsedData,
+        ...profileFields
+      } = formData;
 
       // Use Supabase auth signUp
       const result = await signUp(
@@ -164,6 +337,17 @@ export default function ConversationalOnboarding({
         return;
       }
 
+      // If we have a parsing job, claim it with the real user_id and confirm
+      if (parsingJobId) {
+        try {
+          await claimParsingJob(parsingJobId, result.user.id);
+          await confirmParsing(parsingJobId, profileFields);
+        } catch {
+          // Non-blocking — profile was already saved by signUp
+          console.warn('Failed to confirm parsing job');
+        }
+      }
+
       // Success - pass the UUID to parent
       onComplete(result.user.id);
     } catch (err: any) {
@@ -179,6 +363,36 @@ export default function ConversationalOnboarding({
     switch (q.type) {
       case 'welcome':
         return <WelcomeScreen onContinue={handleNext} />;
+
+      case 'file-upload':
+        return (
+          <FileUploadQuestion
+            onFileSelect={handleFileUpload}
+            onSkip={handleNext}
+            onContinue={handleNext}
+            uploadStatus={uploadStatus}
+            error={errors['resume-upload']}
+          />
+        );
+
+      case 'parsed-review':
+        return (
+          <ParsedReviewQuestion
+            parsedData={parsedData!}
+            onAccept={(reviewed) => {
+              const updates = buildParsedUpdates(reviewed);
+              const newFormData = { ...formData, ...updates };
+              // Compute next index against the NEW visible list so we skip
+              // straight past all pre-filled questions — no intermediate render
+              const newVisible = getVisibleQuestions(newFormData);
+              const reviewIdx = newVisible.findIndex((q) => q.id === 'parsed-review');
+              setFormData(newFormData);
+              setCurrentIndex(Math.min(reviewIdx + 1, newVisible.length - 1));
+              setErrors({});
+            }}
+            onSkip={handleNext}
+          />
+        );
 
       case 'text':
       case 'email':
@@ -259,7 +473,7 @@ export default function ConversationalOnboarding({
   return (
     <div className="relative min-h-screen">
       {/* Implicit progress */}
-      <ImplicitProgress current={currentIndex + 1} total={totalQuestions} />
+      <ImplicitProgress progress={maxProgressRef.current} />
 
       {/* Question content */}
       <QuestionContainer
