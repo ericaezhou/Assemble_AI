@@ -78,6 +78,12 @@ class ParsingService:
     def get_job(self, job_id: UUID):
         return self.job_repo.get_by_id(job_id)
 
+    def claim_job(self, job_id: UUID, real_user_id: UUID) -> None:
+        job = self.job_repo.get_by_id(job_id)
+        if not job:
+            raise ValueError(f"Job not found: {job_id}")
+        self.job_repo.update_job(job_id, {"user_id": str(real_user_id)})
+
     def _process_job_safe(self, job_id: UUID) -> None:
         try:
             self._process_job(job_id)

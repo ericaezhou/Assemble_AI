@@ -1,5 +1,7 @@
 export type QuestionType =
   | 'welcome'
+  | 'file-upload'
+  | 'parsed-review'
   | 'text'
   | 'email'
   | 'verification'
@@ -18,6 +20,7 @@ export interface QuestionConfig {
   options?: any[];
   maxSelections?: number;
   optional?: boolean;
+  showWhenParsed?: boolean;
   validation?: (value: any, allData: any) => string | null;
   shouldShow?: (data: any) => boolean;
 }
@@ -27,6 +30,25 @@ export const onboardingQuestions: QuestionConfig[] = [
   {
     id: 'welcome',
     type: 'welcome',
+  },
+
+  // Resume/LinkedIn upload (optional)
+  {
+    id: 'resume-upload',
+    type: 'file-upload',
+    question: 'Speed up your signup',
+    subtitle: 'Upload your resume or LinkedIn screenshot to auto-fill your profile',
+    optional: true,
+  },
+
+  // Parsed data review (only shows if parsing succeeded)
+  {
+    id: 'parsed-review',
+    type: 'parsed-review',
+    question: 'We found your details!',
+    subtitle: 'Review what we extracted. You can edit any field.',
+    optional: true,
+    shouldShow: (data) => data._parsedData != null,
   },
 
   // Name
@@ -195,6 +217,7 @@ export const onboardingQuestions: QuestionConfig[] = [
     type: 'card-select',
     question: 'What year are you in?',
     field: 'year',
+    showWhenParsed: true,
     shouldShow: (data) => data.occupation === 'Student',
     options: [
       { value: 'Freshman', icon: '🌱', label: 'Freshman' },
@@ -296,9 +319,30 @@ export const onboardingQuestions: QuestionConfig[] = [
   },
 ];
 
+function hasFieldValue(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return false;
+}
+
 export function getVisibleQuestions(formData: any): QuestionConfig[] {
   return onboardingQuestions.filter((q) => {
-    if (!q.shouldShow) return true;
-    return q.shouldShow(formData);
+    if (q.shouldShow && !q.shouldShow(formData)) return false;
+
+    // Skip questions already answered by resume parsing,
+    // but always show chip-select, password, and showWhenParsed questions
+    if (
+      formData._parsedData &&
+      q.field &&
+      q.type !== 'chip-select' &&
+      q.type !== 'password' &&
+      !q.showWhenParsed &&
+      hasFieldValue(formData[q.field])
+    ) {
+      return false;
+    }
+
+    return true;
   });
 }
