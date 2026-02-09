@@ -2,6 +2,7 @@ export type QuestionType =
   | 'welcome'
   | 'file-upload'
   | 'parsed-review'
+  | 'github-import'
   | 'text'
   | 'email'
   | 'verification'
@@ -49,6 +50,16 @@ export const onboardingQuestions: QuestionConfig[] = [
     subtitle: 'Review what we extracted. You can edit any field.',
     optional: true,
     shouldShow: (data) => data._parsedData != null,
+  },
+
+  // GitHub import (optional, only shows if no parsed data)
+  {
+    id: 'github-import',
+    type: 'github-import',
+    question: 'Got a GitHub?',
+    subtitle: 'We can pull your skills and interests from your repos',
+    optional: true,
+    shouldShow: (data) => data._parsedData == null,
   },
 
   // Name

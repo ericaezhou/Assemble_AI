@@ -3,11 +3,12 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
+const fetch = require('node-fetch');
 const { supabase } = require('./supabaseClient');
 const { authenticateToken, authorizeUser } = require('./middleware/auth');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -721,6 +722,68 @@ app.post('/api/messages', async (req, res) => {
     };
 
     res.json(messageWithName);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GitHub profile import (public API, no auth needed)
+app.get('/api/github/profile/:username', async (req, res) => {
+  const { username } = req.params;
+  const cleanUsername = username.trim().replace(/^@/, '');
+
+  if (!cleanUsername) {
+    return res.status(400).json({ error: 'Username is required' });
+  }
+
+  try {
+    // Fetch user profile
+    const profileRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUsername)}`, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+
+    if (!profileRes.ok) {
+      if (profileRes.status === 404) {
+        return res.status(404).json({ error: 'GitHub user not found' });
+      }
+      throw new Error('Failed to fetch GitHub profile');
+    }
+
+    const profile = await profileRes.json();
+
+    // Fetch user's repos to extract languages and topics
+    const reposRes = await fetch(`https://api.github.com/users/${encodeURIComponent(cleanUsername)}/repos?per_page=100&sort=updated`, {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    });
+
+    let languages = [];
+    let topics = [];
+
+    if (reposRes.ok) {
+      const repos = await reposRes.json();
+
+      // Collect unique languages
+      const langSet = new Set();
+      repos.forEach(repo => {
+        if (repo.language) langSet.add(repo.language);
+      });
+      languages = Array.from(langSet);
+
+      // Collect unique topics
+      const topicSet = new Set();
+      repos.forEach(repo => {
+        (repo.topics || []).forEach(t => topicSet.add(t));
+      });
+      topics = Array.from(topicSet);
+    }
+
+    res.json({
+      name: profile.name || null,
+      bio: profile.bio || null,
+      company: profile.company || null,
+      languages,
+      topics
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -63,7 +63,7 @@ export default function TextQuestion({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={placeholder}
-            className={`w-full px-6 py-5 text-xl text-center bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none ${
+            className={`w-full px-6 py-5 text-xl text-center text-gray-900 bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none ${
               isFocused
                 ? 'border-indigo-500 shadow-lg shadow-indigo-100'
                 : error

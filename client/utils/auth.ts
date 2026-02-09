@@ -5,7 +5,7 @@
 
 import { supabase } from './supabase';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
 /**
  * Sign up a new user with Supabase Auth
@@ -29,6 +29,7 @@ export async function signUp(
     interest_areas?: string[];
     current_skills?: string[];
     hobbies?: string[];
+    github?: string;
   }
 ) {
   const { data, error } = await supabase.auth.signUp({
@@ -84,7 +85,8 @@ export async function signUp(
       other_description: profileData.other_description,
       interest_areas: profileData.interest_areas,
       current_skills: profileData.current_skills,
-      hobbies: profileData.hobbies
+      hobbies: profileData.hobbies,
+      github: profileData.github
     })
     .eq('id', data.user.id);
 

@@ -5,6 +5,7 @@ import { signUp } from '@/utils/auth';
 import { getVisibleQuestions } from '@/utils/onboardingQuestions';
 import { INTEREST_AREAS, SKILLS, HOBBIES, Option } from '@/utils/profileOptions';
 import { uploadForParsing, pollForResult, claimParsingJob, confirmParsing, ParsedData } from '@/utils/parsingApi';
+import { API_BASE_URL } from '@/utils/api';
 import QuestionContainer from './QuestionContainer';
 import ImplicitProgress from './ImplicitProgress';
 import WelcomeScreen from './questions/WelcomeScreen';
@@ -14,6 +15,7 @@ import ChipSelectQuestion from './questions/ChipSelectQuestion';
 import VerificationQuestion from './questions/VerificationQuestion';
 import FileUploadQuestion from './questions/FileUploadQuestion';
 import ParsedReviewQuestion from './questions/ParsedReviewQuestion';
+import GitHubImportQuestion from './questions/GitHubImportQuestion';
 import CompletionScreen from './questions/CompletionScreen';
 
 interface ConversationalOnboardingProps {
@@ -107,6 +109,7 @@ export default function ConversationalOnboarding({
     interest_areas: [],
     current_skills: [],
     hobbies: [],
+    github: '',
     _parsedData: null,
   });
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -123,6 +126,11 @@ export default function ConversationalOnboarding({
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const pollerRef = useRef<{ cancel: () => void } | null>(null);
   const maxProgressRef = useRef(0);
+
+  // GitHub import state
+  const [githubStatus, setGithubStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [githubData, setGithubData] = useState<{ name?: string; bio?: string; company?: string; languages: string[]; topics: string[] } | null>(null);
+  const [githubUsername, setGithubUsername] = useState('');
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -175,6 +183,59 @@ export default function ConversationalOnboarding({
         'resume-upload': err.message || 'Upload failed',
       }));
     }
+  };
+
+  const handleGitHubFetch = async (username: string) => {
+    setGithubStatus('loading');
+    setErrors((prev) => ({ ...prev, 'github-import': null }));
+    setGithubUsername(username);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/github/profile/${encodeURIComponent(username)}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch GitHub profile');
+      }
+
+      setGithubData(data);
+      setGithubStatus('success');
+    } catch (err: any) {
+      setGithubStatus('error');
+      setErrors((prev) => ({ ...prev, 'github-import': err.message || 'Failed to fetch GitHub profile' }));
+    }
+  };
+
+  const handleGitHubContinue = () => {
+    if (!githubData) {
+      handleNext();
+      return;
+    }
+
+    const updates: any = {};
+
+    // Store the full GitHub profile URL
+    if (githubUsername) {
+      updates.github = `https://github.com/${githubUsername}`;
+    }
+
+    if (githubData.name && !formData.name) updates.name = githubData.name;
+    if (githubData.company && !formData.company) updates.company = githubData.company;
+
+    // Map languages to skills
+    if (githubData.languages.length > 0) {
+      const matched = matchToOptions(githubData.languages, SKILLS);
+      if (matched.length) updates.current_skills = matched;
+    }
+
+    // Map topics to interests
+    if (githubData.topics.length > 0) {
+      const matched = matchToOptions(githubData.topics, INTEREST_AREAS);
+      if (matched.length) updates.interest_areas = matched;
+    }
+
+    setFormData((prev: any) => ({ ...prev, ...updates }));
+    handleNext();
   };
 
   const buildParsedUpdates = (data: ParsedData) => {
@@ -326,6 +387,7 @@ export default function ConversationalOnboarding({
           interest_areas: profileFields.interest_areas,
           current_skills: profileFields.current_skills,
           hobbies: profileFields.hobbies,
+          github: profileFields.github,
         }
       );
 
@@ -391,6 +453,20 @@ export default function ConversationalOnboarding({
               setErrors({});
             }}
             onSkip={handleNext}
+          />
+        );
+
+      case 'github-import':
+        return (
+          <GitHubImportQuestion
+            question={q.question!}
+            subtitle={q.subtitle}
+            onFetch={handleGitHubFetch}
+            onSkip={handleNext}
+            onContinue={handleGitHubContinue}
+            fetchStatus={githubStatus}
+            fetchedData={githubData}
+            error={errors['github-import']}
           />
         );
 
