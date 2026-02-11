@@ -229,3 +229,14 @@ ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS capacity integer;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS require_approval boolean DEFAULT false;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE public.conferences ADD COLUMN IF NOT EXISTS rsvp_questions text;
+
+-- Add bio and created_at to profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio text;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+
+-- Convert publications from text to text[]
+ALTER TABLE public.profiles ALTER COLUMN publications TYPE text[] USING
+  CASE
+    WHEN publications IS NULL THEN NULL
+    ELSE ARRAY[publications]
+  END;

@@ -29,6 +29,11 @@ export async function signUp(
     interest_areas?: string[];
     current_skills?: string[];
     hobbies?: string[];
+    bio?: string;
+    publications?: string[];
+    github?: string;
+    linkedin?: string;
+    expected_grad_date?: string;
   }
 ) {
   const { data, error } = await supabase.auth.signUp({
@@ -84,7 +89,12 @@ export async function signUp(
       other_description: profileData.other_description,
       interest_areas: profileData.interest_areas,
       current_skills: profileData.current_skills,
-      hobbies: profileData.hobbies
+      hobbies: profileData.hobbies,
+      bio: profileData.bio,
+      publications: profileData.publications,
+      github: profileData.github,
+      linkedin: profileData.linkedin,
+      expected_grad_date: profileData.expected_grad_date,
     })
     .eq('id', data.user.id);
 

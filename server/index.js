@@ -58,7 +58,8 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   const {
     name, occupation, school, major, year, company, title, degree,
     work_experience_years, research_area, other_description,
-    interest_areas, current_skills, hobbies
+    interest_areas, current_skills, hobbies,
+    bio, publications, github, linkedin, expected_grad_date
   } = req.body;
 
   // Build dynamic update object based on provided fields
@@ -78,6 +79,11 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   if (interest_areas !== undefined) updates.interest_areas = interest_areas;
   if (current_skills !== undefined) updates.current_skills = current_skills;
   if (hobbies !== undefined) updates.hobbies = hobbies;
+  if (bio !== undefined) updates.bio = bio;
+  if (publications !== undefined) updates.publications = publications;
+  if (github !== undefined) updates.github = github;
+  if (linkedin !== undefined) updates.linkedin = linkedin;
+  if (expected_grad_date !== undefined) updates.expected_grad_date = expected_grad_date;
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
