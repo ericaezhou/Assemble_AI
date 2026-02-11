@@ -30,6 +30,7 @@ export async function signUp(
     current_skills?: string[];
     hobbies?: string[];
     github?: string;
+    bio?: string;
   }
 ) {
   const { data, error } = await supabase.auth.signUp({
@@ -86,7 +87,8 @@ export async function signUp(
       interest_areas: profileData.interest_areas,
       current_skills: profileData.current_skills,
       hobbies: profileData.hobbies,
-      github: profileData.github
+      github: profileData.github,
+      bio: profileData.bio
     })
     .eq('id', data.user.id);
 

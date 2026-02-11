@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { signUp } from '@/utils/auth';
+import { signUp, authenticatedFetch } from '@/utils/auth';
 import { getVisibleQuestions } from '@/utils/onboardingQuestions';
 import { INTEREST_AREAS, SKILLS, HOBBIES, Option } from '@/utils/profileOptions';
 import { uploadForParsing, pollForResult, claimParsingJob, confirmParsing, ParsedData } from '@/utils/parsingApi';
@@ -110,6 +110,7 @@ export default function ConversationalOnboarding({
     current_skills: [],
     hobbies: [],
     github: '',
+    bio: '',
     _parsedData: null,
   });
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -388,6 +389,7 @@ export default function ConversationalOnboarding({
           current_skills: profileFields.current_skills,
           hobbies: profileFields.hobbies,
           github: profileFields.github,
+          bio: profileFields.bio,
         }
       );
 
@@ -408,6 +410,16 @@ export default function ConversationalOnboarding({
           // Non-blocking — profile was already saved by signUp
           console.warn('Failed to confirm parsing job');
         }
+      }
+
+      // If user provided GitHub, generate bio in background (non-blocking)
+      if (profileFields.github) {
+        authenticatedFetch(`/api/profiles/${result.user.id}/generate-bio`, {
+          method: 'POST',
+          body: JSON.stringify({ githubUsername: profileFields.github }),
+        }).catch((err) => {
+          console.warn('Failed to generate bio:', err.message);
+        });
       }
 
       // Success - pass the UUID to parent
