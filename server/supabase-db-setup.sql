@@ -248,3 +248,10 @@ ALTER TABLE public.conferences
     WHEN rsvp_questions IS NULL THEN NULL 
     ELSE ARRAY[rsvp_questions] 
   END;
+
+-- Convert publications from text to text[]
+ALTER TABLE public.profiles ALTER COLUMN publications TYPE text[] USING
+  CASE
+    WHEN publications IS NULL THEN NULL
+    ELSE ARRAY[publications]
+  END;

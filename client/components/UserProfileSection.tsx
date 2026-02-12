@@ -20,10 +20,11 @@ interface UserData {
   interest_areas?: string[];
   current_skills?: string[];
   hobbies?: string[];
+  publications?: string[];
+  bio?: string;
   // Legacy fields
   institution?: string;
   research_areas?: string;
-  bio?: string;
   interests?: string;
 }
 

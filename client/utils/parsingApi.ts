@@ -16,7 +16,7 @@ export interface ParsedData {
   work_experience_years?: string;
   research_area?: string;
   interest_areas?: string[];
-  publications?: string;
+  publications?: string[];
   current_skills?: string[];
   hobbies?: string[];
   github?: string;

@@ -250,6 +250,10 @@ export default function ConversationalOnboarding({
     if (data.title) updates.title = data.title;
     if (data.research_area) updates.research_area = data.research_area;
     if (data.other_description) updates.other_description = data.other_description;
+    if (data.github) updates.github = data.github;
+    if (data.linkedin) updates.linkedin = data.linkedin;
+    if (data.expected_grad_date) updates.expected_grad_date = data.expected_grad_date;
+    if (data.publications?.length) updates.publications = data.publications;
 
     // Map card-select fields to exact option values
     const occupation = mapOccupation(data);
@@ -388,8 +392,11 @@ export default function ConversationalOnboarding({
           interest_areas: profileFields.interest_areas,
           current_skills: profileFields.current_skills,
           hobbies: profileFields.hobbies,
-          github: profileFields.github,
           bio: profileFields.bio,
+          publications: profileFields.publications,
+          github: profileFields.github,
+          linkedin: profileFields.linkedin,
+          expected_grad_date: profileFields.expected_grad_date,
         }
       );
 

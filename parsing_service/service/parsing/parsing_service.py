@@ -20,7 +20,7 @@ from service.parsing.llm_client import LlmClient
 
 
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
-LIST_FIELDS = {"interest_areas", "current_skills", "hobbies"}
+LIST_FIELDS = {"interest_areas", "current_skills", "hobbies", "publications"}
 ALLOWED_FIELDS = {
     "name",
     "email",
