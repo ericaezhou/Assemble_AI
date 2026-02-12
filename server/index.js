@@ -3,7 +3,6 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const crypto = require('crypto');
-const fetch = require('node-fetch');
 const OpenAI = require('openai');
 const { supabase } = require('./supabaseClient');
 const { authenticateToken, authorizeUser } = require('./middleware/auth');
