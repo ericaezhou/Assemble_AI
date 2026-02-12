@@ -10,28 +10,32 @@ interface ParsedReviewQuestionProps {
   onSkip: () => void;
 }
 
-// Extract username from various GitHub URL formats
-function extractGitHubUsername(value: string): string | null {
-  if (!value) return null;
+// Extract username from various GitHub URL formats (used for initial parsing)
+function extractGitHubUsername(value: string): string {
+  if (!value) return '';
   const trimmed = value.trim();
 
-  // Check if it looks like a URL (contains github.com or protocol)
-  if (trimmed.includes('github.com') || trimmed.includes('://')) {
-    // Must be a properly formatted URL with ^ anchor to prevent partial matches
-    // Only allow: github.com/user, www.github.com/user, http://github.com/user, https://github.com/user
-    const urlMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9][a-zA-Z0-9-]{0,38})\/?$/i);
-    if (urlMatch && !urlMatch[1].endsWith('-')) {
-      return urlMatch[1];
-    }
-    return null; // Invalid URL format
+  // Try to extract from URL format
+  const urlMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([^\/\s]+)\/?$/i);
+  if (urlMatch) {
+    return urlMatch[1];
   }
 
-  // Just a username (alphanumeric and hyphens, 1-39 chars)
-  if (/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(trimmed) && !trimmed.endsWith('-')) {
-    return trimmed;
+  // Remove @ prefix if present
+  if (trimmed.startsWith('@')) {
+    return trimmed.slice(1);
   }
 
-  return null;
+  // Assume it's already just a username
+  return trimmed;
+}
+
+// Validate GitHub username format
+function isValidGitHubUsername(username: string): boolean {
+  if (!username) return true; // Empty is valid (optional field)
+  // GitHub usernames: alphanumeric and hyphens, 1-39 chars, can't start/end with hyphen
+  return /^[a-zA-Z0-9][a-zA-Z0-9-]{0,37}[a-zA-Z0-9]$/.test(username) ||
+         /^[a-zA-Z0-9]$/.test(username); // Single char username
 }
 
 type GitHubValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'not-found';
@@ -81,7 +85,11 @@ export default function ParsedReviewQuestion({
   onAccept,
   onSkip,
 }: ParsedReviewQuestionProps) {
-  const [editedData, setEditedData] = useState<ParsedData>({ ...parsedData });
+  // Initialize with GitHub as just the username (extracted from any URL format)
+  const [editedData, setEditedData] = useState<ParsedData>(() => ({
+    ...parsedData,
+    github: parsedData.github ? extractGitHubUsername(parsedData.github) : undefined,
+  }));
   const [githubStatus, setGithubStatus] = useState<GitHubValidationStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<EmailValidationStatus>('idle');
 
@@ -120,24 +128,23 @@ export default function ParsedReviewQuestion({
     return () => clearTimeout(timeout);
   }, [editedData.email]);
 
-  // Validate GitHub link on mount and when it changes (with debounce)
+  // Validate GitHub username on mount and when it changes (with debounce)
   useEffect(() => {
-    const github = editedData.github;
-    if (!github) {
+    const username = editedData.github;
+    if (!username) {
       setGithubStatus('idle');
       return;
     }
 
-    const username = extractGitHubUsername(github);
-    if (!username) {
-      // Debounce showing "invalid" to avoid flashing while typing
+    // Check username format first
+    if (!isValidGitHubUsername(username)) {
       const timeout = setTimeout(() => {
         setGithubStatus('invalid');
       }, 500);
       return () => clearTimeout(timeout);
     }
 
-    // Debounce API call to avoid spamming while typing
+    // Debounce API call to verify the user exists
     setGithubStatus('validating');
     const timeout = setTimeout(() => {
       fetch(`${API_BASE_URL}/api/github/profile/${encodeURIComponent(username)}`)
@@ -147,11 +154,11 @@ export default function ParsedReviewQuestion({
           } else if (res.status === 404) {
             setGithubStatus('not-found');
           } else {
-            setGithubStatus('invalid');
+            setGithubStatus('idle'); // API error, don't block the user
           }
         })
         .catch(() => {
-          setGithubStatus('invalid');
+          setGithubStatus('idle'); // Network error, don't block the user
         });
     }, 500);
 
@@ -232,18 +239,35 @@ export default function ParsedReviewQuestion({
                 <label className="block text-sm font-medium text-gray-700">
                   {field.label}
                 </label>
-                <input
-                  type="text"
-                  value={displayValue(editedData[field.key])}
-                  onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                  className={`w-full px-4 py-2.5 text-sm text-gray-900 bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
-                    (field.key === 'github' && (githubStatus === 'invalid' || githubStatus === 'not-found')) ||
-                    (field.key === 'email' && emailStatus === 'taken')
+                {/* Special input for GitHub with prefix */}
+                {field.key === 'github' ? (
+                  <div className={`flex items-center w-full bg-white border-2 rounded-xl transition-all duration-200 focus-within:border-indigo-500 focus-within:shadow-lg focus-within:shadow-indigo-100 ${
+                    githubStatus === 'invalid' || githubStatus === 'not-found'
                       ? 'border-amber-400'
                       : 'border-gray-200'
-                  }`}
-                />
-                {/* GitHub validation warning */}
+                  }`}>
+                    <span className="pl-4 text-sm text-gray-500 select-none">github.com/</span>
+                    <input
+                      type="text"
+                      value={editedData.github || ''}
+                      onChange={(e) => handleFieldChange('github', e.target.value)}
+                      placeholder="username"
+                      className="flex-1 px-1 py-2.5 text-sm text-gray-900 bg-transparent focus:outline-none"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={displayValue(editedData[field.key])}
+                    onChange={(e) => handleFieldChange(field.key, e.target.value)}
+                    className={`w-full px-4 py-2.5 text-sm text-gray-900 bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
+                      field.key === 'email' && emailStatus === 'taken'
+                        ? 'border-amber-400'
+                        : 'border-gray-200'
+                    }`}
+                  />
+                )}
+                {/* GitHub validation feedback */}
                 {field.key === 'github' && githubStatus === 'validating' && (
                   <p className="text-xs text-gray-400 flex items-center gap-1">
                     <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
@@ -262,7 +286,7 @@ export default function ParsedReviewQuestion({
                 )}
                 {field.key === 'github' && githubStatus === 'invalid' && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <span>⚠</span> Invalid GitHub link format. Use: github.com/username
+                    <span>⚠</span> Invalid username format.
                   </p>
                 )}
                 {/* Email validation warning */}
@@ -280,10 +304,22 @@ export default function ParsedReviewQuestion({
       {/* Actions */}
       <div className="space-y-3 pt-4">
         <button
-          onClick={() => onAccept(editedData)}
-          className="px-8 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] transition-all duration-150 cursor-pointer"
+          onClick={() => {
+            // Construct full GitHub URL from username before passing up
+            const finalData = {
+              ...editedData,
+              github: editedData.github ? `https://github.com/${editedData.github}` : undefined,
+            };
+            onAccept(finalData);
+          }}
+          disabled={emailStatus === 'taken' || emailStatus === 'checking'}
+          className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
+            emailStatus === 'taken' || emailStatus === 'checking'
+              ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+              : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
+          }`}
         >
-          Looks good! &rarr;
+          {emailStatus === 'checking' ? 'Checking email...' : 'Looks good! →'}
         </button>
         <div>
           <button
