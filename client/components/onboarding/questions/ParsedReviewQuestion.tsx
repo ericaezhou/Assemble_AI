@@ -236,7 +236,7 @@ export default function ParsedReviewQuestion({
                   type="text"
                   value={displayValue(editedData[field.key])}
                   onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                  className={`w-full px-4 py-2.5 text-sm bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
+                  className={`w-full px-4 py-2.5 text-sm text-gray-900 bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
                     (field.key === 'github' && (githubStatus === 'invalid' || githubStatus === 'not-found')) ||
                     (field.key === 'email' && emailStatus === 'taken')
                       ? 'border-amber-400'

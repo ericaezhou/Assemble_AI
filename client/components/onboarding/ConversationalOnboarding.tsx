@@ -509,6 +509,8 @@ export default function ConversationalOnboarding({
           <ParsedReviewQuestion
             parsedData={parsedData!}
             onAccept={(reviewed) => {
+              // Update parsedData state so changes persist when navigating back
+              setParsedData(reviewed);
               const updates = buildParsedUpdates(reviewed);
               const newFormData = { ...formData, ...updates };
               // Compute next index against the NEW visible list so we skip
