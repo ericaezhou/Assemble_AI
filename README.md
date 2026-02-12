@@ -45,9 +45,17 @@ npm install
 cd ..
 ```
 
+4. Install parsing service dependencies:
+
+```bash
+cd parsing_service
+pip install -r requirements.txt
+cd ..
+```
+
 ### Running the Application
 
-You can run both the backend and frontend simultaneously:
+You can run the backend, frontend, and parsing service simultaneously:
 
 ```bash
 npm run dev
@@ -55,7 +63,7 @@ npm run dev
 
 Or run them separately:
 
-**Backend (runs on port 5000):**
+**Backend (runs on port 5001):**
 
 ```bash
 npm run server
@@ -67,6 +75,12 @@ npm run server
 npm run client
 ```
 
+**Parsing Service (runs on port 5100):**
+
+```bash
+python app.py
+```
+
 ### Env Files
 
 For security purposes, all necessary API keys stored within the repo's env files have not been pushed to GitHub. Please reach out privately to receive the files if you do not have them already as the application cannot run locally without them.
@@ -75,34 +89,41 @@ For security purposes, all necessary API keys stored within the repo's env files
 
 1. Open your browser to `http://localhost:3000`
 2. Click "Sign up" to create a new account
-3. Fill out the signup form:
-   - Enter your email and click "Get Code" to receive a verification code
-   - In development mode, check the server console for the code
-   - Enter the 6-digit verification code
-   - Complete the form with your name, password, institution, research areas, interests, and bio
-4. After signup, you'll see your dashboard with conferences
-5. Create or join conferences using conference IDs
-6. View conference details, search participants, and get recommendations
+3. Complete the onboarding flow:
+   - Optionally upload your resume or LinkedIn screenshot to auto-fill your profile
+   - Enter your name, email, and password
+   - Select your occupation and provide relevant details
+   - Choose your interests, skills, and hobbies
+   - A bio will be automatically generated from your GitHub/resume data
+4. After signup, you'll see your dashboard with events
+5. Create or join events using event IDs
+6. View event details, search participants, and get recommendations
 
 ## API Endpoints
 
 ### Authentication
 
-- `POST /api/auth/signup` - Create a new user account
-- `POST /api/auth/login` - Login with email and password
+Authentication (signup/login) happens client-side via Supabase Auth.
+
+- `POST /api/auth/check-email` - Check if an email is already registered
 
 ### Researchers
 
 - `GET /api/researchers` - Get all researchers
 - `GET /api/researchers/:id` - Get a specific researcher
+- `PUT /api/researchers/:id` - Update researcher profile
 - `GET /api/researchers/search/:query` - Search researchers
 - `GET /api/researchers/:id/recommendations` - Get personalized recommendations
+- `GET /api/researchers/:id/conferences` - Get all conferences for a user
+
+### Profiles
+
+- `POST /api/profiles/:id/generate-bio` - Generate a bio using LLM from GitHub and/or resume data
 
 ### Conferences
 
 - `POST /api/conferences` - Create a new conference
-- `POST /api/conferences/join` - Join a conference by ID
-- `GET /api/conferences/user/:userId` - Get all conferences for a user
+- `POST /api/conferences/:id/join` - Join a conference by ID
 - `GET /api/conferences/:id` - Get conference details
 - `GET /api/conferences/:id/participants` - Get conference participants with similarity scores
 
@@ -112,6 +133,19 @@ For security purposes, all necessary API keys stored within the repo's env files
 - `GET /api/conversations/user/:userId` - Get all conversations for a user
 - `GET /api/conversations/:id/messages` - Get all messages in a conversation
 - `POST /api/messages` - Send a message in a conversation
+
+### GitHub
+
+- `GET /api/github/profile/:username` - Get GitHub profile and repository data
+
+### Resume Parsing
+
+The parsing service runs on port 5100. These endpoints are proxied through the main server.
+
+- `POST /api/parsing/upload` - Upload a resume/LinkedIn screenshot for parsing
+- `GET /api/parsing/result` - Get the parsed result for a job
+- `POST /api/parsing/confirm` - Confirm parsed data with optional overrides
+- `POST /api/parsing/claim` - Associate a parsing job with a user
 
 ## How Recommendations Work
 
