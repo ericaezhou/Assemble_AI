@@ -133,6 +133,54 @@ export default function ConversationalOnboarding({
   const [githubData, setGithubData] = useState<{ name?: string; bio?: string; company?: string; languages: string[]; topics: string[] } | null>(null);
   const [githubUsername, setGithubUsername] = useState('');
 
+  // Email validation state
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const emailCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Check if email is already registered (with debounce)
+  useEffect(() => {
+    const email = formData.email;
+
+    // Clear any pending check
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
+
+    if (!email) {
+      setEmailStatus('idle');
+      return;
+    }
+
+    // Basic format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailStatus('idle');
+      return;
+    }
+
+    // Debounce the API call
+    setEmailStatus('checking');
+    emailCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/check-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        setEmailStatus(data.exists ? 'taken' : 'available');
+      } catch {
+        setEmailStatus('idle'); // Don't block on errors
+      }
+    }, 500);
+
+    return () => {
+      if (emailCheckTimeoutRef.current) {
+        clearTimeout(emailCheckTimeoutRef.current);
+      }
+    };
+  }, [formData.email]);
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -502,6 +550,7 @@ export default function ConversationalOnboarding({
             onContinue={handleNext}
             type={q.type}
             error={errors[q.id]}
+            emailStatus={q.type === 'email' ? emailStatus : undefined}
           />
         );
 

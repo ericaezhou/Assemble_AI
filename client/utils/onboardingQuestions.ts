@@ -52,14 +52,14 @@ export const onboardingQuestions: QuestionConfig[] = [
     shouldShow: (data) => data._parsedData != null,
   },
 
-  // GitHub import (optional, only shows if no parsed data)
+  // GitHub import (optional, shows if no parsed data or if parsing didn't find a GitHub)
   {
     id: 'github-import',
     type: 'github-import',
     question: 'Got a GitHub?',
     subtitle: 'We can pull your skills and interests from your repos',
     optional: true,
-    shouldShow: (data) => data._parsedData == null,
+    shouldShow: (data) => data._parsedData == null || !data.github,
   },
 
   // Name

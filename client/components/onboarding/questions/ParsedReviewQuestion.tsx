@@ -1,13 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ParsedData } from '@/utils/parsingApi';
+import { API_BASE_URL } from '@/utils/api';
 
 interface ParsedReviewQuestionProps {
   parsedData: ParsedData;
   onAccept: (reviewed: ParsedData) => void;
   onSkip: () => void;
 }
+
+// Extract username from various GitHub URL formats
+function extractGitHubUsername(value: string): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+
+  // Check if it looks like a URL (contains github.com or protocol)
+  if (trimmed.includes('github.com') || trimmed.includes('://')) {
+    // Must be a properly formatted URL with ^ anchor to prevent partial matches
+    // Only allow: github.com/user, www.github.com/user, http://github.com/user, https://github.com/user
+    const urlMatch = trimmed.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9][a-zA-Z0-9-]{0,38})\/?$/i);
+    if (urlMatch && !urlMatch[1].endsWith('-')) {
+      return urlMatch[1];
+    }
+    return null; // Invalid URL format
+  }
+
+  // Just a username (alphanumeric and hyphens, 1-39 chars)
+  if (/^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}$/.test(trimmed) && !trimmed.endsWith('-')) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+type GitHubValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'not-found';
+type EmailValidationStatus = 'idle' | 'checking' | 'available' | 'taken';
 
 interface FieldConfig {
   key: keyof ParsedData;
@@ -54,6 +82,81 @@ export default function ParsedReviewQuestion({
   onSkip,
 }: ParsedReviewQuestionProps) {
   const [editedData, setEditedData] = useState<ParsedData>({ ...parsedData });
+  const [githubStatus, setGithubStatus] = useState<GitHubValidationStatus>('idle');
+  const [emailStatus, setEmailStatus] = useState<EmailValidationStatus>('idle');
+
+  // Validate email on mount and when it changes (with debounce)
+  useEffect(() => {
+    const email = editedData.email;
+    if (!email) {
+      setEmailStatus('idle');
+      return;
+    }
+
+    // Basic format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailStatus('idle');
+      return;
+    }
+
+    // Debounce API call
+    setEmailStatus('checking');
+    const timeout = setTimeout(() => {
+      fetch(`${API_BASE_URL}/api/auth/check-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setEmailStatus(data.exists ? 'taken' : 'available');
+        })
+        .catch(() => {
+          setEmailStatus('idle');
+        });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [editedData.email]);
+
+  // Validate GitHub link on mount and when it changes (with debounce)
+  useEffect(() => {
+    const github = editedData.github;
+    if (!github) {
+      setGithubStatus('idle');
+      return;
+    }
+
+    const username = extractGitHubUsername(github);
+    if (!username) {
+      // Debounce showing "invalid" to avoid flashing while typing
+      const timeout = setTimeout(() => {
+        setGithubStatus('invalid');
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+
+    // Debounce API call to avoid spamming while typing
+    setGithubStatus('validating');
+    const timeout = setTimeout(() => {
+      fetch(`${API_BASE_URL}/api/github/profile/${encodeURIComponent(username)}`)
+        .then((res) => {
+          if (res.ok) {
+            setGithubStatus('valid');
+          } else if (res.status === 404) {
+            setGithubStatus('not-found');
+          } else {
+            setGithubStatus('invalid');
+          }
+        })
+        .catch(() => {
+          setGithubStatus('invalid');
+        });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [editedData.github]);
 
   // Only show fields that have values
   const fieldsWithValues = FIELD_CONFIGS.filter((f) =>
@@ -133,8 +236,41 @@ export default function ParsedReviewQuestion({
                   type="text"
                   value={displayValue(editedData[field.key])}
                   onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm bg-white border-2 border-gray-200 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100"
+                  className={`w-full px-4 py-2.5 text-sm bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
+                    (field.key === 'github' && (githubStatus === 'invalid' || githubStatus === 'not-found')) ||
+                    (field.key === 'email' && emailStatus === 'taken')
+                      ? 'border-amber-400'
+                      : 'border-gray-200'
+                  }`}
                 />
+                {/* GitHub validation warning */}
+                {field.key === 'github' && githubStatus === 'validating' && (
+                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
+                    Checking GitHub profile...
+                  </p>
+                )}
+                {field.key === 'github' && githubStatus === 'valid' && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <span>✓</span> GitHub profile verified
+                  </p>
+                )}
+                {field.key === 'github' && githubStatus === 'not-found' && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <span>⚠</span> GitHub user not found. Please check the username.
+                  </p>
+                )}
+                {field.key === 'github' && githubStatus === 'invalid' && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <span>⚠</span> Invalid GitHub link format. Use: github.com/username
+                  </p>
+                )}
+                {/* Email validation warning */}
+                {field.key === 'email' && emailStatus === 'taken' && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <span>⚠</span> This email is already registered. Try signing in instead.
+                  </p>
+                )}
               </div>
             ))}
           </div>

@@ -749,6 +749,40 @@ function sanitizeForLLM(text, maxLength = 100) {
     .slice(0, maxLength);
 }
 
+// Check if email is already registered (public API, no auth needed)
+app.post('/api/auth/check-email', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Basic email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  try {
+    // Check if email exists in profiles table
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', email)
+      .limit(1);
+
+    if (error) {
+      console.warn('Failed to check email existence:', error.message);
+      return res.json({ exists: false, status: 'unknown' });
+    }
+
+    res.json({ exists: data && data.length > 0 });
+  } catch (err) {
+    console.error('Email check error:', err.message);
+    res.json({ exists: false, status: 'unknown' });
+  }
+});
+
 // GitHub profile import (public API, no auth needed)
 app.get('/api/github/profile/:username', async (req, res) => {
   const { username } = req.params;

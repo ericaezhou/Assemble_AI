@@ -9,6 +9,7 @@ interface TextQuestionProps {
   onContinue: () => void;
   type?: 'text' | 'email' | 'password';
   error?: string | null;
+  emailStatus?: 'idle' | 'checking' | 'available' | 'taken';
 }
 
 export default function TextQuestion({
@@ -20,6 +21,7 @@ export default function TextQuestion({
   onContinue,
   type = 'text',
   error,
+  emailStatus,
 }: TextQuestionProps) {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -37,7 +39,8 @@ export default function TextQuestion({
     }
   };
 
-  const isValid = value && !error;
+  const isEmailTaken = type === 'email' && emailStatus === 'taken';
+  const isValid = value && !error && !isEmailTaken;
 
   return (
     <div className="text-center space-y-12">
@@ -53,6 +56,13 @@ export default function TextQuestion({
 
       {/* Input */}
       <div className="space-y-4">
+        {/* Email already taken warning */}
+        {type === 'email' && emailStatus === 'taken' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm flex items-center justify-center gap-2">
+            <span>⚠</span> This email is already registered. Try signing in instead.
+          </div>
+        )}
+
         <div className="relative">
           <input
             id="question-input"
