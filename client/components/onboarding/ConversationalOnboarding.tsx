@@ -467,11 +467,34 @@ export default function ConversationalOnboarding({
         }
       }
 
-      // If user provided GitHub, generate bio in background (non-blocking)
-      if (profileFields.github) {
+      // Generate bio in background if we have GitHub or resume data (non-blocking)
+      const hasGithub = !!profileFields.github;
+      const hasResumeData = !!_parsedData;
+      if (hasGithub || hasResumeData) {
+        const bioRequestBody: any = {};
+        if (hasGithub) {
+          bioRequestBody.githubUsername = profileFields.github;
+        }
+        if (hasResumeData) {
+          // Pass resume/profile data for richer bio generation
+          bioRequestBody.resumeData = {
+            name: profileFields.name,
+            occupation: profileFields.occupation,
+            school: profileFields.school,
+            major: profileFields.major,
+            degree: profileFields.degree,
+            company: profileFields.company,
+            title: profileFields.title,
+            research_area: profileFields.research_area,
+            interest_areas: profileFields.interest_areas,
+            current_skills: profileFields.current_skills,
+            publications: profileFields.publications,
+            bio: _parsedData.bio, // Use original parsed bio from resume
+          };
+        }
         authenticatedFetch(`/api/profiles/${result.user.id}/generate-bio`, {
           method: 'POST',
-          body: JSON.stringify({ githubUsername: profileFields.github }),
+          body: JSON.stringify(bioRequestBody),
         }).catch((err) => {
           console.warn('Failed to generate bio:', err.message);
         });
