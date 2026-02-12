@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { UserProfile, useUserStore } from '@/store/userStore';
 import {
   INTEREST_AREAS,
@@ -32,6 +32,12 @@ export default function ProfileEditForm({
   const [selectedHobbies, setSelectedHobbies] = useState<string[]>(
     user.hobbies || []
   );
+  const [bio, setBio] = useState(user.bio || '');
+  const [github, setGithub] = useState(user.github || '');
+  const [linkedin, setLinkedin] = useState(user.linkedin || '');
+  const [publicationsText, setPublicationsText] = useState(
+    (user.publications || []).join('\n')
+  );
   const [error, setError] = useState<string | null>(null);
 
   const toggleItem = (
@@ -60,6 +66,17 @@ export default function ProfileEditForm({
     }
     if (section === 'hobbies' || section === 'header') {
       updates.hobbies = selectedHobbies;
+    }
+    if (section === 'about') {
+      updates.bio = bio;
+      updates.github = github;
+      updates.linkedin = linkedin;
+    }
+    if (section === 'publications') {
+      updates.publications = publicationsText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
     }
 
     const success = await saveProfile(updates);
@@ -127,6 +144,55 @@ export default function ProfileEditForm({
           setSelectedHobbies,
           'Edit Hobbies'
         );
+      case 'about':
+        return (
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={3}
+                placeholder="Tell people a bit about yourself..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">GitHub</label>
+              <input
+                type="text"
+                value={github}
+                onChange={(e) => setGithub(e.target.value)}
+                placeholder="username or https://github.com/username"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn</label>
+              <input
+                type="text"
+                value={linkedin}
+                onChange={(e) => setLinkedin(e.target.value)}
+                placeholder="username or https://linkedin.com/in/username"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+          </div>
+        );
+      case 'publications':
+        return (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold text-gray-800">Edit Publications</h3>
+            <p className="text-sm text-gray-500">One publication per line</p>
+            <textarea
+              value={publicationsText}
+              onChange={(e) => setPublicationsText(e.target.value)}
+              rows={8}
+              placeholder={"Impacts of Pandemic Instruction Mode on Student Learning\nConfigural Drivers of Team Performance"}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+            />
+          </div>
+        );
       case 'header':
         return (
           <div className="space-y-6">
@@ -161,7 +227,11 @@ export default function ProfileEditForm({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-800">
-            {section === 'header' ? 'Edit Profile' : `Edit ${section.charAt(0).toUpperCase() + section.slice(1)}`}
+            {section === 'header'
+              ? 'Edit Profile'
+              : section === 'about'
+              ? 'Edit About'
+              : `Edit ${section.charAt(0).toUpperCase() + section.slice(1)}`}
           </h2>
           <button
             onClick={onClose}

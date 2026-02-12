@@ -80,7 +80,7 @@ export default function VerificationQuestion({
             onBlur={() => setIsFocused(false)}
             placeholder="000000"
             maxLength={6}
-            className={`w-full max-w-xs mx-auto px-6 py-5 text-3xl text-center tracking-[0.5em] bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none font-mono ${
+            className={`w-full max-w-xs mx-auto px-6 py-5 text-3xl text-center text-gray-900 tracking-[0.5em] bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none font-mono ${
               isFocused
                 ? 'border-indigo-500 shadow-lg shadow-indigo-100'
                 : error

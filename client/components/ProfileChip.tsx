@@ -25,9 +25,10 @@ export default function ProfileChip({ value, type }: ProfileChipProps) {
 
   return (
     <span
-      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200"
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200"
       title={option.description}
     >
+      {option.icon && <span>{option.icon}</span>}
       {option.label}
     </span>
   );

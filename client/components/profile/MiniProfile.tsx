@@ -23,10 +23,6 @@ export default function MiniProfile({ user }: MiniProfileProps) {
     if (user.occupation === 'Other') {
       return user.other_description?.slice(0, 50) || 'Explorer';
     }
-    // Legacy fallback
-    if (user.institution) {
-      return user.institution;
-    }
     return user.occupation || '';
   };
 
@@ -70,14 +66,14 @@ export default function MiniProfile({ user }: MiniProfileProps) {
           />
         )}
 
-        {/* Legacy fields fallback */}
+        {/* Research area fallback */}
         {(!user.interest_areas || user.interest_areas.length === 0) &&
-          user.research_areas && (
+          user.research_area && (
             <div className="space-y-2">
               <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Research Areas
+                Research Area
               </h4>
-              <p className="text-sm text-gray-700">{user.research_areas}</p>
+              <p className="text-sm text-gray-700">{user.research_area}</p>
             </div>
           )}
       </div>

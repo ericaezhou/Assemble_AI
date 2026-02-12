@@ -19,8 +19,11 @@ export interface Profile {
   interest_areas?: string[];
   current_skills?: string[];
   hobbies?: string[];
+  bio?: string;
+  publications?: string[];
   github?: string;
   linkedin?: string;
+  expected_grad_date?: string;
   created_at?: string;
   updated_at?: string;
   // Computed field for recommendations
