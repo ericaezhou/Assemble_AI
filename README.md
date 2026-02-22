@@ -55,7 +55,9 @@ cd ..
 
 ### Running the Application
 
-You can run the backend, frontend, and parsing service simultaneously:
+Assemble AI is currently deployed at https://assembleai.vercel.app/
+
+You can locally run the backend, frontend, and parsing service simultaneously:
 
 ```bash
 npm run dev
