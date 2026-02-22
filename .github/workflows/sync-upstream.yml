@@ -1,0 +1,27 @@
+name: Sync from upstream
+
+on:
+  repository_dispatch:
+    types: [upstream-push]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    # Only run in forks, not in the upstream repo
+    if: github.repository != 'ericaezhou/Assemble_AI'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Sync upstream
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/ericaezhou/Assemble_AI.git
+          git fetch upstream
+          git checkout main
+          git reset --hard upstream/main
+          git push origin main --force
