@@ -177,9 +177,14 @@ export default function Dashboard({ user }: DashboardProps) {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/researchers/search/${encodeURIComponent(query)}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/researchers/search/${encodeURIComponent(query)}`);
       const data = await response.json();
-      setSearchResults(data.filter((r: Researcher) => r.id !== user?.id));
+      if (Array.isArray(data)) {
+        setSearchResults(data.filter((r: Researcher) => r.id !== user?.id));
+      } else {
+        console.error('Search failed:', data.error);
+        setSearchResults([]);
+      }
     } catch (err) {
       console.error('Error searching:', err);
     }

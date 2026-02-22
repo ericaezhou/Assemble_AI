@@ -22,8 +22,8 @@ app.use(bodyParser.json());
 // The frontend calls Supabase Auth directly, then uses the JWT token
 // to authenticate with these Express endpoints
 
-// Get all researchers (profiles)
-app.get('/api/researchers', async (req, res) => {
+// Get all researchers (profiles) - Protected
+app.get('/api/researchers', authenticateToken, async (req, res) => {
   try {
     const { data: profiles, error } = await supabase
       .from('profiles')
@@ -120,8 +120,8 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   }
 });
 
-// Search researchers
-app.get('/api/researchers/search/:query', async (req, res) => {
+// Search researchers (Protected)
+app.get('/api/researchers/search/:query', authenticateToken, async (req, res) => {
   const { query } = req.params;
 
   try {
