@@ -544,7 +544,12 @@ export default function ConversationalOnboarding({
               setCurrentIndex(Math.min(reviewIdx + 1, newVisible.length - 1));
               setErrors({});
             }}
-            onSkip={handleNext}
+            onSkip={() => {
+              // Clear _parsedData so question-skipping logic doesn't apply
+              // This ensures email and other required questions will be shown
+              setFormData((prev: any) => ({ ...prev, _parsedData: null }));
+              handleNext();
+            }}
           />
         );
 

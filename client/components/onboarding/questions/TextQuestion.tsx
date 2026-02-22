@@ -33,14 +33,15 @@ export default function TextQuestion({
     return () => clearTimeout(timer);
   }, []);
 
+  // For email fields, require status to be 'available' (not just 'not taken')
+  const isEmailValid = type !== 'email' || emailStatus === 'available';
+  const isValid = value && !error && isEmailValid;
+
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && value && !error) {
+    if (e.key === 'Enter' && isValid) {
       onContinue();
     }
   };
-
-  const isEmailTaken = type === 'email' && emailStatus === 'taken';
-  const isValid = value && !error && !isEmailTaken;
 
   return (
     <div className="text-center space-y-12">
@@ -55,14 +56,7 @@ export default function TextQuestion({
       </div>
 
       {/* Input */}
-      <div className="space-y-4">
-        {/* Email already taken warning */}
-        {type === 'email' && emailStatus === 'taken' && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm flex items-center justify-center gap-2">
-            <span>⚠</span> This email is already registered. Try signing in instead.
-          </div>
-        )}
-
+      <div className="space-y-2">
         <div className="relative">
           <input
             id="question-input"
@@ -78,10 +72,39 @@ export default function TextQuestion({
                 ? 'border-indigo-500 shadow-lg shadow-indigo-100'
                 : error
                 ? 'border-red-300'
+                : type === 'email' && emailStatus === 'taken'
+                ? 'border-amber-400'
+                : type === 'email' && emailStatus === 'idle' && value
+                ? 'border-amber-400'
+                : type === 'email' && emailStatus === 'available'
+                ? 'border-green-400'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           />
         </div>
+
+        {/* Email status feedback */}
+        {type === 'email' && emailStatus === 'idle' && value && (
+          <p className="text-sm text-amber-600 flex items-center justify-center gap-1">
+            <span>⚠</span> Please enter a valid email address
+          </p>
+        )}
+        {type === 'email' && emailStatus === 'checking' && (
+          <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
+            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
+            Checking email availability...
+          </p>
+        )}
+        {type === 'email' && emailStatus === 'available' && (
+          <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+            <span>✓</span> Email available
+          </p>
+        )}
+        {type === 'email' && emailStatus === 'taken' && (
+          <p className="text-sm text-amber-600 flex items-center justify-center gap-1">
+            <span>⚠</span> This email is already registered. Try signing in instead.
+          </p>
+        )}
 
         {error && (
           <p className="text-sm text-red-500 animate-in fade-in duration-200">

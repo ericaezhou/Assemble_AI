@@ -165,9 +165,9 @@ export default function ParsedReviewQuestion({
     return () => clearTimeout(timeout);
   }, [editedData.github]);
 
-  // Only show fields that have values
+  // Show fields that have values, but always include email (required field)
   const fieldsWithValues = FIELD_CONFIGS.filter((f) =>
-    hasValue(parsedData[f.key])
+    f.key === 'email' || hasValue(parsedData[f.key])
   );
 
   // Group fields
@@ -261,7 +261,7 @@ export default function ParsedReviewQuestion({
                     value={displayValue(editedData[field.key])}
                     onChange={(e) => handleFieldChange(field.key, e.target.value)}
                     className={`w-full px-4 py-2.5 text-sm text-gray-900 bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
-                      field.key === 'email' && emailStatus === 'taken'
+                      field.key === 'email' && (emailStatus === 'taken' || !editedData.email?.trim())
                         ? 'border-amber-400'
                         : 'border-gray-200'
                     }`}
@@ -289,7 +289,12 @@ export default function ParsedReviewQuestion({
                     <span>⚠</span> Invalid username format.
                   </p>
                 )}
-                {/* Email validation warning */}
+                {/* Email validation warnings */}
+                {field.key === 'email' && !editedData.email?.trim() && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <span>⚠</span> Email is required.
+                  </p>
+                )}
                 {field.key === 'email' && emailStatus === 'taken' && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
                     <span>⚠</span> This email is already registered. Try signing in instead.
@@ -312,9 +317,9 @@ export default function ParsedReviewQuestion({
             };
             onAccept(finalData);
           }}
-          disabled={emailStatus === 'taken' || emailStatus === 'checking'}
+          disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking'}
           className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-            emailStatus === 'taken' || emailStatus === 'checking'
+            !editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking'
               ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
               : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
           }`}
