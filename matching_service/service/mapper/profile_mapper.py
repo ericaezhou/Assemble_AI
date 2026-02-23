@@ -4,7 +4,7 @@ Profile Mapper - Convert database ProfileDTO to matching UserProfile
 Maps database fields to matching service fields by composing text from multiple sources.
 """
 
-from typing import List, Optional
+from typing import Any, List, Optional
 from db.pojo.profile import ProfileDTO
 from src.matching.matching_pojo import UserProfile
 
@@ -23,11 +23,39 @@ def _list_to_text(field_value) -> str:
         return ""
 
     if isinstance(field_value, list):
-        return ", ".join(field_value)
+        flattened = _flatten_to_strings(field_value)
+        return ", ".join(flattened)
     elif isinstance(field_value, str):
         return field_value.strip()
 
     return ""
+
+
+def _flatten_to_strings(value: Any) -> List[str]:
+    """
+    Flatten nested lists/tuples and coerce leaf values to strings.
+    """
+    result: List[str] = []
+
+    if value is None:
+        return result
+
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            result.extend(_flatten_to_strings(item))
+        return result
+
+    text = str(value).strip()
+    if text:
+        result.append(text)
+    return result
+
+
+def _as_clean_text(value: Any) -> str:
+    """
+    Normalize string/list values into a clean text representation.
+    """
+    return _list_to_text(value)
 
 
 def build_exp_text(profile: ProfileDTO) -> str:
@@ -45,8 +73,9 @@ def build_exp_text(profile: ProfileDTO) -> str:
     parts = []
 
     # 1. Bio (most comprehensive)
-    if profile.bio and profile.bio.strip():
-        parts.append(profile.bio.strip())
+    bio_text = _as_clean_text(profile.bio)
+    if bio_text:
+        parts.append(bio_text)
 
     # 2. Work experience
     work_parts = []
@@ -90,12 +119,14 @@ def build_exp_text(profile: ProfileDTO) -> str:
         parts.append(f"Institution: {profile.institution}")
 
     # 5. Publications
-    if profile.publications and profile.publications.strip():
-        parts.append(f"Publications: {profile.publications.strip()}")
+    publications_text = _as_clean_text(profile.publications)
+    if publications_text:
+        parts.append(f"Publications: {publications_text}")
 
     # 6. Short answer (additional context)
-    if profile.short_answer and profile.short_answer.strip():
-        parts.append(profile.short_answer.strip())
+    short_answer_text = _as_clean_text(profile.short_answer)
+    if short_answer_text:
+        parts.append(short_answer_text)
 
     return ". ".join(parts).strip()
 
@@ -115,14 +146,15 @@ def build_interest_text(profile: ProfileDTO) -> str:
     parts = []
 
     # 1. General interests
-    if profile.interests and profile.interests.strip():
-        parts.append(f"Interests: {profile.interests.strip()}")
+    interests_text = _as_clean_text(profile.interests)
+    if interests_text:
+        parts.append(f"Interests: {interests_text}")
 
     # 2. Interest areas
     interest_areas_text = _list_to_text(profile.interest_areas)
     if interest_areas_text:
         # Avoid duplication with interests
-        if not (profile.interests and interest_areas_text in profile.interests):
+        if not (interests_text and interest_areas_text in interests_text):
             parts.append(f"Interest areas: {interest_areas_text}")
 
     # 3. Research areas
@@ -139,8 +171,9 @@ def build_interest_text(profile: ProfileDTO) -> str:
         parts.append(f"Hobbies: {hobbies_text}")
 
     # 5. Other description (if available)
-    if profile.other_description and profile.other_description.strip():
-        parts.append(profile.other_description.strip())
+    other_description_text = _as_clean_text(profile.other_description)
+    if other_description_text:
+        parts.append(other_description_text)
 
     return ". ".join(parts).strip()
 

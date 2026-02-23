@@ -4,12 +4,19 @@
   "description": "Research conference discovery tool",
   "main": "server/index.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\" \"npm run parsing\"",
-    "parsing": "cd parsing_service && python app.py",
+    "dev": "concurrently \"npm run server\" \"npm run client\" \"npm run parsing\" \"npm run matching\"",
+    "parsing": "cd parsing_service && .venv\\Scripts\\python app.py",
+    "matching": "cd matching_service && .venv\\Scripts\\python app.py",
+    "venv:parsing": "cd parsing_service && python -m venv .venv && .venv\\Scripts\\python -m pip install --upgrade pip && .venv\\Scripts\\python -m pip install -r requirements.txt",
+    "venv:matching": "cd matching_service && python -m venv .venv && .venv\\Scripts\\python -m pip install --upgrade pip && .venv\\Scripts\\python -m pip install --upgrade --force-reinstall -r requirements.txt",
+    "matching:deps": "npm run venv:matching",
+    "bootstrap:all": "cd client && npm install && cd .. && npm run venv:parsing && npm run venv:matching",
+    "postinstall": "npm run bootstrap:all",
+    "setup:all": "npm install",
     "server": "nodemon server/index.js",
     "client": "cd client && npm run dev",
     "build": "cd client && npm run build",
-    "install-all": "npm install && cd client && npm install"
+    "install-all": "npm install"
   },
   "keywords": [
     "research",

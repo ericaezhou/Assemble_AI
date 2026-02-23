@@ -20,8 +20,10 @@ A discovery tool for research conferences that helps researchers connect with ot
 
 ### Prerequisites
 
-- Node.js (v14 or higher)
+- Node.js (v18 or higher recommended)
 - npm
+- Python 3.10+
+- pip
 
 ### Installation
 
@@ -31,33 +33,24 @@ A discovery tool for research conferences that helps researchers connect with ot
 cd Assemble_AI
 ```
 
-2. Install backend dependencies:
+2. Install all project dependencies with one command:
 
 ```bash
 npm install
 ```
 
-3. Install frontend dependencies:
+`npm install` now runs a `postinstall` step that also installs:
+- `client` npm dependencies
+- `parsing_service` Python dependencies in `parsing_service/.venv`
+- `matching_service` Python dependencies in `matching_service/.venv`
 
-```bash
-cd client
-npm install
-cd ..
-```
-
-4. Install parsing service dependencies:
-
-```bash
-cd parsing_service
-pip install -r requirements.txt
-cd ..
-```
+This isolates Python dependencies from your global/conda environment and avoids package conflicts between services.
 
 ### Running the Application
 
 Assemble AI is currently deployed at https://assembleai.vercel.app/
 
-You can locally run the backend, frontend, and parsing service simultaneously:
+You can locally run backend, frontend, parsing service, and matching service simultaneously:
 
 ```bash
 npm run dev
@@ -80,7 +73,15 @@ npm run client
 **Parsing Service (runs on port 5100):**
 
 ```bash
-python app.py
+cd parsing_service
+.venv\Scripts\python app.py
+```
+
+**Matching Service (runs on port 5000):**
+
+```bash
+cd matching_service
+.venv\Scripts\python app.py
 ```
 
 ### Env Files
@@ -142,21 +143,34 @@ Authentication (signup/login) happens client-side via Supabase Auth.
 
 ### Resume Parsing
 
-The parsing service runs on port 5100. These endpoints are proxied through the main server.
+The parsing service runs on port 5100.
+
+The following endpoints are proxied through the main server:
 
 - `POST /api/parsing/upload` - Upload a resume/LinkedIn screenshot for parsing
 - `GET /api/parsing/result` - Get the parsed result for a job
 - `POST /api/parsing/confirm` - Confirm parsed data with optional overrides
 - `POST /api/parsing/claim` - Associate a parsing job with a user
 
+The status endpoint is currently available directly on the parsing service:
+
+- `GET http://127.0.0.1:5100/api/parsing/status?job_id=...` - Check parsing job status
+
 ## How Recommendations Work
 
-The recommendation algorithm calculates similarity scores based on:
+Recommendations are served by the matching pipeline:
+- Frontend requests `GET /api/researchers/:id/recommendations`
+- Main backend proxies to `matching_service` (`POST /api/u2u/matches`)
+- Matching service computes similarity with MMR options and returns ranked matches
+- Backend merges profile fields from Supabase and includes:
+  - `similarity_score`
+  - `match_reason` (shown in UI as "Why matched")
 
-- Matching research interests (weight: 2)
-- Matching research areas (weight: 3)
-
-Researchers with higher similarity scores appear first in your recommendations.
+Default parameters currently used by the app refresh flow:
+- `top_k=3`
+- `min_score=0`
+- `apply_mmr=true`
+- `mmr_lambda=0.5`
 
 ## Features
 

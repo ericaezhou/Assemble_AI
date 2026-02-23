@@ -8,13 +8,20 @@ interface ResearcherCardProps {
 }
 
 export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
+  const similarityScore =
+    typeof researcher.similarity_score === 'number' ? researcher.similarity_score : null;
+  const formattedSimilarityScore =
+    similarityScore !== null
+      ? similarityScore.toFixed(3)
+      : null;
+
   return (
     <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
       <div className="flex justify-between items-start mb-3 gap-2">
         <h3 className="text-lg font-bold text-gray-800">{researcher.name}</h3>
-        {researcher.similarity_score !== undefined && researcher.similarity_score > 0 && (
+        {formattedSimilarityScore && similarityScore > 0 && (
           <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap">
-            Match Score: {researcher.similarity_score}
+            Match Score: {formattedSimilarityScore}
           </span>
         )}
       </div>
@@ -51,6 +58,13 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
         <p className="text-gray-600 text-sm leading-relaxed mb-3 flex-grow">
           {researcher.other_description.substring(0, 150)}{researcher.other_description.length > 150 ? '...' : ''}
         </p>
+      )}
+
+      {researcher.match_reason && (
+        <div className="mb-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+          <strong className="block text-indigo-700 text-xs mb-1">Why matched:</strong>
+          <p className="text-indigo-700 text-sm leading-relaxed">{researcher.match_reason}</p>
+        </div>
       )}
 
       <div className="mt-4 pt-4 border-t border-gray-100">
