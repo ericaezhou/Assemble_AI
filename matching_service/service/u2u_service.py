@@ -30,6 +30,7 @@ from service.mapper.profile_mapper import profile_dto_to_user_profile, profile_d
 
 from openai import OpenAI
 
+# 需要在环境变量中添加OPENAI_API_KEY, export OPENAI_API_KEY=""
 _OPENAI_CLIENT: Any = None
 # GPT_MODEL_NAME = "gpt-5.2"
 GPT_MODEL_NAME = "gpt-4o-mini"

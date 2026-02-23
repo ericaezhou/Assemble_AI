@@ -255,3 +255,10 @@ ALTER TABLE public.profiles ALTER COLUMN publications TYPE text[] USING
     WHEN publications IS NULL THEN NULL
     ELSE ARRAY[publications]
   END;
+
+-- Enable pgvector extension for storing embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Add user embedding column (1024 dimensions)
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS user_embedding vector(1024);

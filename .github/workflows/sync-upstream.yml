@@ -23,5 +23,9 @@ jobs:
           git remote add upstream https://github.com/ericaezhou/Assemble_AI.git
           git fetch upstream
           git checkout main
-          git reset --hard upstream/main
-          git push origin main --force
+
+          # Merge upstream changes (only updates changed files)
+          # -X theirs: auto-resolve conflicts in favor of upstream
+          git merge upstream/main -X theirs --no-edit -m "Sync with upstream"
+
+          git push origin main
