@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SearchBar from './SearchBar';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import EventCard from './EventCard';
 import CreateEvent from './CreateEvent';
 import JoinEvent from './JoinEvent';
 import EventDetail from './EventDetail';
-import Chat from './Chat';
+import MessagePanel from './MessagePanel';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
 import { authenticatedFetch } from '@/utils/auth';
@@ -16,7 +15,7 @@ import { UserProfile } from '@/store/userStore';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
 interface Researcher {
-  id: string; // UUID from Supabase Auth
+  id: string;
   name: string;
   email: string;
   occupation?: string;
@@ -55,44 +54,36 @@ interface Event {
   capacity?: number;
 }
 
-interface Conversation {
-  id: number; // Conversation IDs are still bigint/number from database
-  other_user_id: string; // User IDs are now UUIDs
-  other_user_name: string;
-  last_message: string;
-  last_message_time: string;
-}
-
 interface DashboardProps {
   user: UserProfile | null;
 }
 
-type ActiveView = 'events' | 'researchers' | 'connections';
+type ActiveView = 'events' | 'researchers';
 
 export default function Dashboard({ user }: DashboardProps) {
   const [activeView, setActiveView] = useState<ActiveView>('events');
   const [recommendations, setRecommendations] = useState<Researcher[]>([]);
-  const [searchResults, setSearchResults] = useState<Researcher[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [events, setEvents] = useState<Event[]>([]);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversation, setActiveConversation] = useState<{ id: number; otherUserName: string } | null>(null);
+  const [openConversationId, setOpenConversationId] = useState<number | null>(null);
   const [isRefreshingRecommendations, setIsRefreshingRecommendations] = useState(false);
   const [hasRequestedRecommendations, setHasRequestedRecommendations] = useState(false);
 
   useEffect(() => {
     if (user) {
-      // Recommendation fetch is user-triggered via "Refresh" in Researchers tab.
-      setRecommendations([]);
-      setHasRequestedRecommendations(false);
       fetchEvents();
-      fetchConversations();
     }
   }, [user]);
+
+  // Auto-load recommendations when Researchers tab is first opened
+  useEffect(() => {
+    if (activeView === 'researchers' && !hasRequestedRecommendations && user) {
+      handleRefreshRecommendations('');
+    }
+  }, [activeView]);
 
   const fetchRecommendations = async (options?: {
     topK?: number;
@@ -145,25 +136,12 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const fetchEvents = async () => {
     if (!user) return;
-
     try {
       const response = await authenticatedFetch(`/api/researchers/${user.id}/conferences`);
       const data = await response.json();
       setEvents(data);
     } catch (err) {
       console.error('Error fetching events:', err);
-    }
-  };
-
-  const fetchConversations = async () => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/conversations/user/${user.id}`);
-      const data = await response.json();
-      setConversations(data);
-    } catch (err) {
-      console.error('Error fetching conversations:', err);
     }
   };
 
@@ -210,28 +188,6 @@ export default function Dashboard({ user }: DashboardProps) {
     return { upcoming, current, past };
   };
 
-  const handleSearch = async (query: string) => {
-    if (!query.trim()) {
-      setIsSearching(false);
-      setSearchResults([]);
-      return;
-    }
-
-    setIsSearching(true);
-    try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/researchers/search/${encodeURIComponent(query)}`);
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setSearchResults(data.filter((r: Researcher) => r.id !== user?.id));
-      } else {
-        console.error('Search failed:', data.error);
-        setSearchResults([]);
-      }
-    } catch (err) {
-      console.error('Error searching:', err);
-    }
-  };
-
   const handleEventClick = (eventId: string) => {
     setSelectedEventId(eventId);
   };
@@ -241,86 +197,66 @@ export default function Dashboard({ user }: DashboardProps) {
     fetchEvents();
   };
 
-  const handleConnect = async (otherUserId: string) => {
+  const handleConnect = async (otherUserId: string, eventName?: string) => {
     if (!user) return;
 
     try {
+      const body: Record<string, string> = {
+        user1_id: user.id,
+        user2_id: otherUserId,
+      };
+      if (eventName) body.event_name = eventName;
+
       const response = await fetch(`${API_BASE_URL}/api/conversations`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          user1_id: user.id,
-          user2_id: otherUserId
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
 
       const conversation = await response.json();
-
-      const otherUser = [...recommendations, ...searchResults].find((r: Researcher) => r.id === otherUserId);
-
-      if (otherUser) {
-        setActiveConversation({
-          id: conversation.id,
-          otherUserName: otherUser.name
-        });
-        fetchConversations();
-      }
+      setOpenConversationId(conversation.id);
     } catch (err) {
       console.error('Error creating/getting conversation:', err);
     }
   };
 
-  const handleSelectResearcher = (researcher: Researcher) => {
-    handleConnect(researcher.id);
-  };
-
-  const handleOpenConversation = (conversationId: number, otherUserName: string) => {
-    setActiveConversation({ id: conversationId, otherUserName });
-  };
-
-  const handleBackToDashboard = () => {
-    setActiveConversation(null);
-    fetchConversations();
-  };
-
   const { upcoming, current, past } = groupEvents();
-
-  // Show chat if a conversation is active
-  if (activeConversation && user) {
-    return (
-      <Chat
-        conversationId={activeConversation.id}
-        currentUserId={user.id}
-        otherUserName={activeConversation.otherUserName}
-        onBack={handleBackToDashboard}
-      />
-    );
-  }
 
   // Show event detail page if an event is selected
   if (selectedEventId && user) {
     return (
-      <EventDetail
-        eventId={selectedEventId}
-        userId={user.id}
-        onBack={handleBackToEvents}
-      />
+      <div className="min-h-screen bg-gray-50">
+        <TopNav currentView="home" />
+        <EventDetail
+          eventId={selectedEventId}
+          userId={user.id}
+          onBack={handleBackToEvents}
+          onConnect={(researcherId, eventName) => handleConnect(researcherId, eventName)}
+        />
+        {/* Keep MessagePanel accessible while viewing event */}
+        <div className="fixed right-5 bottom-5 w-[300px] z-40">
+          <MessagePanel
+            currentUser={user}
+            openConversationId={openConversationId}
+            onConversationOpened={() => setOpenConversationId(null)}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       <TopNav currentView="home" />
 
-      <div className="max-w-7xl mx-auto p-5 md:p-10 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Your Profile</h2>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: Profile sidebar — static, never scrolls */}
+        <div className="hidden lg:block w-[240px] flex-shrink-0 p-5 pt-8">
           {user && <MiniProfile user={user} />}
         </div>
 
-        <div>
+        {/* Center: Main scrollable content */}
+        <div className="flex-1 min-w-0 overflow-y-auto p-5 md:p-8">
           <div className="flex gap-3 mb-5 border-b border-gray-200">
             <button
               onClick={() => setActiveView('events')}
@@ -341,16 +277,6 @@ export default function Dashboard({ user }: DashboardProps) {
               }`}
             >
               Researchers
-            </button>
-            <button
-              onClick={() => setActiveView('connections')}
-              className={`px-4 py-2 font-semibold transition-colors ${
-                activeView === 'connections'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Connections
             </button>
           </div>
 
@@ -388,44 +314,27 @@ export default function Dashboard({ user }: DashboardProps) {
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Current</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {current.map(event => (
-                          <EventCard
-                            key={event.id}
-                            event={event}
-                            onCopyId={handleCopyId}
-                            onClick={handleEventClick}
-                          />
+                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                         ))}
                       </div>
                     </div>
                   )}
-
                   {upcoming.length > 0 && (
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {upcoming.map(event => (
-                          <EventCard
-                            key={event.id}
-                            event={event}
-                            onCopyId={handleCopyId}
-                            onClick={handleEventClick}
-                          />
+                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                         ))}
                       </div>
                     </div>
                   )}
-
                   {past.length > 0 && (
                     <div>
                       <h3 className="text-xl font-bold text-gray-800 mb-4">Past</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {past.map(event => (
-                          <EventCard
-                            key={event.id}
-                            event={event}
-                            onCopyId={handleCopyId}
-                            onClick={handleEventClick}
-                          />
+                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                         ))}
                       </div>
                     </div>
@@ -433,64 +342,32 @@ export default function Dashboard({ user }: DashboardProps) {
                 </div>
               )}
             </>
-          ) : activeView === 'researchers' ? (
-            <>
-              <ResearcherRecommendations
-                researchers={recommendations}
-                currentUserId={user?.id || ''}
-                title="Recommended for You"
-                onConnect={handleConnect}
-                onRefreshRecommendations={handleRefreshRecommendations}
-                isRefreshingRecommendations={isRefreshingRecommendations}
-                hasRequestedRecommendations={hasRequestedRecommendations}
-              />
-
-              <div>
-                <SearchBar
-                  onSearch={handleSearch}
-                  searchResults={searchResults}
-                  isSearching={isSearching}
-                  onSelectResearcher={handleSelectResearcher}
-                />
-              </div>
-            </>
           ) : (
-            <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-5">Your Connections</h2>
-
-              {conversations.length === 0 ? (
-                <div className="bg-white rounded-xl p-10 text-center">
-                  <p className="text-gray-600">No conversations yet.</p>
-                  <p className="text-gray-500 text-sm mt-2">
-                    Click &quot;Connect&quot; on a researcher&apos;s profile to start chatting!
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {conversations.map(conversation => (
-                    <div
-                      key={conversation.id}
-                      onClick={() => handleOpenConversation(conversation.id, conversation.other_user_name)}
-                      className="bg-white rounded-xl p-5 shadow-md hover:shadow-lg transition-all cursor-pointer"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">{conversation.other_user_name}</h3>
-                        <span className="text-xs text-gray-400">
-                          {conversation.last_message_time && new Date(conversation.last_message_time).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {conversation.last_message && (
-                        <p className="text-gray-600 text-sm truncate">
-                          {conversation.last_message}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <ResearcherRecommendations
+              researchers={recommendations}
+              currentUserId={user?.id || ''}
+              title="Recommended for You"
+              onConnect={handleConnect}
+              onRefreshRecommendations={handleRefreshRecommendations}
+              isRefreshingRecommendations={isRefreshingRecommendations}
+              hasRequestedRecommendations={hasRequestedRecommendations}
+            />
           )}
         </div>
+
+        {/* Right: Persistent MessagePanel — true right sidebar */}
+        {user && (
+          <div className="hidden lg:block w-[300px] flex-shrink-0 border-l border-gray-200 bg-white">
+            <div className="sticky top-16 h-[calc(100vh-64px)]">
+              <MessagePanel
+                currentUser={user}
+                openConversationId={openConversationId}
+                onConversationOpened={() => setOpenConversationId(null)}
+                className="h-full flex flex-col bg-white"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {showCreateEvent && user && (

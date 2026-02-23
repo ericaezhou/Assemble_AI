@@ -24,12 +24,13 @@ interface EventDetailProps {
   eventId: string;
   userId: string;
   onBack: () => void;
+  onConnect?: (researcherId: string, eventName?: string) => void;
 }
 
 type SortField = 'name' | 'institution' | 'research_areas' | 'interests';
 type SortOrder = 'asc' | 'desc';
 
-export default function EventDetail({ eventId, userId, onBack }: EventDetailProps) {
+export default function EventDetail({ eventId, userId, onBack, onConnect }: EventDetailProps) {
   const [event, setEvent] = useState<Event | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
@@ -208,6 +209,7 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
           researchers={participants}
           currentUserId={userId}
           title="Recommended to Meet"
+          onConnect={onConnect ? (id) => onConnect(id, event?.name) : undefined}
         />
 
         <div>
@@ -289,6 +291,11 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
                           )}
                         </div>
                       </th>
+                      {onConnect && (
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                          Connect
+                        </th>
+                      )}
                     </tr>
                   </thead>
                 </table>
@@ -332,6 +339,21 @@ export default function EventDetail({ eventId, userId, onBack }: EventDetailProp
                             )}
                           </div>
                         </td>
+                        {onConnect && participant.id !== userId && (
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => onConnect(participant.id, event?.name)}
+                              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                            >
+                              Connect
+                            </button>
+                          </td>
+                        )}
+                        {onConnect && participant.id === userId && (
+                          <td className="px-6 py-4">
+                            <span className="text-xs text-gray-400">You</span>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

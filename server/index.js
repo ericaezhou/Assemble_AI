@@ -584,7 +584,7 @@ app.get('/api/conferences/:id/participants', authenticateToken, async (req, res)
 
 // Get or create conversation between two users
 app.post('/api/conversations', async (req, res) => {
-  const { user1_id, user2_id } = req.body;
+  const { user1_id, user2_id, event_name } = req.body;
 
   // Ensure consistent ordering (lexicographically smaller UUID always as participant1)
   const participant1_id = user1_id < user2_id ? user1_id : user2_id;
@@ -650,7 +650,14 @@ app.post('/api/conversations', async (req, res) => {
 
     // Generate intro message
     let introMessage;
-    if (commonInterests.length > 0) {
+    if (event_name) {
+      if (commonInterests.length > 0) {
+        const interestList = commonInterests.slice(0, 3).join(', ');
+        introMessage = `You connected at ${event_name}. You both share interest in ${interestList} — a great starting point!`;
+      } else {
+        introMessage = `You connected at ${event_name}. Feel free to introduce yourselves and discuss your research!`;
+      }
+    } else if (commonInterests.length > 0) {
       const interestList = commonInterests.slice(0, 3).join(', ');
       introMessage = `Hi ${user1.name} and ${user2.name}! Looks like you might be interested in chatting about ${interestList}!`;
     } else {
