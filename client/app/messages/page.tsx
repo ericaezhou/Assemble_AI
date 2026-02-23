@@ -24,6 +24,8 @@ interface Conversation {
   last_message_time: string;
 }
 
+const DRAFTS_KEY = 'assemble-message-drafts';
+
 export default function MessagesPage() {
   const { user } = useUserStore();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -32,14 +34,37 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
+    try {
+      const stored = localStorage.getItem(DRAFTS_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevConvIdRef = useRef<number | null>(null);
+  const newMessageRef = useRef(newMessage);
+  useEffect(() => { newMessageRef.current = newMessage; }, [newMessage]);
+
+  // Persist drafts to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+  }, [drafts]);
 
   useEffect(() => {
     if (user) fetchConversations();
   }, [user]);
 
+  // On conversation switch: save old draft, restore new one
   useEffect(() => {
-    if (activeConversation) fetchMessages(activeConversation.id);
+    const prevId = prevConvIdRef.current;
+    if (prevId !== null && prevId !== activeConversation?.id) {
+      setDrafts(prev => ({ ...prev, [prevId]: newMessageRef.current }));
+    }
+    prevConvIdRef.current = activeConversation?.id ?? null;
+    if (activeConversation) {
+      setNewMessage(drafts[activeConversation.id] ?? '');
+      fetchMessages(activeConversation.id);
+    }
   }, [activeConversation?.id]);
 
   useEffect(() => {
@@ -71,10 +96,20 @@ export default function MessagesPage() {
     }
   };
 
+  const handleNewMessageChange = (text: string) => {
+    setNewMessage(text);
+    if (activeConversation) {
+      setDrafts(prev => ({ ...prev, [activeConversation.id]: text }));
+    }
+  };
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeConversation || !user) return;
     setSending(true);
+    const textToSend = newMessage.trim();
+    setNewMessage('');
+    setDrafts(prev => ({ ...prev, [activeConversation.id]: '' }));
     try {
       const res = await fetch(`${API_BASE_URL}/api/messages`, {
         method: 'POST',
@@ -82,14 +117,14 @@ export default function MessagesPage() {
         body: JSON.stringify({
           conversation_id: activeConversation.id,
           sender_id: user.id,
-          content: newMessage.trim(),
+          content: textToSend,
         }),
       });
       const msg = await res.json();
       setMessages(prev => [...prev, msg]);
-      setNewMessage('');
     } catch (err) {
       console.error('Error sending message:', err);
+      setNewMessage(textToSend); // restore on error
     } finally {
       setSending(false);
     }
@@ -156,9 +191,14 @@ export default function MessagesPage() {
                     <span className="font-semibold text-gray-800 text-sm">{conv.other_user_name}</span>
                     <span className="text-xs text-gray-400">{formatLastTime(conv.last_message_time)}</span>
                   </div>
-                  {conv.last_message && (
+                  {drafts[conv.id] ? (
+                    <p className="text-xs truncate">
+                      <span className="text-amber-600 font-medium">Draft: </span>
+                      <span className="text-gray-400">{drafts[conv.id]}</span>
+                    </p>
+                  ) : conv.last_message ? (
                     <p className="text-xs text-gray-500 truncate">{conv.last_message}</p>
-                  )}
+                  ) : null}
                 </button>
               ))
             )}
@@ -235,7 +275,7 @@ export default function MessagesPage() {
                   <input
                     type="text"
                     value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
+                    onChange={e => handleNewMessageChange(e.target.value)}
                     placeholder="Write a message..."
                     disabled={sending}
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-indigo-500 transition-colors text-gray-900"

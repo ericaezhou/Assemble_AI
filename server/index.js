@@ -424,8 +424,8 @@ app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's conferences (Protected - user can only view their own conferences)
-app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, async (req, res) => {
+// Get user's conferences (Protected - any authenticated user can view a profile's events)
+app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -729,6 +729,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
           .from('messages')
           .select('content, created_at')
           .eq('conversation_id', conv.id)
+          .eq('is_system_message', false)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
