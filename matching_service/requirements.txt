@@ -1,6 +1,8 @@
 flask==3.0.3
 openai>=1.0.0
-numpy==2.1.2
+# Keep NumPy on 1.x to avoid ABI mismatch with scipy/sklearn wheels in many local envs.
+numpy==1.26.4
+scipy==1.13.1
 pydantic==2.9.2
 python-dotenv==1.0.1
 requests==2.32.3

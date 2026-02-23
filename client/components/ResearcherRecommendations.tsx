@@ -9,37 +9,43 @@ interface ResearcherRecommendationsProps {
   currentUserId: string;
   title?: string;
   onConnect?: (researcherId: string) => void;
+  onRefreshRecommendations?: (naturalLanguagePreference: string) => Promise<void> | void;
+  isRefreshingRecommendations?: boolean;
+  hasRequestedRecommendations?: boolean;
 }
 
 export default function ResearcherRecommendations({
   researchers,
   currentUserId,
   title = "Recommended for You",
-  onConnect
+  onConnect,
+  onRefreshRecommendations,
+  isRefreshingRecommendations = false,
+  hasRequestedRecommendations = false
 }: ResearcherRecommendationsProps) {
   const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [recommendationSeed, setRecommendationSeed] = useState(0);
+  const safeResearchers = Array.isArray(researchers) ? researchers : [];
 
   const getRecommendedResearchers = () => {
     // TODO: In the future, this will use naturalLanguagePreference to filter/sort
     // For now, use similarity scores
-    const otherResearchers = researchers.filter(r => r.id !== currentUserId);
+    const otherResearchers = safeResearchers.filter(r => r.id !== currentUserId);
     const sorted = [...otherResearchers].sort((a, b) => (b.similarity_score || 0) - (a.similarity_score || 0));
 
     const startIndex = (recommendationSeed * 3) % Math.max(1, sorted.length);
     return sorted.slice(startIndex, startIndex + 3);
   };
 
-  const handleRefreshRecommendations = () => {
-    // TODO: Backend will process naturalLanguagePreference here
+  const handleRefreshRecommendations = async () => {
+    if (onRefreshRecommendations) {
+      await onRefreshRecommendations(naturalLanguagePreference);
+      return;
+    }
     setRecommendationSeed(prev => prev + 1);
   };
 
   const recommendedResearchers = getRecommendedResearchers();
-
-  if (recommendedResearchers.length === 0) {
-    return null;
-  }
 
   return (
     <div className="mb-8">
@@ -61,12 +67,13 @@ export default function ResearcherRecommendations({
           />
           <button
             onClick={handleRefreshRecommendations}
+            disabled={isRefreshingRecommendations}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
+            {isRefreshingRecommendations ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
         {naturalLanguagePreference && (
@@ -76,15 +83,23 @@ export default function ResearcherRecommendations({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {recommendedResearchers.map(researcher => (
-          <ResearcherCard
-            key={researcher.id}
-            researcher={researcher}
-            onConnect={onConnect}
-          />
-        ))}
-      </div>
+      {recommendedResearchers.length === 0 ? (
+        <div className="bg-white rounded-xl p-5 shadow-md text-sm text-gray-600">
+          {hasRequestedRecommendations
+            ? "No recommendations returned. Try adjusting your profile or refreshing again."
+            : "Click Refresh to request recommendations from the matching service."}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {recommendedResearchers.map(researcher => (
+            <ResearcherCard
+              key={researcher.id}
+              researcher={researcher}
+              onConnect={onConnect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -37,7 +37,7 @@ class ProfileDTO(BaseModel):
     research_area: Optional[str] = Field(None, description="Research area (singular)")
     interest_areas: Optional[Union[List[str], str]] = Field(None, description="Areas of interest")
     interests: Optional[Union[List[str], str]] = Field(None, description="General interests")
-    publications: Optional[str] = Field(None, description="Publications")
+    publications: Optional[Union[List[Any], str]] = Field(None, description="Publications")
 
     # Work experience
     company: Optional[str] = Field(None, description="Company name")

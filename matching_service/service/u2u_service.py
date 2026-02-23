@@ -38,10 +38,14 @@ GPT_MODEL_NAME = "gpt-4o-mini"
 def _get_openai_client() -> OpenAI:
     global _OPENAI_CLIENT
     if _OPENAI_CLIENT is None:
-        # OpenAI SDK 会默认从环境变量 OPENAI_API_KEY 读取 key
-        # export OPENAI_API_KEY="..."
-        _OPENAI_CLIENT = OpenAI()
+        timeout_seconds = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "12"))
+        max_retries = int(os.getenv("OPENAI_MAX_RETRIES", "1"))
+        _OPENAI_CLIENT = OpenAI(timeout=timeout_seconds, max_retries=max_retries)
     return _OPENAI_CLIENT
+
+
+def _is_reason_generation_enabled() -> bool:
+    return os.getenv("ENABLE_MATCH_REASON", "1").strip().lower() not in {"0", "false", "no", "off"}
 
 def _safe_trim(text: str, max_len: int = 3000) -> str:
     text = (text or "").strip()
@@ -110,8 +114,6 @@ class MatchingService:
         self._user_profile_cache: Dict[str, UserProfile] = {}
 
         # OpenAI client (created once; reused for reason generation)
-        # Requires environment variable: OPENAI_API_KEY
-        self._openai_client = OpenAI()
         self._reason_model = os.getenv("OPENAI_REASON_MODEL", GPT_MODEL_NAME)
 
     @staticmethod
@@ -282,6 +284,23 @@ class MatchingService:
         }
 
         model_name = os.getenv("MATCH_REASON_MODEL", "gpt-4o-mini")
+        if not _is_reason_generation_enabled():
+            common_tags = list((set(user1.tags or []) & set(user2.tags or [])))[:3]
+            if common_tags:
+                topics = ", ".join(common_tags)
+                return (
+                    f"We’re recommending {user2.name} because you share overlapping themes in your profile. "
+                    f"Based on what you both mention, you have common ground around {topics}. "
+                    f"That overlap can make it easier to start a conversation and compare perspectives. "
+                    f"You could ask {user2.name} what they’re currently building or learning in these areas, "
+                    f"and share what you’re working on as well."
+                )
+            return (
+                f"We’re recommending {user2.name} because your experience and interests show meaningful overlap. "
+                f"Even if your backgrounds aren’t identical, there’s enough shared context to have a productive chat. "
+                f"A good way to start is to compare what you each care about most in your work or interests, "
+                f"and then see if there’s a topic you’d both like to go deeper on."
+            )
 
         schema = {
             "type": "object",
@@ -314,6 +333,7 @@ class MatchingService:
                 ],
                 temperature=0.35,
                 max_output_tokens=200, # 控制输出长度，防止响应时间过长
+                timeout=float(os.getenv("OPENAI_TIMEOUT_SECONDS", "12")),
                 text={
                     "format": {
                         "type": "json_schema",

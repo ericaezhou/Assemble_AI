@@ -37,6 +37,7 @@ interface Researcher {
   bio?: string;
   interests?: string;
   similarity_score?: number;
+  match_reason?: string;
 }
 
 interface Event {
@@ -80,24 +81,65 @@ export default function Dashboard({ user }: DashboardProps) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<{ id: number; otherUserName: string } | null>(null);
+  const [isRefreshingRecommendations, setIsRefreshingRecommendations] = useState(false);
+  const [hasRequestedRecommendations, setHasRequestedRecommendations] = useState(false);
 
   useEffect(() => {
     if (user) {
-      fetchRecommendations();
+      // Recommendation fetch is user-triggered via "Refresh" in Researchers tab.
+      setRecommendations([]);
+      setHasRequestedRecommendations(false);
       fetchEvents();
       fetchConversations();
     }
   }, [user]);
 
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = async (options?: {
+    topK?: number;
+    minScore?: number;
+    applyMmr?: boolean;
+    mmrLambda?: number;
+  }) => {
     if (!user) return;
 
     try {
-      const response = await authenticatedFetch(`/api/researchers/${user.id}/recommendations`);
+      const params = new URLSearchParams({
+        top_k: String(options?.topK ?? 3),
+        min_score: String(options?.minScore ?? 0),
+        apply_mmr: String(options?.applyMmr ?? true),
+        mmr_lambda: String(options?.mmrLambda ?? 0.5),
+      });
+      const response = await authenticatedFetch(`/api/researchers/${user.id}/recommendations?${params.toString()}`);
       const data = await response.json();
+      if (!response.ok) {
+        console.error('Recommendations request failed:', data?.error || response.statusText);
+        setRecommendations([]);
+        return;
+      }
+      if (!Array.isArray(data)) {
+        console.error('Invalid recommendations payload:', data);
+        setRecommendations([]);
+        return;
+      }
       setRecommendations(data);
     } catch (err) {
       console.error('Error fetching recommendations:', err);
+      setRecommendations([]);
+    }
+  };
+
+  const handleRefreshRecommendations = async (_naturalLanguagePreference: string) => {
+    setIsRefreshingRecommendations(true);
+    setHasRequestedRecommendations(true);
+    try {
+      await fetchRecommendations({
+        topK: 3,
+        minScore: 0,
+        applyMmr: true,
+        mmrLambda: 0.5,
+      });
+    } finally {
+      setIsRefreshingRecommendations(false);
     }
   };
 
@@ -398,6 +440,9 @@ export default function Dashboard({ user }: DashboardProps) {
                 currentUserId={user?.id || ''}
                 title="Recommended for You"
                 onConnect={handleConnect}
+                onRefreshRecommendations={handleRefreshRecommendations}
+                isRefreshingRecommendations={isRefreshingRecommendations}
+                hasRequestedRecommendations={hasRequestedRecommendations}
               />
 
               <div>

@@ -14,6 +14,70 @@ const openai = new OpenAI({
 
 const app = express();
 const PORT = process.env.PORT || 5001;
+const MATCHING_SERVICE_URL = process.env.MATCHING_SERVICE_URL || 'http://localhost:5000';
+const TOP_K_MIN = 1;
+const TOP_K_MAX = 50;
+const MMR_LAMBDA_MIN_EXCLUSIVE = 0;
+const MMR_LAMBDA_MAX_INCLUSIVE = 1;
+
+function parseBooleanStrict(value, defaultValue, fieldName) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    if (value === 1 || value === 0) return Boolean(value);
+    throw new Error(`Invalid boolean for ${fieldName}: expected true/false (or 1/0)`);
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'n'].includes(normalized)) return false;
+  }
+
+  throw new Error(`Invalid boolean for ${fieldName}: expected true/false (or 1/0)`);
+}
+
+function parseIntBounded(value, defaultValue, minValue, maxValue, fieldName) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid integer for ${fieldName}`);
+  }
+  if (parsed < minValue || parsed > maxValue) {
+    throw new Error(`${fieldName} must be between ${minValue} and ${maxValue}`);
+  }
+  return parsed;
+}
+
+function parseFloatBounded(value, defaultValue, minValue, maxValue, fieldName, { minExclusive = false } = {}) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseFloat(String(value));
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid number for ${fieldName}`);
+  }
+
+  const lowerOk = minExclusive ? parsed > minValue : parsed >= minValue;
+  const upperOk = parsed <= maxValue;
+  if (!(lowerOk && upperOk)) {
+    if (minExclusive) {
+      throw new Error(`${fieldName} must be > ${minValue} and <= ${maxValue}`);
+    }
+    throw new Error(`${fieldName} must be between ${minValue} and ${maxValue}`);
+  }
+  return parsed;
+}
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -153,54 +217,92 @@ app.get('/api/researchers/search/:query', authenticateToken, async (req, res) =>
 // Get recommendations for a researcher (Protected)
 app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser, async (req, res) => {
   const { id } = req.params;
+  let topK;
+  let minScore;
+  let applyMmr;
+  let mmrLambda;
 
   try {
-    // First get the current researcher's profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', id)
-      .single();
+    topK = parseIntBounded(req.query.top_k, 3, TOP_K_MIN, TOP_K_MAX, 'top_k');
+    minScore = parseFloatBounded(req.query.min_score, 0, 0, 1, 'min_score');
+    applyMmr = parseBooleanStrict(req.query.apply_mmr, true, 'apply_mmr');
+    mmrLambda = parseFloatBounded(
+      req.query.mmr_lambda,
+      0.5,
+      MMR_LAMBDA_MIN_EXCLUSIVE,
+      MMR_LAMBDA_MAX_INCLUSIVE,
+      'mmr_lambda',
+      { minExclusive: true }
+    );
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
 
-    if (profileError || !profile) {
-      return res.status(404).json({ error: 'Researcher not found' });
-    }
+  try {
+    const matchingPayload = {
+      target_id: id,
+      top_k: topK,
+      min_score: minScore,
+      apply_mmr: applyMmr,
+      mmr_lambda: mmrLambda
+    };
+    const startedAt = Date.now();
+    console.info('[matching-proxy] request', matchingPayload);
 
-    const userInterests = profile.interests ? profile.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-    const userResearchAreas = profile.research_areas ? profile.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
-
-    // Get all other researchers
-    const { data: otherProfiles, error: othersError } = await supabase
-      .from('profiles')
-      .select('*')
-      .neq('id', id);
-
-    if (othersError) {
-      return res.status(500).json({ error: othersError.message });
-    }
-
-    // Calculate similarity scores
-    const recommendations = (otherProfiles || []).map(other => {
-      const otherInterests = other.interests ? other.interests.toLowerCase().split(',').map(i => i.trim()) : [];
-      const otherResearchAreas = other.research_areas ? other.research_areas.toLowerCase().split(',').map(i => i.trim()) : [];
-
-      // Count matching interests and research areas
-      const matchingInterests = userInterests.filter(i => otherInterests.includes(i)).length;
-      const matchingResearchAreas = userResearchAreas.filter(r => otherResearchAreas.includes(r)).length;
-
-      const score = matchingInterests * 2 + matchingResearchAreas * 3;
-
-      return {
-        ...other,
-        similarity_score: score
-      };
+    const matchingResponse = await fetch(`${MATCHING_SERVICE_URL}/api/u2u/matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(matchingPayload)
     });
 
-    // Sort by similarity score (highest first) and return top matches
-    recommendations.sort((a, b) => b.similarity_score - a.similarity_score);
+    const matchingData = await matchingResponse.json().catch(() => ({}));
+    const elapsedMs = Date.now() - startedAt;
+    const returnedCount = Array.isArray(matchingData.matches) ? matchingData.matches.length : 0;
+    console.info('[matching-proxy] response', {
+      status: matchingResponse.status,
+      elapsed_ms: elapsedMs,
+      returned_count: returnedCount
+    });
 
-    // Return top 20 recommendations (including those with score 0)
-    res.json(recommendations.slice(0, 20));
+    if (!matchingResponse.ok) {
+      return res.status(matchingResponse.status).json({
+        error: matchingData.error || 'Failed to fetch recommendations from matching service'
+      });
+    }
+
+    const matches = Array.isArray(matchingData.matches) ? matchingData.matches : [];
+    const matchedUserIds = matches
+      .map(match => match.user_id)
+      .filter(Boolean);
+
+    if (matchedUserIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { data: matchedProfiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', matchedUserIds);
+
+    if (profileError) {
+      return res.status(500).json({ error: profileError.message });
+    }
+
+    const profileMap = new Map((matchedProfiles || []).map(profile => [profile.id, profile]));
+    const recommendations = matches
+      .map(match => {
+        const profile = profileMap.get(match.user_id);
+        if (!profile) return null;
+
+        return {
+          ...profile,
+          similarity_score: typeof match.score === 'number' ? match.score : 0,
+          match_reason: typeof match.reason === 'string' ? match.reason : undefined
+        };
+      })
+      .filter(Boolean);
+
+    res.json(recommendations);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
