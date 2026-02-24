@@ -121,6 +121,35 @@ class ProfileRepository(BaseRepository[ProfileDTO]):
             Updated ProfileDTO if successful, None otherwise
         """
         return super().update("id", profile_id, updates)
+
+    def update_user_embedding(self, profile_id: UUID, embedding: List[float]) -> Optional[ProfileDTO]:
+        """
+        Update cached user_embedding vector for one profile.
+        """
+        try:
+            response = self.client.table(self.table_name)\
+                .update({"user_embedding": embedding})\
+                .eq("id", str(profile_id))\
+                .execute()
+
+            if response.data and len(response.data) > 0:
+                return self._convert_to_dto(response.data[0])
+            return None
+        except Exception as e:
+            raise Exception(f"Failed to update user_embedding for {profile_id}: {str(e)}")
+
+    def get_profiles_missing_embedding(self, limit: Optional[int] = None) -> List[ProfileDTO]:
+        """
+        Get profiles where user_embedding is null.
+        """
+        try:
+            query = self.client.table(self.table_name).select("*").is_("user_embedding", "null")
+            if limit:
+                query = query.limit(limit)
+            response = query.execute()
+            return self._convert_to_dto_list(response.data)
+        except Exception as e:
+            raise Exception(f"Failed to fetch profiles missing embedding: {str(e)}")
     
     def delete_profile(self, profile_id: UUID) -> bool:
         """

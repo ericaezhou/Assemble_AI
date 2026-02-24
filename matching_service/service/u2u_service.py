@@ -223,6 +223,126 @@ class MatchingService:
 
         return user_profile
 
+    def rebuild_user_embedding(self, user_id: UUID) -> Dict[str, Any]:
+        """
+        Recompute one user's embedding and persist into profiles.user_embedding.
+        """
+        profile_dto = self.profile_repo.get_by_id(user_id)
+        if not profile_dto:
+            raise ValueError(f"User {user_id} not found in database")
+
+        user_profile = profile_dto_to_user_profile(profile_dto)
+        build_user_vectors(
+            [user_profile],
+            self.embedder,
+            build_profile=True,
+            overwrite=True,
+        )
+
+        vector = list(user_profile.v_profile or [])
+        if not vector:
+            # Fallback for sparse/empty profiles: persist a zero vector so we can
+            # avoid repeated on-request embedding attempts.
+            vector = [0.0] * int(os.getenv("MATCH_VECTOR_DIM", "512"))
+
+        storage_vector = self._align_vector_for_storage(vector)
+        runtime_vector = self._vector_for_matching(storage_vector)
+        user_profile.v_exp = runtime_vector
+        user_profile.v_interest = runtime_vector
+        user_profile.v_profile = runtime_vector
+
+        updated_profile = self.profile_repo.update_user_embedding(user_id, storage_vector)
+        if not updated_profile:
+            raise RuntimeError(
+                f"Embedding computed but update affected 0 rows for user {user_id}. "
+                "Check RLS/key configuration."
+            )
+
+        user_id_str = str(user_id)
+        if self.cache_vectors:
+            self._user_profile_cache[user_id_str] = user_profile
+
+        return {
+            "user_id": user_id,
+            "dimension": len(storage_vector),
+            "updated": True,
+        }
+
+    def backfill_missing_user_embeddings(self, limit: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Backfill user_embedding for profiles where it is currently null.
+        """
+        all_profiles_before = self.profile_repo.get_all()
+        already_has_before = sum(
+            1 for profile in all_profiles_before
+            if self._has_embedding_value(getattr(profile, "user_embedding", None))
+        )
+        profiles = self.profile_repo.get_profiles_missing_embedding(limit=limit)
+        updated = 0
+        failed = 0
+        errors: List[Dict[str, str]] = []
+
+        for profile in profiles:
+            try:
+                self.rebuild_user_embedding(profile.id)
+                updated += 1
+            except Exception as exc:
+                failed += 1
+                errors.append({
+                    "user_id": str(profile.id),
+                    "error": str(exc),
+                })
+
+        all_profiles_after = self.profile_repo.get_all()
+        already_has_after = sum(
+            1 for profile in all_profiles_after
+            if self._has_embedding_value(getattr(profile, "user_embedding", None))
+        )
+
+        return {
+            "total_profiles": len(all_profiles_before),
+            "already_has_embedding_before": already_has_before,
+            "already_has_embedding_after": already_has_after,
+            "requested": len(profiles),
+            "updated": updated,
+            "failed": failed,
+            "errors": errors[:20],
+        }
+
+    @staticmethod
+    def _has_embedding_value(value: Any) -> bool:
+        """
+        Check if a stored embedding value is present and non-empty.
+        """
+        if value is None:
+            return False
+        if isinstance(value, list):
+            return len(value) > 0
+        if isinstance(value, str):
+            text = value.strip()
+            return text not in {"", "null", "None", "[]"}
+        return False
+
+    @staticmethod
+    def _align_vector_for_storage(vector: List[float]) -> List[float]:
+        """
+        Align embedding to DB vector dimension (default 1024).
+        If shorter -> pad zeros on the right; if longer -> truncate.
+        """
+        storage_dim = int(os.getenv("USER_EMBEDDING_DIM", "1024"))
+        trimmed = [float(v) for v in vector[:storage_dim]]
+        if len(trimmed) < storage_dim:
+            trimmed.extend([0.0] * (storage_dim - len(trimmed)))
+        return trimmed
+
+    @staticmethod
+    def _vector_for_matching(vector: List[float]) -> List[float]:
+        """
+        Runtime vector used by matching algorithm (default first 512 dims).
+        """
+        match_dim = int(os.getenv("MATCH_VECTOR_DIM", "512"))
+        return [float(v) for v in vector[:match_dim]]
+
     def _generate_match_reason(
             self,
             user1: "UserProfile",
@@ -286,7 +406,7 @@ class MatchingService:
             },
         }
 
-        model_name = os.getenv("MATCH_REASON_MODEL", "gpt-4o-mini")
+        model_name = os.getenv("OPENAI_REASON_MODEL", "gpt-4o-mini")
         if not _is_reason_generation_enabled():
             logger.info("Match reason generation disabled by ENABLE_MATCH_REASON.")
             common_tags = list((set(user1.tags or []) & set(user2.tags or [])))[:3]
