@@ -10,6 +10,7 @@ This service orchestrates:
 """
 import json
 import os
+import logging
 from typing import List, Optional, Dict, Tuple, Any
 from uuid import UUID
 
@@ -34,6 +35,7 @@ from openai import OpenAI
 _OPENAI_CLIENT: Any = None
 # GPT_MODEL_NAME = "gpt-5.2"
 GPT_MODEL_NAME = "gpt-4o-mini"
+logger = logging.getLogger(__name__)
 
 def _get_openai_client() -> OpenAI:
     global _OPENAI_CLIENT
@@ -245,7 +247,7 @@ class MatchingService:
                 f"(match score: {overall_score:.2f}), but detailed text descriptions are unavailable."
             )
 
-        # 关键：面向 user1 的口吻（“推荐给你”），更长但不啰嗦
+        # 关键：面向 user1 的口吻，输出更短更直接（允许短语，不要求完整句）
         system_msg = (
             "You write a match explanation shown to USER1 in an event app.\n"
             "Goal: explain why USER2 is recommended to USER1.\n\n"
@@ -253,11 +255,12 @@ class MatchingService:
             "1) Write in second-person to USER1 (use 'you' / 'your'), and refer to USER2 by name.\n"
             "2) ONLY use information explicitly present in the provided texts (Experience/Interests/Tags). "
             "Do NOT invent companies, schools, projects, or facts.\n"
-            "3) Length: 4–6 sentences. Not too short.\n"
-            "4) Mention at most 2 concrete overlap points (skills/topics/areas) and at most 1 complement point.\n"
-            "5) Include 1 sentence suggesting 1–2 conversation starters based on the overlaps.\n"
-            "6) Do not mention 'similarity scores' or numeric metrics unless asked; keep it natural.\n"
-            "7) Tone: helpful, specific, professional; no hype words like 'fascinating', 'amazing', 'perfect'."
+            "3) Keep it short: 1 line, about 8-20 words total.\n"
+            "4) Prefer compact phrases instead of full sentences.\n"
+            "5) Mention 1-2 concrete overlap points only; skip extra details.\n"
+            "6) Do not mention similarity scores, numbers, or metrics.\n"
+            "7) Output plain text only (no JSON, no bullets, no quotes).\n"
+            "8) Tone: clear, direct, professional; no hype words."
         )
 
         # 给模型更“可控”的输入：把文本按字段分好，并给它 score 做弱引导（但不让它输出数字）
@@ -285,6 +288,7 @@ class MatchingService:
 
         model_name = os.getenv("MATCH_REASON_MODEL", "gpt-4o-mini")
         if not _is_reason_generation_enabled():
+            logger.info("Match reason generation disabled by ENABLE_MATCH_REASON.")
             common_tags = list((set(user1.tags or []) & set(user2.tags or [])))[:3]
             if common_tags:
                 topics = ", ".join(common_tags)
@@ -302,20 +306,10 @@ class MatchingService:
                 f"and then see if there’s a topic you’d both like to go deeper on."
             )
 
-        schema = {
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": (
-                        "Second-person explanation to user1 about why user2 is recommended. "
-                        "4-6 sentences, grounded in provided texts only."
-                    )
-                }
-            },
-            "required": ["reason"],
-            "additionalProperties": False
-        }
+        if not os.getenv("OPENAI_API_KEY", "").strip():
+            logger.warning(
+                "OPENAI_API_KEY is missing; using fallback template for match reason."
+            )
 
         try:
             client = _get_openai_client()
@@ -331,51 +325,27 @@ class MatchingService:
                         ),
                     },
                 ],
-                temperature=0.35,
-                max_output_tokens=200, # 控制输出长度，防止响应时间过长
+                temperature=0.7,
+                max_output_tokens=30, # 控制输出长度，避免输出被截断
                 timeout=float(os.getenv("OPENAI_TIMEOUT_SECONDS", "12")),
-                text={
-                    "format": {
-                        "type": "json_schema",
-                        "name": "match_reason",
-                        "strict": True,
-                        "schema": schema
-                    }
-                }
             )
 
-            raw = (getattr(resp, "output_text", None) or "").strip()
-            if not raw:
+            reason = (getattr(resp, "output_text", None) or "").strip()
+            if not reason:
                 try:
-                    raw = resp.output[0].content[0].text.strip()
+                    reason = resp.output[0].content[0].text.strip()
                 except Exception:
-                    raw = ""
-
-            data = json.loads(raw)
-            reason = (data.get("reason") or "").strip()
+                    reason = ""
             if reason:
                 return reason
 
-        except Exception:
-            pass
-
-        # fallback：仍保持 “对 user1 说” 的口吻，并尽量利用 common tags（不写死阈值逻辑）
-        common_tags = list((set(user1.tags or []) & set(user2.tags or [])))[:3]
-        if common_tags:
-            topics = ", ".join(common_tags)
-            return (
-                f"We’re recommending {user2.name} because you share overlapping themes in your profile. "
-                f"Based on what you both mention, you have common ground around {topics}. "
-                f"That overlap can make it easier to start a conversation and compare perspectives. "
-                f"You could ask {user2.name} what they’re currently building or learning in these areas, "
-                f"and share what you’re working on as well."
+        except Exception as exc:
+            logger.warning(
+                "Failed to generate match reason via OpenAI; falling back to template. "
+                f"user1_id={user1.user_id}, user2_id={user2.user_id}, model={model_name}, error={exc}"
             )
-        return (
-            f"We’re recommending {user2.name} because your experience and interests show meaningful overlap. "
-            f"Even if your backgrounds aren’t identical, there’s enough shared context to have a productive chat. "
-            f"A good way to start is to compare what you each care about most in your work or interests, "
-            f"and then see if there’s a topic you’d both like to go deeper on."
-        )
+
+        return "No match reason available."
 
     def find_matches_for_user(
             self,
