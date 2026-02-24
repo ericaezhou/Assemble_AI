@@ -231,8 +231,12 @@ export async function authenticatedFetch(
 
     return response;
   } catch (error) {
-    // Re-throw auth errors (401) and permission errors (403) as-is
-    if ((error as any).isAuthError || (error as any).status === 403) {
+    // Re-throw auth errors (401), permission errors (403), and AbortErrors as-is
+    if (
+      (error as any).isAuthError ||
+      (error as any).status === 403 ||
+      (error as any).name === 'AbortError'
+    ) {
       throw error;
     }
 

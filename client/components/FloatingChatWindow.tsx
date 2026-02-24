@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const POLL_INTERVAL_MS = 3000;
 
 interface Message {
   id: number;
@@ -35,6 +36,8 @@ export default function FloatingChatWindow({
   const [sending, setSending] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Tracks temp IDs of optimistic messages not yet confirmed by the server
+  const pendingIds = useRef<Set<number>>(new Set());
 
   // Track previous conversationId and current newMessage via refs to avoid stale closures
   const prevConversationIdRef = useRef(conversationId);
@@ -47,10 +50,19 @@ export default function FloatingChatWindow({
     if (prevId !== conversationId) {
       onDraftChange?.(prevId, newMessageRef.current);
       prevConversationIdRef.current = conversationId;
+      pendingIds.current.clear();
     }
     setNewMessage(draft);
     fetchMessages();
   }, [conversationId]);
+
+  // Poll for new messages every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!minimized) fetchMessages();
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [conversationId, minimized]);
 
   // Save draft on unmount
   useEffect(() => {
@@ -69,7 +81,14 @@ export default function FloatingChatWindow({
     try {
       const res = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`);
       const data = await res.json();
-      setMessages(Array.isArray(data) ? data : []);
+      if (Array.isArray(data)) {
+        setMessages(prev => {
+          // Preserve any optimistic messages not yet confirmed by the server
+          const serverIds = new Set(data.map((m: Message) => m.id));
+          const stillPending = prev.filter(m => pendingIds.current.has(m.id) && !serverIds.has(m.id));
+          return [...data, ...stillPending];
+        });
+      }
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
@@ -82,6 +101,20 @@ export default function FloatingChatWindow({
     const textToSend = newMessage.trim();
     setNewMessage('');
     onDraftChange?.(conversationId, '');
+
+    // Optimistic update — show message instantly before server responds
+    const tempId = Date.now();
+    const optimisticMsg: Message = {
+      id: tempId,
+      conversation_id: conversationId,
+      sender_id: currentUser.id,
+      content: textToSend,
+      is_system_message: false,
+      created_at: new Date().toISOString(),
+    };
+    pendingIds.current.add(tempId);
+    setMessages(prev => [...prev, optimisticMsg]);
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/messages`, {
         method: 'POST',
@@ -92,11 +125,15 @@ export default function FloatingChatWindow({
           content: textToSend,
         }),
       });
-      const msg = await res.json();
-      setMessages(prev => [...prev, msg]);
+      const confirmedMsg = await res.json();
+      // Swap optimistic message for the confirmed server response
+      pendingIds.current.delete(tempId);
+      setMessages(prev => prev.map(m => m.id === tempId ? confirmedMsg : m));
     } catch (err) {
       console.error('Error sending message:', err);
-      setNewMessage(textToSend); // restore on error
+      pendingIds.current.delete(tempId);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      setNewMessage(textToSend);
     } finally {
       setSending(false);
     }

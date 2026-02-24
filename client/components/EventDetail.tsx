@@ -27,7 +27,7 @@ interface EventDetailProps {
   onConnect?: (researcherId: string, eventName?: string) => void;
 }
 
-type ActiveTab = 'description' | 'participants';
+type ActiveTab = 'description' | 'announcement' | 'participants';
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -108,10 +108,13 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
     ));
   };
 
-  const formatDate = (dateString: string, timeString?: string) => {
-    const date = new Date(dateString);
-    const formatted = date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
-    return timeString ? `${formatted} · ${timeString}` : formatted;
+  const formatDateBlock = (dateString: string) => {
+    const date = new Date(dateString + 'T12:00:00');
+    return {
+      month: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+      day: date.getDate(),
+      full: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+    };
   };
 
   const getLocationDisplay = () => {
@@ -140,74 +143,85 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
 
   const isUpcoming = new Date(event.start_date) > new Date();
   const isFree = event.price_type === 'free';
+  const dateBlock = formatDateBlock(event.start_date);
 
   return (
-    <div className="bg-[#f3f2ef] min-h-full">
-      {/* Gradient Hero */}
-      <div className="bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 px-6 pt-8 pb-10 text-white relative overflow-hidden">
-        {/* decorative circles */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-20 translate-x-20 pointer-events-none" />
-        <div className="absolute bottom-0 left-1/2 w-40 h-40 bg-white/5 rounded-full translate-y-16 pointer-events-none" />
+    <div className="bg-[#f3f2ef] min-h-full px-5 pt-5 pb-8 space-y-4">
+      {/* Header card — same width and rounded as the tab card below */}
+      <div className="bg-white rounded-2xl shadow-md px-6 py-6">
+        {/* Badges */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {isFree && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200">
+              Free
+            </span>
+          )}
+          {isUpcoming && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block animate-pulse" />
+              Upcoming
+            </span>
+          )}
+          {event.location_type === 'virtual' && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-600 border border-purple-200">
+              Virtual
+            </span>
+          )}
+        </div>
 
-        <div className="relative">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            {isFree && (
-              <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full">
-                Free
-              </span>
-            )}
-            {isUpcoming && (
-              <span className="bg-green-400/30 backdrop-blur-sm text-green-100 text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-300 inline-block animate-pulse" />
-                Upcoming
-              </span>
-            )}
-            {event.location_type === 'virtual' && (
-              <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full">
-                Virtual
-              </span>
+        {/* Event name */}
+        <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-6">{event.name}</h1>
+
+        {/* Date row — Luma calendar block style */}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex-shrink-0 w-11 rounded-lg overflow-hidden border border-gray-200 text-center shadow-sm">
+            <div className="bg-rose-500 text-white text-[10px] font-bold py-0.5 uppercase tracking-wide">{dateBlock.month}</div>
+            <div className="bg-white text-gray-900 font-bold text-lg leading-tight py-0.5">{dateBlock.day}</div>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{dateBlock.full}</p>
+            <p className="text-sm text-gray-500">
+              {event.start_time}
+              {event.end_time ? ` – ${event.end_time}` : ''}
+            </p>
+          </div>
+        </div>
+
+        {/* Location row */}
+        <div className="flex items-center gap-4">
+          <div className="flex-shrink-0 w-11 h-11 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500">
+            {event.location_type === 'virtual' ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
             )}
           </div>
-
-          <h1 className="text-3xl font-bold mb-4 leading-tight">{event.name}</h1>
-
-          <div className="flex flex-wrap gap-5 text-sm text-white/90">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>{formatDate(event.start_date, event.start_time)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {event.location_type === 'virtual' ? (
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              )}
-              <span>{getLocationDisplay()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{participants.length} {participants.length === 1 ? 'attendee' : 'attendees'}</span>
-            </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">{getLocationDisplay()}</p>
+            {event.location_type === 'virtual' && event.virtual_link && (
+              <a href={event.virtual_link} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-indigo-600 hover:underline">
+                Join link →
+              </a>
+            )}
+            <p className="text-xs text-gray-400">{participants.length} {participants.length === 1 ? 'attendee' : 'attendees'}</p>
           </div>
         </div>
       </div>
 
-      {/* Tab card sits cleanly below the hero */}
-      <div className="px-5 pt-5 pb-8">
+      {/* Tab card */}
+      <div>
         <div className="bg-white rounded-2xl shadow-md overflow-hidden">
           {/* Tab bar */}
           <div className="flex border-b border-gray-100 px-2">
             {[
-              { key: 'description', label: 'Description' },
+              { key: 'description', label: 'About' },
+              { key: 'announcement', label: 'Announcement' },
               { key: 'participants', label: `Participants (${participants.length})` },
             ].map(tab => (
               <button
@@ -240,49 +254,62 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                 )}
               </div>
 
-              {/* Details grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Date & Time</p>
-                  <p className="text-sm font-medium text-gray-800">{formatDate(event.start_date, event.start_time)}</p>
-                  {event.end_date && event.end_date !== event.start_date && (
-                    <p className="text-xs text-gray-500 mt-1">Until {formatDate(event.end_date, event.end_time)}</p>
+              {/* Details row — only show non-redundant info */}
+              {(event.capacity || !isFree) && (
+                <div className="flex flex-wrap gap-3">
+                  {event.capacity && (
+                    <div className="bg-gray-50 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Capacity</p>
+                      <p className="text-sm font-medium text-gray-800">{participants.length} / {event.capacity} registered</p>
+                    </div>
+                  )}
+                  {!isFree && (
+                    <div className="bg-gray-50 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Admission</p>
+                      <p className="text-sm font-medium text-gray-800">Paid</p>
+                    </div>
                   )}
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Location</p>
-                  <p className="text-sm font-medium text-gray-800">{getLocationDisplay()}</p>
-                  {event.location_type === 'virtual' && event.virtual_link && (
-                    <a
-                      href={event.virtual_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-indigo-600 hover:underline mt-1 inline-block"
-                    >
-                      Join link →
-                    </a>
-                  )}
-                </div>
-                {event.capacity && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Capacity</p>
-                    <p className="text-sm font-medium text-gray-800">{event.capacity} people</p>
-                    <p className="text-xs text-gray-500 mt-1">{participants.length} registered</p>
-                  </div>
-                )}
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Admission</p>
-                  <p className="text-sm font-medium text-gray-800">{isFree ? 'Free' : 'Paid'}</p>
-                </div>
-              </div>
+              )}
 
-              {/* Announcements placeholder */}
-              <div>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Announcements</h2>
-                <div className="border border-dashed border-gray-200 rounded-xl p-5 text-center">
-                  <span className="text-2xl">📢</span>
-                  <p className="text-gray-400 text-sm mt-2">No announcements yet</p>
+              {/* Google Maps location */}
+              {event.location_type !== 'virtual' && event.location && (
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Location</h2>
+                  <div className="rounded-xl overflow-hidden border border-gray-200">
+                    <iframe
+                      title="Event location"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location)}&output=embed`}
+                      width="100%"
+                      height="220"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t border-gray-200">
+                      <span className="text-sm text-gray-700">{event.location}</span>
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(event.location)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-indigo-600 hover:underline font-medium"
+                      >
+                        Open in Maps →
+                      </a>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Announcement Tab ── */}
+          {activeTab === 'announcement' && (
+            <div className="p-6">
+              <div className="border border-dashed border-gray-200 rounded-xl p-8 text-center">
+                <span className="text-3xl">📢</span>
+                <p className="text-gray-500 font-medium mt-3">No announcements yet</p>
+                <p className="text-gray-400 text-sm mt-1">Check back later for updates from the organizer.</p>
               </div>
             </div>
           )}
