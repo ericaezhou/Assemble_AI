@@ -4,7 +4,9 @@ Profile Mapper - Convert database ProfileDTO to matching UserProfile
 Maps database fields to matching service fields by composing text from multiple sources.
 """
 
-from typing import Any, List, Optional
+import json
+import os
+from typing import Any, List
 from db.pojo.profile import ProfileDTO
 from src.matching.matching_pojo import UserProfile
 
@@ -56,6 +58,38 @@ def _as_clean_text(value: Any) -> str:
     Normalize string/list values into a clean text representation.
     """
     return _list_to_text(value)
+
+
+def _parse_embedding(value: Any) -> List[float]:
+    """
+    Parse pgvector value from DB to List[float].
+
+    Supabase may return vector as a list or as string like "[0.1,0.2,...]".
+    """
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        parsed: List[float] = []
+        for item in value:
+            try:
+                parsed.append(float(item))
+            except (TypeError, ValueError):
+                continue
+        return parsed
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        try:
+            loaded = json.loads(text)
+            if isinstance(loaded, list):
+                return [float(item) for item in loaded]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return []
+
+    return []
 
 
 def build_exp_text(profile: ProfileDTO) -> str:
@@ -227,6 +261,10 @@ def profile_dto_to_user_profile(profile: ProfileDTO) -> UserProfile:
     Returns:
         UserProfile for matching service
     """
+    cached_embedding = _parse_embedding(profile.user_embedding)
+    match_dim = int(os.getenv("MATCH_VECTOR_DIM", "512"))
+    vector = [float(v) for v in cached_embedding[:match_dim]] if cached_embedding else None
+
     return UserProfile(
         user_id=str(profile.id),  # Convert UUID to string
         name=profile.name or "Unknown",  # Fallback if name is None
@@ -234,6 +272,10 @@ def profile_dto_to_user_profile(profile: ProfileDTO) -> UserProfile:
         tags=build_tags(profile),
         exp_text=build_exp_text(profile),
         interest_text=build_interest_text(profile),
+        # Reuse cached DB embedding for all matching dimensions to avoid on-request re-encoding.
+        v_exp=vector,
+        v_interest=vector,
+        v_profile=vector,
         metadata={
             # Store additional metadata for reference
             "email": profile.email,

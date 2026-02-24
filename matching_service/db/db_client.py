@@ -45,17 +45,24 @@ class SupabaseClient:
         if cls._initialized:
             return
 
-        # Load environment variables from .env file
-        load_dotenv()
+        # Load environment variables from matching_service/.env
+        service_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        load_dotenv(dotenv_path=os.path.join(service_root, ".env"))
 
         # Get Supabase credentials from environment
         url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_PUBLISHABLE_KEY") or os.environ.get("SUPABASE_KEY")
+        # Backend tasks should prefer service role key to bypass RLS safely.
+        key = (
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY")
+            or os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+        )
 
         if not url or not key:
             raise ValueError(
                 "Supabase credentials not found. "
-                "Please set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY environment variables."
+                "Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (preferred) "
+                "or SUPABASE_KEY/SUPABASE_PUBLISHABLE_KEY."
             )
 
         # Create Supabase client

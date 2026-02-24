@@ -132,6 +132,19 @@ function computePreferenceRelevance(profile, preferenceText) {
   return Math.min(1, tokenScore + phraseBonus);
 }
 
+async function rebuildEmbeddingForUser(userId) {
+  const response = await fetch(`${MATCHING_SERVICE_URL}/api/u2u/embeddings/rebuild`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || 'Failed to rebuild user embedding');
+  }
+  return data;
+}
+
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -231,7 +244,30 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
       return res.status(404).json({ error: 'Researcher not found' });
     }
 
-    res.json(updatedProfile);
+    await rebuildEmbeddingForUser(id);
+
+    const { data: refreshedProfile, error: refreshedProfileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (refreshedProfileError || !refreshedProfile) {
+      return res.status(500).json({ error: 'Profile updated, but failed to reload updated embedding.' });
+    }
+
+    res.json(refreshedProfile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rebuild cached embedding for one researcher (Protected)
+app.post('/api/researchers/:id/rebuild-embedding', authenticateToken, authorizeUser, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await rebuildEmbeddingForUser(id);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

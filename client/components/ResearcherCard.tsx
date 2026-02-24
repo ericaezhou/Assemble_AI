@@ -12,7 +12,7 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
     typeof researcher.similarity_score === 'number' ? researcher.similarity_score : null;
   const formattedSimilarityScore =
     similarityScore !== null
-      ? similarityScore.toFixed(3)
+      ? similarityScore.toFixed(2)
       : null;
 
   return (

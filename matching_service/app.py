@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from service.u2u_service import MatchingService
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
@@ -191,6 +191,32 @@ def u2u_matches():
             "matches": matches,
         })
     )
+
+
+@app.post("/api/u2u/embeddings/rebuild")
+def rebuild_embedding():
+    """
+    Rebuild and persist user_embedding for one user.
+    Request JSON:
+      { "user_id": "<uuid-string>" }
+    """
+    data = request.get_json(silent=True) or {}
+    user_id_str = data.get("user_id")
+    if not user_id_str:
+        return jsonify({"error": "Missing field: user_id"}), 400
+
+    try:
+        user_id = UUID(str(user_id_str))
+    except Exception:
+        return jsonify({"error": "Invalid UUID format for user_id"}), 400
+
+    try:
+        result = SERVICE.rebuild_user_embedding(user_id)
+        return jsonify(to_jsonable(result))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": f"Internal error: {e}"}), 500
 
 
 if __name__ == "__main__":

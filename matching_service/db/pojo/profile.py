@@ -55,6 +55,10 @@ class ProfileDTO(BaseModel):
     # Other
     short_answer: Optional[str] = Field(None, description="Short answer response")
     other_description: Optional[str] = Field(None, description="Other description")
+    user_embedding: Optional[Union[List[float], str]] = Field(
+        None,
+        description="Cached user embedding vector (pgvector)"
+    )
 
     # Timestamps
     created_at: datetime = Field(..., description="Creation timestamp")
