@@ -27,6 +27,7 @@ interface EventFormData {
   endTime: string;
   locationType: LocationType;
   location: string;
+  locationPrivacy: 'exact' | 'city';
   virtualLink: string;
   priceType: PriceType;
   priceAmount: string;
@@ -34,6 +35,19 @@ interface EventFormData {
   description: string;
   requireApproval: boolean;
   rsvpQuestions: RSVPQuestion[];
+}
+
+interface NominatimResult {
+  display_name: string;
+  address: {
+    road?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+    country?: string;
+  };
 }
 
 const STEPS: Step[] = ['logistics', 'description', 'prelaunch'];
@@ -69,6 +83,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     endTime: '17:00',
     locationType: 'in-person',
     location: '',
+    locationPrivacy: 'exact',
     virtualLink: '',
     priceType: 'free',
     priceAmount: '',
@@ -84,7 +99,15 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null);
+  const [coverPhotoPreview, setCoverPhotoPreview] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLDivElement>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<NominatimResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [locationCity, setLocationCity] = useState('');
+  const [locationState, setLocationState] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentStepIndex = STEPS.indexOf(currentStep);
 
@@ -182,17 +205,74 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     }));
   };
 
+  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCoverPhotoFile(file);
+    setCoverPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleLocationInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFormData((prev) => ({ ...prev, location: value }));
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (value.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+        const data: NominatimResult[] = await res.json();
+        setLocationSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch {
+        // silently fail
+      }
+    }, 400);
+  };
+
+  const handleSelectSuggestion = (suggestion: NominatimResult) => {
+    const city = suggestion.address.city || suggestion.address.town || suggestion.address.village || '';
+    const state = suggestion.address.state || '';
+    setFormData((prev) => ({ ...prev, location: suggestion.display_name }));
+    setLocationCity(city);
+    setLocationState(state);
+    setShowSuggestions(false);
+    setLocationSuggestions([]);
+  };
+
   const handleSubmit = async () => {
     if (!validateCurrentStep()) return;
 
     setLoading(true);
 
     try {
+      // Upload cover photo first if one was selected
+      let coverPhotoUrl: string | null = null;
+      if (coverPhotoFile) {
+        const fd = new FormData();
+        fd.append('cover', coverPhotoFile);
+        const uploadRes = await authenticatedFetch('/api/upload/event-cover', {
+          method: 'POST',
+          body: fd,
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          coverPhotoUrl = uploadData.url;
+        }
+      }
+
       const response = await authenticatedFetch('/api/conferences', {
         method: 'POST',
         body: JSON.stringify({
           name: formData.name,
           location: formData.location || null,
+          location_privacy: formData.locationPrivacy,
           location_type: formData.locationType,
           virtual_link: formData.virtualLink || null,
           start_date: formData.startDate,
@@ -205,6 +285,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
           description: formData.description || null,
           require_approval: formData.requireApproval,
           rsvp_questions: formData.rsvpQuestions.length > 0 ? JSON.stringify(formData.rsvpQuestions) : null,
+          cover_photo_url: coverPhotoUrl,
           host_id: userId,
         }),
       });
@@ -240,6 +321,11 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
 
   const getLocationDisplay = () => {
     if (formData.locationType === 'virtual') return 'Virtual Event';
+    if (formData.locationPrivacy === 'city' && (locationCity || locationState)) {
+      const cityDisplay = [locationCity, locationState].filter(Boolean).join(', ');
+      if (formData.locationType === 'hybrid') return `${cityDisplay} + Virtual`;
+      return cityDisplay;
+    }
     if (formData.locationType === 'hybrid') return `${formData.location || 'TBD'} + Virtual`;
     return formData.location || 'Location TBD';
   };
@@ -388,78 +474,78 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
             </div>
 
             <div className="flex-1 flex items-center justify-center">
-              {/* Mini Card Preview - for Logistics and Pre-Launch steps */}
+              {/* EventCard-style preview — Logistics and Pre-Launch steps */}
               {currentStep !== 'description' && (
-                <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden">
-                  <div className="h-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-purple-600" />
-
-                  <div className="p-6">
-                    <h3 className={`text-xl font-bold mb-3 ${formData.name ? 'text-gray-900' : 'text-gray-300'}`}>
-                      {formData.name || 'Event Name'}
-                    </h3>
-
-                    <div className="flex items-center gap-3 mb-3 text-sm">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className={`font-medium ${formData.startDate ? 'text-gray-900' : 'text-gray-300'}`}>
-                          {formData.startDate ? formatDateForDisplay(formData.startDate) : 'Date TBD'}
-                        </p>
-                        {formData.startTime && (
-                          <p className="text-gray-500 text-xs">
-                            {formatTimeForDisplay(formData.startTime)}
-                            {formData.endTime && ` - ${formatTimeForDisplay(formData.endTime)}`}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 mb-4 text-sm">
-                      <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
-                        {formData.locationType === 'virtual' ? (
-                          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
+                <div className="w-full">
+                  {/* EventCard layout — 1.5x scale */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-md overflow-hidden flex flex-col">
+                    <div className="flex">
+                      {/* Cover photo */}
+                      <div
+                        className="w-48 flex-shrink-0 border-r border-gray-100 overflow-hidden cursor-pointer relative group/cover"
+                        onClick={() => coverInputRef.current?.click()}
+                      >
+                        {coverPhotoPreview ? (
+                          <img src={coverPhotoPreview} alt="Cover" className="w-full h-full object-cover" />
                         ) : (
-                          <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-full h-full min-h-[195px] bg-gradient-to-b from-gray-100 to-gray-50 flex flex-col items-center justify-center gap-2 text-gray-300">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-sm text-center leading-tight px-3">Click to upload cover</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="text-white text-sm font-semibold">Change</span>
+                        </div>
+                      </div>
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleCoverPhotoChange}
+                      />
+
+                      {/* Event info */}
+                      <div className="flex-1 min-w-0 px-6 py-6 space-y-2.5">
+                        {formData.startTime && (
+                          <p className="text-base font-semibold text-indigo-500">{formatTimeForDisplay(formData.startTime)}</p>
+                        )}
+                        <h3 className={`text-2xl font-bold leading-snug ${formData.name ? 'text-gray-900' : 'text-gray-300'}`}>
+                          {formData.name || 'Event name'}
+                        </h3>
+                        <p className="text-sm text-gray-400">By <span className="text-gray-600 font-medium">You</span></p>
+                        <div className="flex items-center gap-1.5 text-sm text-gray-400">
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                        )}
+                          <span className={`truncate ${formData.location || formData.locationType === 'virtual' ? 'text-gray-500' : 'text-gray-300'}`}>
+                            {getLocationDisplay()}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <span className="text-sm font-semibold px-3 py-1 rounded-full bg-violet-50 text-violet-600 border border-violet-100">
+                            Hosting
+                          </span>
+                          {formData.locationType === 'virtual' && (
+                            <span className="text-sm font-semibold px-3 py-1 rounded-full bg-purple-50 text-purple-500 border border-purple-100">
+                              Virtual
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <p className={`font-medium ${formData.location || formData.locationType === 'virtual' ? 'text-gray-900' : 'text-gray-300'}`}>
-                        {getLocationDisplay()}
-                      </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      {formData.priceType === 'free' ? (
-                        <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                          Free
-                        </span>
-                      ) : formData.priceAmount ? (
-                        <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-medium">
-                          ${formData.priceAmount}
-                        </span>
-                      ) : null}
-                      {formData.capacity && (
-                        <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
-                          {formData.capacity} spots
-                        </span>
-                      )}
-                      {formData.requireApproval && (
-                        <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
-                          Approval required
-                        </span>
-                      )}
-                      {formData.rsvpQuestions.length > 0 && (
-                        <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                          {formData.rsvpQuestions.length} RSVP question{formData.rsvpQuestions.length > 1 ? 's' : ''}
-                        </span>
-                      )}
+                    {/* Invite code bar */}
+                    <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        </svg>
+                        <span className="text-sm text-gray-400">Invite code assigned on creation</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -467,7 +553,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
 
               {/* Full Event Page Preview - for Description step */}
               {currentStep === 'description' && (
-                <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-full max-h-[600px]">
+                <div className="w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-full">
                   {/* Header gradient */}
                   <div className="h-16 bg-gradient-to-r from-indigo-500 via-purple-500 to-purple-600 flex-shrink-0" />
 
@@ -626,14 +712,55 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                     </div>
 
                     {(formData.locationType === 'in-person' || formData.locationType === 'hybrid') && (
-                      <input
-                        type="text"
-                        name="location"
-                        value={formData.location}
-                        onChange={handleChange}
-                        placeholder="Venue address"
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 mb-2"
-                      />
+                      <div className="mb-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            name="location"
+                            value={formData.location}
+                            onChange={handleLocationInput}
+                            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                            onFocus={() => locationSuggestions.length > 0 && setShowSuggestions(true)}
+                            placeholder="Search for a venue address..."
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                            autoComplete="off"
+                          />
+                          {showSuggestions && locationSuggestions.length > 0 && (
+                            <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto text-sm">
+                              {locationSuggestions.map((s, i) => (
+                                <li
+                                  key={i}
+                                  onMouseDown={() => handleSelectSuggestion(s)}
+                                  className="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer text-gray-700 border-b border-gray-100 last:border-b-0 leading-snug"
+                                >
+                                  {s.display_name}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        {/* Vague location toggle */}
+                        <div className="flex items-center justify-between mt-2 px-3 py-2.5 bg-gray-50 rounded-lg border border-gray-200">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700">Hide exact address publicly</p>
+                            <p className="text-xs text-gray-500">Show only city/area on the card — exact address visible to approved attendees</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, locationPrivacy: prev.locationPrivacy === 'exact' ? 'city' : 'exact' }))}
+                            className={`relative flex-shrink-0 ml-4 w-10 h-6 rounded-full transition-colors ${
+                              formData.locationPrivacy === 'city' ? 'bg-indigo-600' : 'bg-gray-300'
+                            }`}
+                          >
+                            <span
+                              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                                formData.locationPrivacy === 'city' ? 'translate-x-4' : ''
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
                     )}
                     {(formData.locationType === 'virtual' || formData.locationType === 'hybrid') && (
                       <input

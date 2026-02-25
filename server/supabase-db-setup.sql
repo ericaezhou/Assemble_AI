@@ -262,3 +262,19 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Add user embedding column (1024 dimensions)
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS user_embedding vector(1024);
+-- Add cover photo URL to conferences
+ALTER TABLE public.conferences
+  ADD COLUMN IF NOT EXISTS cover_photo_url text;
+
+-- Create event-covers storage bucket (public)
+INSERT INTO storage.buckets (id, name, public)
+  VALUES ('event-covers', 'event-covers', true)
+  ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Event covers are publicly accessible" ON storage.objects;
+CREATE POLICY "Event covers are publicly accessible" ON storage.objects
+  FOR SELECT USING (bucket_id = 'event-covers');
+
+DROP POLICY IF EXISTS "Authenticated users can upload event covers" ON storage.objects;
+CREATE POLICY "Authenticated users can upload event covers" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'event-covers');

@@ -51,6 +51,8 @@ interface Event {
   end_date: string;
   end_time?: string;
   is_host: number;
+  host_name?: string;
+  cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
 }
@@ -60,6 +62,38 @@ interface DashboardProps {
 }
 
 type ActiveView = 'events' | 'researchers';
+
+function getMonthEmoji(monthIndex: number): string {
+  const emojis = ['❄️','❄️','🌸','🌸','🌸','☀️','☀️','☀️','🍂','🍂','🍂','❄️'];
+  return emojis[monthIndex];
+}
+
+function groupEventsByMonth(events: Event[]): { monthLabel: string; emoji: string; events: Event[] }[] {
+  const groups: { monthLabel: string; emoji: string; events: Event[] }[] = [];
+  for (const event of events) {
+    const date = new Date(event.start_date + 'T12:00:00');
+    const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const last = groups[groups.length - 1];
+    if (last && last.monthLabel === label) {
+      last.events.push(event);
+    } else {
+      groups.push({ monthLabel: label, emoji: getMonthEmoji(date.getMonth()), events: [event] });
+    }
+  }
+  return groups;
+}
+
+function formatEventDateLabel(dateString: string): { main: string; sub: string } {
+  const date = new Date(dateString + 'T12:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const d = new Date(date); d.setHours(0, 0, 0, 0);
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+  const shortDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (d.getTime() === today.getTime()) return { main: 'Today', sub: dayName };
+  if (d.getTime() === tomorrow.getTime()) return { main: 'Tomorrow', sub: dayName };
+  return { main: shortDate, sub: dayName };
+}
 
 
 export default function Dashboard({ user }: DashboardProps) {
@@ -88,6 +122,7 @@ export default function Dashboard({ user }: DashboardProps) {
   };
   const [isRefreshingRecommendations, setIsRefreshingRecommendations] = useState(false);
   const [hasRequestedRecommendations, setHasRequestedRecommendations] = useState(false);
+  const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
 
   useEffect(() => {
     if (user) {
@@ -379,44 +414,97 @@ export default function Dashboard({ user }: DashboardProps) {
               </div>
             )}
             {activeView === 'events' ? (
-              events.length === 0 ? (
-                <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 text-sm">
-                  No events yet. Create or join an event to get started!
+              <>
+                {/* Upcoming / Past pill toggle */}
+                <div className="inline-flex items-center bg-gray-100 rounded-full p-1 mb-1">
+                  <button
+                    onClick={() => setEventsFilter('upcoming')}
+                    className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-all ${
+                      eventsFilter === 'upcoming'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Upcoming
+                  </button>
+                  <button
+                    onClick={() => setEventsFilter('past')}
+                    className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-all ${
+                      eventsFilter === 'past'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Past
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  {current.length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mb-2">Current</h3>
-                      <div className="grid grid-cols-1 gap-3">
-                        {current.map(event => (
-                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
-                        ))}
-                      </div>
+
+                {eventsFilter === 'upcoming' ? (
+                  [...current, ...upcoming].length === 0 ? (
+                    <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 text-sm">
+                      No upcoming events. Create or join an event to get started!
                     </div>
-                  )}
-                  {upcoming.length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mb-2">Upcoming</h3>
-                      <div className="grid grid-cols-1 gap-3">
-                        {upcoming.map(event => (
-                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
-                        ))}
-                      </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {groupEventsByMonth([...current, ...upcoming]).map(group => (
+                        <div key={group.monthLabel}>
+                          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                            <span>{group.emoji}</span> {group.monthLabel}
+                          </h3>
+                          <div className="space-y-2">
+                            {group.events.map(event => {
+                              const dl = formatEventDateLabel(event.start_date);
+                              return (
+                                <div key={event.id} className="flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                                  </div>
+                                  <div className="flex-shrink-0 w-28 text-right">
+                                    <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
+                                    <p className="text-lg text-gray-400">{dl.sub}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  {past.length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1 mb-2">Past</h3>
-                      <div className="grid grid-cols-1 gap-3">
-                        {past.map(event => (
-                          <EventCard key={event.id} event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
-                        ))}
-                      </div>
+                  )
+                ) : (
+                  past.length === 0 ? (
+                    <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 text-sm">
+                      No past events yet.
                     </div>
-                  )}
-                </div>
-              )
+                  ) : (
+                    <div className="space-y-6">
+                      {groupEventsByMonth(past).map(group => (
+                        <div key={group.monthLabel}>
+                          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                            <span>{group.emoji}</span> {group.monthLabel}
+                          </h3>
+                          <div className="space-y-2">
+                            {group.events.map(event => {
+                              const dl = formatEventDateLabel(event.start_date);
+                              return (
+                                <div key={event.id} className="flex items-center gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                                  </div>
+                                  <div className="flex-shrink-0 w-28 text-right">
+                                    <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
+                                    <p className="text-lg text-gray-400">{dl.sub}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </>
             ) : (
               <ResearcherRecommendations
                 researchers={recommendations}

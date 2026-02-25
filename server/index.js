@@ -316,7 +316,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
     name, location, location_type, virtual_link,
     start_date, start_time, end_date, end_time,
     price_type, price_amount, capacity, require_approval,
-    description, rsvp_questions,
+    description, rsvp_questions, cover_photo_url,
     host_id
   } = req.body;
 
@@ -347,6 +347,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
         require_approval: require_approval || false,
         description,
         rsvp_questions,
+        cover_photo_url: cover_photo_url || null,
         host_id
       });
 
@@ -445,10 +446,10 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
 
     const conferenceIds = participants.map(p => p.conference_id);
 
-    // Get conference details
+    // Get conference details with host name
     const { data: conferences, error: conferencesError } = await supabase
       .from('conferences')
-      .select('*')
+      .select('*, profiles!conferences_host_id_fkey(name)')
       .in('id', conferenceIds)
       .order('start_date', { ascending: true });
 
@@ -456,10 +457,13 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
       return res.status(500).json({ error: conferencesError.message });
     }
 
-    // Add is_host field
+    // Add is_host and host_name fields
     const conferencesWithHost = (conferences || []).map(c => ({
       ...c,
-      is_host: c.host_id === id ? 1 : 0
+      is_host: c.host_id === id ? 1 : 0,
+      host_name: c.profiles?.name || null,
+      cover_photo_url: c.cover_photo_url || null,
+      profiles: undefined,
     }));
 
     res.json(conferencesWithHost);
@@ -1169,9 +1173,23 @@ Output only the bio text, nothing else.`;
 // Parsing service proxy routes
 const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
 
-// Upload file for parsing (no auth required — user hasn't signed up yet)
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Upload event cover photo
+app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+  const ext = req.file.originalname.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('event-covers')
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+  if (error) return res.status(500).json({ error: error.message });
+  const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(filename);
+  res.json({ url: publicUrl });
+});
+
+// Upload file for parsing (no auth required — user hasn't signed up yet)
 
 app.post('/api/parsing/upload', upload.single('file'), async (req, res) => {
   try {
