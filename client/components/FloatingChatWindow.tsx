@@ -126,9 +126,13 @@ export default function FloatingChatWindow({
         }),
       });
       const confirmedMsg = await res.json();
-      // Swap optimistic message for the confirmed server response
       pendingIds.current.delete(tempId);
-      setMessages(prev => prev.map(m => m.id === tempId ? confirmedMsg : m));
+      setMessages(prev =>
+        // If polling already added the real message, just drop the placeholder
+        prev.some(m => m.id === confirmedMsg.id)
+          ? prev.filter(m => m.id !== tempId)
+          : prev.map(m => m.id === tempId ? confirmedMsg : m)
+      );
     } catch (err) {
       console.error('Error sending message:', err);
       pendingIds.current.delete(tempId);

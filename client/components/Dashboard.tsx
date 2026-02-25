@@ -11,7 +11,7 @@ import FloatingChatWindow from './FloatingChatWindow';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
 import { authenticatedFetch } from '@/utils/auth';
-import { UserProfile } from '@/store/userStore';
+import { UserProfile, useUserStore } from '@/store/userStore';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
@@ -61,100 +61,9 @@ interface DashboardProps {
 
 type ActiveView = 'events' | 'researchers';
 
-// ── Event Cover Card (Luma-style left sidebar for event view) ──────────────
-
-function getEventGradient(name: string): string {
-  const gradients = [
-    'from-indigo-500 via-purple-600 to-pink-500',
-    'from-emerald-500 via-teal-500 to-cyan-500',
-    'from-orange-400 via-amber-500 to-yellow-400',
-    'from-rose-500 via-pink-500 to-fuchsia-500',
-    'from-blue-500 via-indigo-500 to-violet-600',
-    'from-green-500 via-emerald-500 to-teal-600',
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return gradients[Math.abs(hash) % gradients.length];
-}
-
-function formatSidebarDate(dateStr: string, timeStr?: string): string {
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return dateStr;
-  const formatted = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  return timeStr ? `${formatted} · ${timeStr}` : formatted;
-}
-
-function EventCoverCard({ event }: { event: Event }) {
-  const isHost = event.is_host === 1;
-  const isVirtual = event.location_type === 'virtual';
-  const gradient = getEventGradient(event.name);
-  const initial = event.name.charAt(0).toUpperCase();
-
-  return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-      {/* Cover image */}
-      <div className={`bg-gradient-to-br ${gradient} h-32 flex items-center justify-center relative overflow-hidden`}>
-        <div className="absolute inset-0 bg-black/10" />
-        <div className="absolute top-3 right-3 w-20 h-20 bg-white/10 rounded-full -translate-y-4 translate-x-4" />
-        <div className="absolute bottom-2 left-4 w-14 h-14 bg-white/10 rounded-full translate-y-4 -translate-x-2" />
-        <span className="relative text-5xl font-black text-white/80 select-none">{initial}</span>
-      </div>
-
-      {/* Info */}
-      <div className="p-4 space-y-3">
-        <h3 className="text-sm font-bold text-gray-900 leading-tight">{event.name}</h3>
-
-        <div className="space-y-2">
-          <div className="flex items-start gap-2 text-xs text-gray-600">
-            <svg className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span>{formatSidebarDate(event.start_date, event.start_time)}</span>
-          </div>
-
-          <div className="flex items-start gap-2 text-xs text-gray-600">
-            {isVirtual ? (
-              <svg className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            ) : (
-              <svg className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            )}
-            <span>{isVirtual ? 'Virtual Event' : event.location || 'Location TBD'}</span>
-          </div>
-        </div>
-
-        {/* Status badge */}
-        <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg w-full justify-center ${
-          isHost
-            ? 'bg-indigo-50 text-indigo-700'
-            : 'bg-emerald-50 text-emerald-700'
-        }`}>
-          {isHost ? (
-            <>
-              <span>👑</span>
-              <span>You&apos;re hosting</span>
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>You&apos;re attending</span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Dashboard({ user }: DashboardProps) {
+  const { unhideConversation } = useUserStore();
   const [activeView, setActiveView] = useState<ActiveView>('events');
   const [recommendations, setRecommendations] = useState<Researcher[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
@@ -332,12 +241,14 @@ export default function Dashboard({ user }: DashboardProps) {
 
   // Show event detail page if an event is selected — same 3-column layout
   if (selectedEventId && user) {
-    const selectedEvent = events.find(e => e.id === selectedEventId);
     return (
       <div className="h-screen bg-[#f3f2ef] flex flex-col overflow-hidden">
         <TopNav currentView="home" />
         <div className="flex flex-1 overflow-hidden">
-          {/* Left 20%: back button + Luma-style event cover card */}
+          {/* Blank left margin ~15% */}
+          <div className="hidden lg:block w-[8%] flex-shrink-0" />
+
+          {/* Left 15%: back button + cover image */}
           <div className="hidden lg:flex w-[20%] flex-shrink-0 px-4 pt-5 pb-4 flex-col gap-3">
             <button
               onClick={handleBackToEvents}
@@ -348,11 +259,16 @@ export default function Dashboard({ user }: DashboardProps) {
               </svg>
               Back
             </button>
-            {selectedEvent && <EventCoverCard event={selectedEvent} />}
+            <div className="bg-white rounded-xl shadow-md overflow-hidden aspect-[3/4] flex flex-col items-center justify-center gap-3 text-gray-300">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="text-xs text-gray-400">Cover photo</span>
+            </div>
           </div>
 
-          {/* Center 60%: event detail fills and scrolls naturally */}
-          <div className="w-[60%] flex-shrink-0 overflow-y-auto">
+          {/* Center 45%: event detail fills and scrolls naturally */}
+          <div className="w-[50%] flex-shrink-0 overflow-y-auto">
             <EventDetail
               eventId={selectedEventId}
               userId={user.id}
@@ -369,7 +285,7 @@ export default function Dashboard({ user }: DashboardProps) {
                   currentUser={user}
                   openConversationId={openConversationId}
                   onConversationOpened={() => setOpenConversationId(null)}
-                  onOpenChat={(id, name) => setFloatingChat({ id, name })}
+                  onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
                   drafts={drafts}
                   className="h-full flex flex-col bg-white"
                 />
@@ -398,13 +314,16 @@ export default function Dashboard({ user }: DashboardProps) {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Left 20%: profile card, inset from edges */}
+        {/* Blank left margin ~15% */}
+        <div className="hidden lg:block w-[8%] flex-shrink-0" />
+
+        {/* Left 15%: profile card */}
         <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5">
           {user && <MiniProfile user={user} />}
         </div>
 
-        {/* Center 60%: tab card pinned, cards scroll below */}
-        <div className="w-[60%] flex-shrink-0 flex flex-col overflow-hidden">
+        {/* Center 45%: tab card pinned, cards scroll below */}
+        <div className="w-[50%] flex-shrink-0 flex flex-col overflow-hidden">
 
           {/* Fixed: tab + action card */}
           <div className="flex-shrink-0 px-3 pt-5 pb-3">
@@ -520,7 +439,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 currentUser={user}
                 openConversationId={openConversationId}
                 onConversationOpened={() => setOpenConversationId(null)}
-                onOpenChat={(id, name) => setFloatingChat({ id, name })}
+                onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
                 drafts={drafts}
                 className="h-full flex flex-col bg-white"
               />

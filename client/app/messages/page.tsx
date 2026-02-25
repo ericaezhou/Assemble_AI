@@ -27,8 +27,9 @@ interface Conversation {
 const DRAFTS_KEY = 'assemble-message-drafts';
 
 export default function MessagesPage() {
-  const { user } = useUserStore();
+  const { user, hiddenConversationIds, hideConversation } = useUserStore();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [hoveredConvId, setHoveredConvId] = useState<number | null>(null);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -51,7 +52,10 @@ export default function MessagesPage() {
   }, [drafts]);
 
   useEffect(() => {
-    if (user) fetchConversations();
+    if (!user) return;
+    fetchConversations();
+    const interval = setInterval(fetchConversations, 1000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // On conversation switch: save old draft, restore new one
@@ -94,6 +98,12 @@ export default function MessagesPage() {
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  const handleDeleteConversation = (e: React.MouseEvent, convId: number) => {
+    e.stopPropagation();
+    hideConversation(convId);
+    if (activeConversation?.id === convId) setActiveConversation(null);
   };
 
   const handleNewMessageChange = (text: string) => {
@@ -168,7 +178,7 @@ export default function MessagesPage() {
             <h1 className="text-xl font-bold text-gray-800">Messaging</h1>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {conversations.length === 0 ? (
+            {conversations.filter(c => !hiddenConversationIds.includes(c.id)).length === 0 ? (
               <div className="p-5 text-center text-gray-500 text-sm mt-8">
                 <svg className="w-10 h-10 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -177,29 +187,46 @@ export default function MessagesPage() {
                 <p className="text-xs text-gray-400 mt-1">Connect with a researcher to start chatting!</p>
               </div>
             ) : (
-              conversations.map(conv => (
-                <button
+              conversations.filter(c => !hiddenConversationIds.includes(c.id)).map(conv => (
+                <div
                   key={conv.id}
-                  onClick={() => setActiveConversation(conv)}
-                  className={`w-full text-left px-5 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                    activeConversation?.id === conv.id
-                      ? 'bg-indigo-50 border-l-4 border-l-indigo-500'
-                      : ''
-                  }`}
+                  className="relative"
+                  onMouseEnter={() => setHoveredConvId(conv.id)}
+                  onMouseLeave={() => setHoveredConvId(null)}
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-semibold text-gray-800 text-sm">{conv.other_user_name}</span>
-                    <span className="text-xs text-gray-400">{formatLastTime(conv.last_message_time)}</span>
-                  </div>
-                  {drafts[conv.id] ? (
-                    <p className="text-xs truncate">
-                      <span className="text-amber-600 font-medium">Draft: </span>
-                      <span className="text-gray-400">{drafts[conv.id]}</span>
-                    </p>
-                  ) : conv.last_message ? (
-                    <p className="text-xs text-gray-500 truncate">{conv.last_message}</p>
-                  ) : null}
-                </button>
+                  <button
+                    onClick={() => setActiveConversation(conv)}
+                    className={`w-full text-left px-5 py-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                      activeConversation?.id === conv.id
+                        ? 'bg-indigo-50 border-l-4 border-l-indigo-500'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-1 pr-6">
+                      <span className="font-semibold text-gray-800 text-sm">{conv.other_user_name}</span>
+                      <span className="text-xs text-gray-400">{formatLastTime(conv.last_message_time)}</span>
+                    </div>
+                    {drafts[conv.id] ? (
+                      <p className="text-xs truncate pr-6">
+                        <span className="text-amber-600 font-medium">Draft: </span>
+                        <span className="text-gray-400">{drafts[conv.id]}</span>
+                      </p>
+                    ) : conv.last_message ? (
+                      <p className="text-xs text-gray-500 truncate pr-6">{conv.last_message}</p>
+                    ) : null}
+                  </button>
+                  {hoveredConvId === conv.id && (
+                    <button
+                      onClick={e => handleDeleteConversation(e, conv.id)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Remove conversation"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>
