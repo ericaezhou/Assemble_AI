@@ -262,3 +262,12 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Add user embedding column (1024 dimensions)
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS user_embedding vector(1024);
+
+-- Note: embedding model switched from sentence transformer to qwen
+-- We need to change the embedding storage to mach the new dims
+
+-- Drop the existing column
+ALTER TABLE public.profiles DROP COLUMN IF EXISTS user_embedding;
+
+-- Recreate with 512 dimensions
+ALTER TABLE public.profiles ADD COLUMN user_embedding vector(512);
