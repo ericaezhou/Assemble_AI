@@ -52,6 +52,16 @@ export default function TopNav({ currentView }: TopNavProps) {
                 >
                   Profile
                 </Link>
+                <Link
+                  href="/messages"
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'messages'
+                      ? 'bg-indigo-50 text-indigo-700'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  Messages
+                </Link>
               </div>
             )}
           </div>

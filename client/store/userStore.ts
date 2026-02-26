@@ -33,6 +33,7 @@ interface UserState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  hiddenConversationIds: number[];
 
   // Actions
   setUser: (user: UserProfile) => void;
@@ -40,6 +41,8 @@ interface UserState {
   clearUser: () => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  hideConversation: (id: number) => void;
+  unhideConversation: (id: number) => void;
 
   // Async actions
   fetchUser: (userId: string) => Promise<UserProfile | null>;
@@ -54,8 +57,17 @@ export const useUserStore = create<UserState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      hiddenConversationIds: [],
 
       setUser: (user) => set({ user, isAuthenticated: true, error: null }),
+
+      hideConversation: (id) => set(state => ({
+        hiddenConversationIds: [...new Set([...state.hiddenConversationIds, id])],
+      })),
+
+      unhideConversation: (id) => set(state => ({
+        hiddenConversationIds: state.hiddenConversationIds.filter(x => x !== id),
+      })),
 
       updateProfile: (updates) =>
         set((state) => ({
@@ -131,6 +143,7 @@ export const useUserStore = create<UserState>()(
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        hiddenConversationIds: state.hiddenConversationIds,
       }),
     }
   )

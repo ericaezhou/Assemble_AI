@@ -146,7 +146,7 @@ async function rebuildEmbeddingForUser(userId) {
 }
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '1mb' }));
 
 // NOTE: Auth (signup/login) now happens client-side via Supabase
 // The frontend calls Supabase Auth directly, then uses the JWT token
@@ -427,7 +427,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
     name, location, location_type, virtual_link,
     start_date, start_time, end_date, end_time,
     price_type, price_amount, capacity, require_approval,
-    description, rsvp_questions,
+    description, rsvp_questions, cover_photo_url,
     host_id
   } = req.body;
 
@@ -458,6 +458,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
         require_approval: require_approval || false,
         description,
         rsvp_questions,
+        cover_photo_url: cover_photo_url || null,
         host_id
       });
 
@@ -535,8 +536,8 @@ app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's conferences (Protected - user can only view their own conferences)
-app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, async (req, res) => {
+// Get user's conferences (Protected - any authenticated user can view a profile's events)
+app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -556,10 +557,10 @@ app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, as
 
     const conferenceIds = participants.map(p => p.conference_id);
 
-    // Get conference details
+    // Get conference details with host name
     const { data: conferences, error: conferencesError } = await supabase
       .from('conferences')
-      .select('*')
+      .select('*, profiles!conferences_host_id_fkey(name)')
       .in('id', conferenceIds)
       .order('start_date', { ascending: true });
 
@@ -567,10 +568,13 @@ app.get('/api/researchers/:id/conferences', authenticateToken, authorizeUser, as
       return res.status(500).json({ error: conferencesError.message });
     }
 
-    // Add is_host field
+    // Add is_host and host_name fields
     const conferencesWithHost = (conferences || []).map(c => ({
       ...c,
-      is_host: c.host_id === id ? 1 : 0
+      is_host: c.host_id === id ? 1 : 0,
+      host_name: c.profiles?.name || null,
+      cover_photo_url: c.cover_photo_url || null,
+      profiles: undefined,
     }));
 
     res.json(conferencesWithHost);
@@ -695,7 +699,7 @@ app.get('/api/conferences/:id/participants', authenticateToken, async (req, res)
 
 // Get or create conversation between two users
 app.post('/api/conversations', async (req, res) => {
-  const { user1_id, user2_id } = req.body;
+  const { user1_id, user2_id, event_name } = req.body;
 
   // Ensure consistent ordering (lexicographically smaller UUID always as participant1)
   const participant1_id = user1_id < user2_id ? user1_id : user2_id;
@@ -761,7 +765,14 @@ app.post('/api/conversations', async (req, res) => {
 
     // Generate intro message
     let introMessage;
-    if (commonInterests.length > 0) {
+    if (event_name) {
+      if (commonInterests.length > 0) {
+        const interestList = commonInterests.slice(0, 3).join(', ');
+        introMessage = `You connected at ${event_name}. You both share interest in ${interestList} — a great starting point!`;
+      } else {
+        introMessage = `You connected at ${event_name}. Feel free to introduce yourselves and discuss your research!`;
+      }
+    } else if (commonInterests.length > 0) {
       const interestList = commonInterests.slice(0, 3).join(', ');
       introMessage = `Hi ${user1.name} and ${user2.name}! Looks like you might be interested in chatting about ${interestList}!`;
     } else {
@@ -833,6 +844,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
           .from('messages')
           .select('content, created_at')
           .eq('conversation_id', conv.id)
+          .eq('is_system_message', false)
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
@@ -1272,9 +1284,23 @@ Output only the bio text, nothing else.`;
 // Parsing service proxy routes
 const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
 
-// Upload file for parsing (no auth required — user hasn't signed up yet)
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// Upload event cover photo
+app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+  const ext = req.file.originalname.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('event-covers')
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+  if (error) return res.status(500).json({ error: error.message });
+  const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(filename);
+  res.json({ url: publicUrl });
+});
+
+// Upload file for parsing (no auth required — user hasn't signed up yet)
 
 app.post('/api/parsing/upload', upload.single('file'), async (req, res) => {
   try {

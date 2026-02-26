@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import OnboardingForm from '@/components/OnboardingForm';
 import Dashboard from '@/components/Dashboard';
-import { authenticatedFetch, getCurrentUser, signOut } from '@/utils/auth';
+import { authenticatedFetch, getCurrentUser } from '@/utils/auth';
 import { useUserStore } from '@/store/userStore';
 
 type ViewState = 'login' | 'signup' | 'dashboard';
@@ -26,13 +26,14 @@ export default function Home() {
             const profileData = await res.json();
             setUser(profileData);
             setView('dashboard');
-          } else {
-            // Profile fetch failed, clear session
-            await signOut();
-            clearUser();
           }
+          // If profile fetch fails for a non-401 reason (transient error, slow server),
+          // don't sign out — 401 is already handled by authenticatedFetch itself
         }
       } catch (err) {
+        const error = err as Error;
+        // AbortError means navigation happened mid-fetch — silently ignore
+        if (error.name === 'AbortError') return;
         console.error('Error checking auth:', err);
         // User not authenticated, stay on login view
       } finally {

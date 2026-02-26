@@ -192,9 +192,11 @@ export async function authenticatedFetch(
   }
 
   // Add Authorization header with Supabase JWT
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
+  // Don't set Content-Type for FormData - browser sets it automatically with boundary
+  const isFormData = options.body instanceof FormData;
+  const headers: Record<string, string> = {
+    ...(!isFormData && { 'Content-Type': 'application/json' }),
+    ...(options.headers as Record<string, string>),
     Authorization: `Bearer ${token}`,
   };
 
@@ -231,8 +233,12 @@ export async function authenticatedFetch(
 
     return response;
   } catch (error) {
-    // Re-throw auth errors (401) and permission errors (403) as-is
-    if ((error as any).isAuthError || (error as any).status === 403) {
+    // Re-throw auth errors (401), permission errors (403), and AbortErrors as-is
+    if (
+      (error as any).isAuthError ||
+      (error as any).status === 403 ||
+      (error as any).name === 'AbortError'
+    ) {
       throw error;
     }
 

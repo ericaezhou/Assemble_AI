@@ -10,20 +10,22 @@ interface ResearcherCardProps {
 export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
   const similarityScore =
     typeof researcher.similarity_score === 'number' ? researcher.similarity_score : null;
-  const formattedSimilarityScore =
-    similarityScore !== null
-      ? similarityScore.toFixed(2)
-      : null;
+
+  const matchPercent = similarityScore !== null && similarityScore > 0
+    ? Math.round(similarityScore * 100)
+    : null;
 
   return (
     <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
-      <div className="flex justify-between items-start mb-3 gap-2">
-        <h3 className="text-lg font-bold text-gray-800">{researcher.name}</h3>
-        {formattedSimilarityScore && similarityScore > 0 && (
-          <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap">
-            Match Score: {formattedSimilarityScore}
-          </span>
-        )}
+      <div className="mb-3">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <h3 className="text-lg font-bold text-gray-800 min-w-0">{researcher.name}</h3>
+          {matchPercent !== null && (
+            <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-0.5 rounded-lg text-xs font-semibold flex-shrink-0">
+              {matchPercent}% match
+            </span>
+          )}
+        </div>
       </div>
 
       <p className="text-gray-600 italic text-sm mb-4">

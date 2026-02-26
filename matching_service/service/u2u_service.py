@@ -170,12 +170,14 @@ class MatchingService:
         # Convert to UserProfile format
         user_profiles = profile_dtos_to_user_profiles(profile_dtos)
 
-        # Build vectors (this can be slow on first run)
+        # Build vectors — always overwrite to ensure dimension consistency
+        # (fresh objects from DB always have None vectors, but overwrite=True
+        # also handles any stale cached vectors if the embedder ever changes)
         build_user_vectors(
             user_profiles,
             self.embedder,
             build_profile=True,
-            overwrite=False
+            overwrite=True
         )
 
         # Cache if enabled
