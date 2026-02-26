@@ -1,4 +1,5 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -77,6 +78,71 @@ function parseFloatBounded(value, defaultValue, minValue, maxValue, fieldName, {
     throw new Error(`${fieldName} must be between ${minValue} and ${maxValue}`);
   }
   return parsed;
+}
+
+function tokenizePreference(text) {
+  return String(text || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2);
+}
+
+function profileSearchText(profile) {
+  const rawParts = [
+    profile?.name,
+    profile?.occupation,
+    profile?.school,
+    profile?.major,
+    profile?.company,
+    profile?.title,
+    profile?.degree,
+    profile?.research_area,
+    profile?.other_description,
+    profile?.bio,
+    ...(Array.isArray(profile?.interest_areas) ? profile.interest_areas : []),
+    ...(Array.isArray(profile?.current_skills) ? profile.current_skills : []),
+    ...(Array.isArray(profile?.hobbies) ? profile.hobbies : []),
+  ];
+  return rawParts
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function computePreferenceRelevance(profile, preferenceText) {
+  const normalizedPreference = String(preferenceText || '').trim().toLowerCase();
+  if (!normalizedPreference) return 0;
+
+  const text = profileSearchText(profile);
+  if (!text) return 0;
+
+  const tokens = tokenizePreference(normalizedPreference);
+  if (tokens.length === 0) {
+    return text.includes(normalizedPreference) ? 1 : 0;
+  }
+
+  let matchedTokenCount = 0;
+  for (const token of tokens) {
+    if (text.includes(token)) matchedTokenCount += 1;
+  }
+
+  const tokenScore = matchedTokenCount / tokens.length;
+  const phraseBonus = text.includes(normalizedPreference) ? 0.35 : 0;
+  return Math.min(1, tokenScore + phraseBonus);
+}
+
+async function rebuildEmbeddingForUser(userId) {
+  const response = await fetch(`${MATCHING_SERVICE_URL}/api/u2u/embeddings/rebuild`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || 'Failed to rebuild user embedding');
+  }
+  return data;
 }
 
 app.use(cors());
@@ -178,7 +244,30 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
       return res.status(404).json({ error: 'Researcher not found' });
     }
 
-    res.json(updatedProfile);
+    await rebuildEmbeddingForUser(id);
+
+    const { data: refreshedProfile, error: refreshedProfileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (refreshedProfileError || !refreshedProfile) {
+      return res.status(500).json({ error: 'Profile updated, but failed to reload updated embedding.' });
+    }
+
+    res.json(refreshedProfile);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rebuild cached embedding for one researcher (Protected)
+app.post('/api/researchers/:id/rebuild-embedding', authenticateToken, authorizeUser, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await rebuildEmbeddingForUser(id);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -217,6 +306,9 @@ app.get('/api/researchers/search/:query', authenticateToken, async (req, res) =>
 // Get recommendations for a researcher (Protected)
 app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser, async (req, res) => {
   const { id } = req.params;
+  const preference = typeof req.query.preference === 'string'
+    ? req.query.preference.trim()
+    : '';
   let topK;
   let minScore;
   let applyMmr;
@@ -239,12 +331,14 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
   }
 
   try {
+    const effectiveTopK = preference ? Math.min(TOP_K_MAX, topK * 4) : topK;
     const matchingPayload = {
       target_id: id,
-      top_k: topK,
+      top_k: effectiveTopK,
       min_score: minScore,
       apply_mmr: applyMmr,
-      mmr_lambda: mmrLambda
+      mmr_lambda: mmrLambda,
+      preference_text: preference
     };
     const startedAt = Date.now();
     console.info('[matching-proxy] request', matchingPayload);
@@ -302,7 +396,24 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
       })
       .filter(Boolean);
 
-    res.json(recommendations);
+    let finalRecommendations = recommendations;
+    if (preference) {
+      finalRecommendations = [...recommendations]
+        .map(researcher => ({
+          ...researcher,
+          _preferenceScore: computePreferenceRelevance(researcher, preference)
+        }))
+        .sort((a, b) => {
+          if (b._preferenceScore !== a._preferenceScore) {
+            return b._preferenceScore - a._preferenceScore;
+          }
+          return (b.similarity_score || 0) - (a.similarity_score || 0);
+        })
+        .slice(0, topK)
+        .map(({ _preferenceScore, ...researcher }) => researcher);
+    }
+
+    res.json(finalRecommendations);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

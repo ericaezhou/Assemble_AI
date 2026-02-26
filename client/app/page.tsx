@@ -61,6 +61,14 @@ export default function Home() {
 
   const handleSignupComplete = async (userId: string) => {
     try {
+      const embeddingRes = await authenticatedFetch(`/api/researchers/${userId}/rebuild-embedding`, {
+        method: 'POST',
+      });
+      if (!embeddingRes.ok) {
+        console.error('Failed to rebuild embedding after signup');
+        return;
+      }
+
       const res = await authenticatedFetch(`/api/researchers/${userId}`);
       if (res.ok) {
         const profileData = await res.json();

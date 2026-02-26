@@ -142,6 +142,7 @@ export default function Dashboard({ user }: DashboardProps) {
     minScore?: number;
     applyMmr?: boolean;
     mmrLambda?: number;
+    preferenceText?: string;
   }) => {
     if (!user) return;
 
@@ -152,6 +153,10 @@ export default function Dashboard({ user }: DashboardProps) {
         apply_mmr: String(options?.applyMmr ?? true),
         mmr_lambda: String(options?.mmrLambda ?? 0.5),
       });
+      const preferenceText = options?.preferenceText?.trim();
+      if (preferenceText) {
+        params.set('preference', preferenceText);
+      }
       const response = await authenticatedFetch(`/api/researchers/${user.id}/recommendations?${params.toString()}`);
       const data = await response.json();
       if (!response.ok) {
@@ -171,7 +176,7 @@ export default function Dashboard({ user }: DashboardProps) {
     }
   };
 
-  const handleRefreshRecommendations = async (_naturalLanguagePreference: string) => {
+  const handleRefreshRecommendations = async (naturalLanguagePreference: string) => {
     setIsRefreshingRecommendations(true);
     setHasRequestedRecommendations(true);
     try {
@@ -180,6 +185,7 @@ export default function Dashboard({ user }: DashboardProps) {
         minScore: 0,
         applyMmr: true,
         mmrLambda: 0.5,
+        preferenceText: naturalLanguagePreference,
       });
     } finally {
       setIsRefreshingRecommendations(false);

@@ -3,7 +3,7 @@ import json
 import requests
 
 def main():
-    url = "http://localhost:5000/api/u2u/matches"
+    url = "http://localhost:5200/api/u2u/matches"
     payload = {
         # "target_id": "cc3f65a2-946f-414b-8712-a535ac3830e0",
         "target_id": "11111111-1111-1111-1111-111111111111",
