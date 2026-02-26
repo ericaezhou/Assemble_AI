@@ -122,6 +122,7 @@ export default function Dashboard({ user }: DashboardProps) {
   };
   const [isRefreshingRecommendations, setIsRefreshingRecommendations] = useState(false);
   const [hasRequestedRecommendations, setHasRequestedRecommendations] = useState(false);
+  const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
 
   useEffect(() => {
@@ -301,12 +302,21 @@ export default function Dashboard({ user }: DashboardProps) {
               </svg>
               Back
             </button>
-            <div className="bg-white rounded-xl shadow-md overflow-hidden aspect-[3/4] flex flex-col items-center justify-center gap-3 text-gray-300">
-              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-xs text-gray-400">Cover photo</span>
-            </div>
+            {(() => {
+              const coverUrl = events.find(e => e.id === selectedEventId)?.cover_photo_url;
+              return coverUrl ? (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden aspect-[3/4]">
+                  <img src={coverUrl} alt="Event cover" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl shadow-md overflow-hidden aspect-[3/4] flex flex-col items-center justify-center gap-3 text-gray-300">
+                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs text-gray-400">Cover photo</span>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Center 45%: event detail fills and scrolls naturally */}
@@ -390,11 +400,11 @@ export default function Dashboard({ user }: DashboardProps) {
                       : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
-                  Researchers
+                  People
                 </button>
               </div>
-              {/* Create/Join actions (events only) */}
-              {activeView === 'events' && (
+              {/* Create/Join actions (events) or People search bar */}
+              {activeView === 'events' ? (
                 <div className="px-4 py-3 flex gap-3">
                   <button
                     onClick={() => setShowCreateEvent(true)}
@@ -407,6 +417,26 @@ export default function Dashboard({ user }: DashboardProps) {
                     className="px-4 py-2 border border-indigo-600 text-indigo-600 text-sm font-semibold rounded-full hover:bg-indigo-50 transition-colors"
                   >
                     Join Event
+                  </button>
+                </div>
+              ) : (
+                <div className="px-4 py-3 flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Who's on your mind today?"
+                    value={naturalLanguagePreference}
+                    onChange={(e) => setNaturalLanguagePreference(e.target.value)}
+                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-full text-sm text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+                  />
+                  <button
+                    onClick={() => handleRefreshRecommendations(naturalLanguagePreference)}
+                    disabled={isRefreshingRecommendations}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {isRefreshingRecommendations ? 'Finding...' : 'Find'}
                   </button>
                 </div>
               )}
@@ -455,24 +485,30 @@ export default function Dashboard({ user }: DashboardProps) {
                     <div className="space-y-6">
                       {groupEventsByMonth([...current, ...upcoming]).map(group => (
                         <div key={group.monthLabel}>
-                          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                          <h3 className="text-xl font-bold text-gray-700 mb-3 flex items-center gap-1.5">
                             <span>{group.emoji}</span> {group.monthLabel}
                           </h3>
-                          <div className="space-y-2">
-                            {group.events.map(event => {
-                              const dl = formatEventDateLabel(event.start_date);
-                              return (
-                                <div key={event.id} className="flex items-center justify-between pr-4">
-                                  <div className="w-[70%] min-w-0">
-                                    <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                          <div className="relative">
+                            <div className="absolute right-32 top-4 bottom-4 w-px bg-gray-200" />
+                            <div className="space-y-10">
+                              {group.events.map(event => {
+                                const dl = formatEventDateLabel(event.start_date);
+                                return (
+                                  <div key={event.id} className="flex items-start">
+                                    <div className="flex-1 min-w-0 mr-3">
+                                      <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                                    </div>
+                                    <div className="w-8 flex-shrink-0 flex justify-center pt-4 z-10 relative">
+                                      <div className="w-3 h-3 rounded-full bg-indigo-400 ring-2 ring-indigo-100" />
+                                    </div>
+                                    <div className="w-28 flex-shrink-0 pt-2">
+                                      <p className="font-bold text-gray-800 text-lg leading-tight">{dl.main}</p>
+                                      <p className="text-sm text-gray-400 mt-0.5">{dl.sub}</p>
+                                    </div>
                                   </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
-                                    <p className="text-lg text-gray-400">{dl.sub}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -487,24 +523,30 @@ export default function Dashboard({ user }: DashboardProps) {
                     <div className="space-y-6">
                       {groupEventsByMonth(past).map(group => (
                         <div key={group.monthLabel}>
-                          <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-1.5">
+                          <h3 className="text-xl font-bold text-gray-700 mb-3 flex items-center gap-1.5">
                             <span>{group.emoji}</span> {group.monthLabel}
                           </h3>
-                          <div className="space-y-2">
-                            {group.events.map(event => {
-                              const dl = formatEventDateLabel(event.start_date);
-                              return (
-                                <div key={event.id} className="flex items-center justify-between pr-4">
-                                  <div className="w-[70%] min-w-0">
-                                    <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                          <div className="relative">
+                            <div className="absolute right-32 top-4 bottom-4 w-px bg-gray-200" />
+                            <div className="space-y-5">
+                              {group.events.map(event => {
+                                const dl = formatEventDateLabel(event.start_date);
+                                return (
+                                  <div key={event.id} className="flex items-start">
+                                    <div className="flex-1 min-w-0 mr-3">
+                                      <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
+                                    </div>
+                                    <div className="w-8 flex-shrink-0 flex justify-center pt-4 z-10 relative">
+                                      <div className="w-3 h-3 rounded-full bg-indigo-400 ring-2 ring-indigo-100" />
+                                    </div>
+                                    <div className="w-28 flex-shrink-0 pt-2">
+                                      <p className="font-bold text-gray-800 text-lg leading-tight">{dl.main}</p>
+                                      <p className="text-sm text-gray-400 mt-0.5">{dl.sub}</p>
+                                    </div>
                                   </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
-                                    <p className="text-lg text-gray-400">{dl.sub}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -516,10 +558,7 @@ export default function Dashboard({ user }: DashboardProps) {
               <ResearcherRecommendations
                 researchers={recommendations}
                 currentUserId={user?.id || ''}
-                title="Recommended for You"
                 onConnect={handleConnect}
-                onRefreshRecommendations={handleRefreshRecommendations}
-                isRefreshingRecommendations={isRefreshingRecommendations}
                 hasRequestedRecommendations={hasRequestedRecommendations}
               />
             )}
