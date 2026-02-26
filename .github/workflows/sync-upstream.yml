@@ -29,3 +29,7 @@ jobs:
           git merge upstream/main -X theirs --no-edit -m "Sync with upstream"
 
           git push origin main
+
+      - name: Trigger Vercel Deploy
+        if: success()
+        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
