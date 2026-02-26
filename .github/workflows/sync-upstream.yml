@@ -18,18 +18,14 @@ jobs:
 
       - name: Sync upstream
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "nicolejgc"
+          git config user.email "nicolejgc@users.noreply.github.com"
           git remote add upstream https://github.com/ericaezhou/Assemble_AI.git
           git fetch upstream
           git checkout main
 
           # Merge upstream changes (only updates changed files)
           # -X theirs: auto-resolve conflicts in favor of upstream
-          git merge upstream/main -X theirs --no-ff --no-edit -m "Sync with upstream"
+          git merge upstream/main -X theirs --no-edit -m "Sync with upstream"
 
           git push origin main
-
-      - name: Trigger Vercel Deploy
-        if: success()
-        run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
