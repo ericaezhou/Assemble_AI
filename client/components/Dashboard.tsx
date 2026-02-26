@@ -225,8 +225,9 @@ export default function Dashboard({ user }: DashboardProps) {
     const past: Event[] = [];
 
     events.forEach(event => {
-      const startDate = new Date(event.start_date);
-      const endDate = new Date(event.end_date);
+      // Append T00:00:00 / T23:59:59 to parse as local time, not UTC midnight
+      const startDate = new Date(event.start_date + 'T00:00:00');
+      const endDate = new Date((event.end_date || event.start_date) + 'T23:59:59');
 
       if (now < startDate) {
         upcoming.push(event);
@@ -455,11 +456,11 @@ export default function Dashboard({ user }: DashboardProps) {
                             {group.events.map(event => {
                               const dl = formatEventDateLabel(event.start_date);
                               return (
-                                <div key={event.id} className="flex items-center gap-3">
-                                  <div className="flex-1 min-w-0">
+                                <div key={event.id} className="flex items-center justify-between pr-4">
+                                  <div className="w-[70%] min-w-0">
                                     <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                                   </div>
-                                  <div className="flex-shrink-0 w-28 text-right">
+                                  <div className="text-right flex-shrink-0">
                                     <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
                                     <p className="text-lg text-gray-400">{dl.sub}</p>
                                   </div>
@@ -487,11 +488,11 @@ export default function Dashboard({ user }: DashboardProps) {
                             {group.events.map(event => {
                               const dl = formatEventDateLabel(event.start_date);
                               return (
-                                <div key={event.id} className="flex items-center gap-3">
-                                  <div className="flex-1 min-w-0">
+                                <div key={event.id} className="flex items-center justify-between pr-4">
+                                  <div className="w-[70%] min-w-0">
                                     <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                                   </div>
-                                  <div className="flex-shrink-0 w-28 text-right">
+                                  <div className="text-right flex-shrink-0">
                                     <p className="text-[21px] font-semibold text-gray-700">{dl.main}</p>
                                     <p className="text-lg text-gray-400">{dl.sub}</p>
                                   </div>

@@ -28,9 +28,14 @@ export default function ResearcherRecommendations({
   const safeResearchers = Array.isArray(researchers) ? researchers : [];
 
   const getRecommendedResearchers = () => {
-    // TODO: In the future, this will use naturalLanguagePreference to filter/sort
-    // For now, use similarity scores
     const otherResearchers = safeResearchers.filter(r => r.id !== currentUserId);
+
+    // If recommendations are provided by backend refresh, preserve backend ranking
+    // (which already includes preference-aware ordering).
+    if (onRefreshRecommendations) {
+      return otherResearchers.slice(0, 3);
+    }
+
     const sorted = [...otherResearchers].sort((a, b) => (b.similarity_score || 0) - (a.similarity_score || 0));
 
     const startIndex = (recommendationSeed * 3) % Math.max(1, sorted.length);
@@ -78,7 +83,7 @@ export default function ResearcherRecommendations({
           </div>
           {naturalLanguagePreference && (
             <p className="mt-2 text-sm text-gray-500">
-              Note: Natural language search will be implemented in a future update. Currently showing recommendations based on research similarity.
+              Using your input to prioritize recommendation ranking.
             </p>
           )}
         </div>
