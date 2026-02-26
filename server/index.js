@@ -146,7 +146,7 @@ async function rebuildEmbeddingForUser(userId) {
 }
 
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '1mb' }));
 
 // NOTE: Auth (signup/login) now happens client-side via Supabase
 // The frontend calls Supabase Auth directly, then uses the JWT token
@@ -1285,7 +1285,7 @@ Output only the bio text, nothing else.`;
 const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
 
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Upload event cover photo
 app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), async (req, res) => {

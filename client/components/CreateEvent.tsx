@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
+import imageCompression from 'browser-image-compression';
 
 interface CreateEventProps {
   userId: string;
@@ -205,11 +206,28 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     }));
   };
 
-  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setCoverPhotoFile(file);
-    setCoverPhotoPreview(URL.createObjectURL(file));
+
+    try {
+      // Compress image if it's larger than 1MB
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 2000,
+        useWebWorker: true,
+      };
+      const compressedFile = file.size > 1 * 1024 * 1024
+        ? await imageCompression(file, options)
+        : file;
+
+      setCoverPhotoFile(compressedFile);
+      setCoverPhotoPreview(URL.createObjectURL(compressedFile));
+    } catch {
+      // If compression fails, use original file
+      setCoverPhotoFile(file);
+      setCoverPhotoPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleLocationInput = (e: React.ChangeEvent<HTMLInputElement>) => {
