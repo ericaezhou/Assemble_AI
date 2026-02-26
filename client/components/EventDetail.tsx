@@ -16,6 +16,7 @@ interface Event {
   end_date: string;
   end_time?: string;
   host_id: string;
+  cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
 }
@@ -250,7 +251,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
             <div className="p-6 space-y-6">
               {/* About */}
               <div>
-                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">About the Event</h2>
+                <h2 className="text-sm font-semibold text-gray-400 tracking-wider mb-3">About the Event</h2>
                 {event.description ? (
                   <p className="text-gray-700 leading-relaxed">{event.description}</p>
                 ) : (
@@ -279,7 +280,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
               {/* Google Maps location */}
               {event.location_type !== 'virtual' && event.location && (
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Location</h2>
+                  <h2 className="text-sm font-semibold text-gray-400 tracking-wider mb-3">Location</h2>
                   <div className="rounded-xl overflow-hidden border border-gray-200">
                     <iframe
                       title="Event location"
@@ -324,7 +325,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
               {/* Top recommendations (horizontal) */}
               {topRecommended.length > 0 && (
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-400 tracking-wider mb-4">People</h2>
+                  <h2 className="text-sm font-semibold text-gray-400 tracking-wider mb-4">You may like them!</h2>
                   <div className="grid grid-cols-3 gap-3">
                     {topRecommended.map(person => {
                       const matchPercent = typeof person.similarity_score === 'number' && person.similarity_score > 0
@@ -367,8 +368,8 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
               {/* All attendees */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
-                    All Attendees
+                  <h2 className="text-sm font-semibold text-gray-400 tracking-wider">
+                    Who's going?
                   </h2>
                   <span className="text-xs text-gray-400">{filteredParticipants.length} shown</span>
                 </div>

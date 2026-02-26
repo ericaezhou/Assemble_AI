@@ -44,7 +44,7 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
       <div className="flex flex-1">
 
         {/* Cover photo */}
-        <div className="w-32 flex-shrink-0 border-r border-gray-100 overflow-hidden">
+        <div className="w-48 flex-shrink-0 border-r border-gray-100 overflow-hidden">
           {event.cover_photo_url ? (
             <img src={event.cover_photo_url} alt="Event cover" className="w-full h-full object-cover" />
           ) : (

@@ -69,7 +69,7 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
         </div>
       )}
 
-      <div className="mt-4 pt-4 border-t border-gray-100">
+      <div className="mt-auto pt-4 border-t border-gray-100">
         {onConnect ? (
           <button
             onClick={() => onConnect(researcher.id)}
