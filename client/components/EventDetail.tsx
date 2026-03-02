@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
+import ApplicantReviewer from './ApplicantReviewer';
 
 interface Event {
   id: string;
@@ -19,6 +20,7 @@ interface Event {
   cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
+  require_approval?: boolean;
 }
 
 interface EventDetailProps {
@@ -28,7 +30,7 @@ interface EventDetailProps {
   onConnect?: (researcherId: string, eventName?: string) => void;
 }
 
-type ActiveTab = 'description' | 'announcement' | 'participants';
+type ActiveTab = 'description' | 'announcement' | 'participants' | 'review';
 
 function getInitials(name: string): string {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -144,6 +146,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
 
   const isUpcoming = new Date(event.start_date) > new Date();
   const isAttending = !loading && participants.some(p => p.id === userId);
+  const isHost = event.host_id === userId;
   const dateBlock = formatDateBlock(event.start_date);
 
   return (
@@ -223,16 +226,20 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
           <div>
         <div className="bg-white rounded-2xl shadow-md overflow-hidden">
           {/* Tab bar */}
-          <div className="flex border-b border-gray-100 px-2">
+          <div className="flex border-b border-gray-100 px-2 overflow-x-auto">
             {[
               { key: 'description', label: 'About' },
               { key: 'announcement', label: 'Announcement' },
               { key: 'participants', label: `Participants (${participants.length})` },
+              ...(isHost && event.require_approval ? [{
+                key: 'review',
+                label: 'Review Applicants'
+              }] : []),
             ].map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as ActiveTab)}
-                className={`px-5 py-4 text-sm font-semibold relative transition-colors ${
+                className={`px-5 py-4 text-sm font-semibold relative transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'text-indigo-600'
                     : 'text-gray-400 hover:text-gray-700'
@@ -317,6 +324,16 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                 <p className="text-gray-400 text-sm mt-1">Check back later for updates from the organizer.</p>
               </div>
             </div>
+          )}
+
+          {/* ── Review Applicants Tab (host only) ── */}
+          {activeTab === 'review' && isHost && event.require_approval && (
+            <ApplicantReviewer
+              eventId={eventId}
+              userId={userId}
+              eventName={event.name}
+              onConfirmed={fetchParticipants}
+            />
           )}
 
           {/* ── Participants Tab ── */}

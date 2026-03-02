@@ -288,3 +288,20 @@ CREATE POLICY "Event covers are publicly accessible" ON storage.objects
 DROP POLICY IF EXISTS "Authenticated users can upload event covers" ON storage.objects;
 CREATE POLICY "Authenticated users can upload event covers" ON storage.objects
   FOR INSERT WITH CHECK (bucket_id = 'event-covers');
+
+-- ============================================================
+-- APPLICANT REVIEWER MIGRATION
+-- ============================================================
+
+-- Add AI review fields to conference_participants
+ALTER TABLE public.conference_participants
+  ADD COLUMN IF NOT EXISTS host_notes text,
+  ADD COLUMN IF NOT EXISTS ai_score numeric,
+  ADD COLUMN IF NOT EXISTS ai_review jsonb,
+  ADD COLUMN IF NOT EXISTS final_decision text,
+  ADD COLUMN IF NOT EXISTS reviewed_at timestamptz;
+
+-- Add review criteria to conferences
+-- Schema: { prompt: string, categories: [{name, target_pct}], special_requests: string }
+ALTER TABLE public.conferences
+  ADD COLUMN IF NOT EXISTS review_criteria jsonb;
