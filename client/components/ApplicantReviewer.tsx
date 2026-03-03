@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
 
 interface Category {
@@ -23,6 +23,7 @@ interface AIReview {
 
 interface Applicant {
   id: string;
+  source?: 'registered' | 'csv';
   name: string;
   email?: string;
   occupation?: string;
@@ -274,6 +275,9 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
   const [typeFilter, setTypeFilter]         = useState<string>('all');
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [isExpanded, setIsExpanded]         = useState(false);
+  const [uploadingCSV, setUploadingCSV]     = useState(false);
+  const [csvResult, setCsvResult]           = useState<{ imported: number; skipped: number } | null>(null);
+  const csvInputRef                         = useRef<HTMLInputElement>(null);
 
   // Always fetch ALL applicants — filtering happens client-side so stats never go stale
   const fetchApplicants = useCallback(async () => {
@@ -283,6 +287,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
       const data = await res.json();
       setApplicants((data.applicants || []).map((a: Applicant) => ({
         ...a,
+        source: a.source ?? 'registered',
         localDecision: (a.final_decision as 'accept' | 'waitlist' | 'decline' | undefined)
                     ?? (a.ai_review?.recommendation as 'accept' | 'waitlist' | 'decline' | undefined),
       })));
@@ -307,6 +312,26 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
       if (updated) setSelectedApplicant(updated);
     }
   }, [applicants]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCSVUpload = async (file: File) => {
+    setUploadingCSV(true);
+    setCsvResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('csv', file);
+      const res  = await authenticatedFetch(`/api/conferences/${eventId}/upload-applicants`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      setCsvResult({ imported: data.imported, skipped: data.skipped });
+      await fetchApplicants();
+    } catch (err) {
+      console.error('CSV upload error:', err);
+      setCsvResult({ imported: 0, skipped: 0 });
+    } finally {
+      setUploadingCSV(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  };
 
   const handleGenerateCriteria = async () => {
     if (!promptInput.trim()) return;
@@ -373,12 +398,13 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
 
   // Auto-save final_decision draft on each toggle (no status change yet — that's Publish)
   const handleDecisionChange = async (applicantId: string, decision: 'accept' | 'waitlist' | 'decline') => {
+    const applicant = applicants.find(a => a.id === applicantId);
     // Optimistic update
     setApplicants(prev => prev.map(a => a.id === applicantId ? { ...a, localDecision: decision } : a));
     try {
       await authenticatedFetch(`/api/conferences/${eventId}/applicants/${applicantId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ final_decision: decision }), // publish: false → only saves draft
+        body: JSON.stringify({ final_decision: decision, source: applicant?.source ?? 'registered' }),
       });
     } catch (err) {
       console.error('Error saving decision draft:', err);
@@ -394,7 +420,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
           .filter(a => a.localDecision)
           .map(a => authenticatedFetch(`/api/conferences/${eventId}/applicants/${a.id}`, {
             method: 'PATCH',
-            body: JSON.stringify({ final_decision: a.localDecision, publish: true }),
+            body: JSON.stringify({ final_decision: a.localDecision, publish: true, source: a.source ?? 'registered' }),
           }))
       );
       setConfirmed(true);
@@ -431,14 +457,47 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
   // ── SETUP PHASE ────────────────────────────────────────────────────────────
   if (phase === 'setup') {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
+        {/* ── CSV Import ── */}
         <div>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Set Up Review Criteria</h2>
-          <p className="text-sm text-gray-500">Describe your ideal attendee mix and Assemble AI will generate tunable scoring criteria.</p>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Import Applicants</h2>
+          <p className="text-sm text-gray-500 mb-2">Upload a CSV with columns: <span className="font-medium text-gray-700">full name, email, linkedin</span></p>
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }}
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={uploadingCSV}
+              className="px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-2"
+            >
+              {uploadingCSV
+                ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing...</>
+                : <>📄 Upload CSV</>}
+            </button>
+            {csvResult && (
+              <span className="text-xs text-gray-500">
+                {csvResult.imported > 0
+                  ? <span className="text-emerald-600 font-medium">✓ Imported {csvResult.imported} applicant{csvResult.imported !== 1 ? 's' : ''}{csvResult.skipped > 0 ? `, skipped ${csvResult.skipped} duplicates` : ''}</span>
+                  : <span className="text-amber-600 font-medium">No new applicants imported</span>
+                }
+              </span>
+            )}
+          </div>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 mb-1">Review Criteria</h2>
+          <p className="text-sm text-gray-500">Describe your ideal attendee mix</p>
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ideal Attendee Profile</label>
           <textarea
             rows={3}
             value={promptInput}
@@ -460,34 +519,59 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
         {reviewCriteria.categories.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tune Your Criteria</label>
+              <label className="text-xs font-semibold text-gray-400 tracking-wider">Fine-tuning</label>
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalPct === 100 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                 Total: {totalPct}%
               </span>
             </div>
             <div className="space-y-3">
               {reviewCriteria.categories.map((cat, i) => (
-                <div key={cat.name} className="flex items-center gap-3">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full w-28 flex-shrink-0 truncate text-center ${TYPE_COLOURS[i % TYPE_COLOURS.length]}`}>
-                    {cat.name}
-                  </span>
+                <div key={i} className="flex items-center gap-3">
+                  <textarea
+                    rows={1}
+                    value={cat.name}
+                    ref={el => {
+                      if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
+                    }}
+                    onChange={e => {
+                      const el = e.target;
+                      el.style.height = 'auto';
+                      el.style.height = `${el.scrollHeight}px`;
+                      setReviewCriteria(prev => {
+                        const updated = [...prev.categories];
+                        updated[i] = { ...updated[i], name: e.target.value };
+                        return { ...prev, categories: updated };
+                      });
+                    }}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-xl w-28 flex-shrink-0 text-center border-none focus:outline-none resize-none overflow-hidden ${TYPE_COLOURS[i % TYPE_COLOURS.length]}`}
+                  />
                   <input
                     type="range" min={0} max={100} value={cat.target_pct}
                     onChange={e => handleSliderChange(i, parseInt(e.target.value))}
                     className="flex-1 accent-indigo-600"
                   />
-                  <span className="text-sm font-semibold text-indigo-600 w-10 text-right">{cat.target_pct}%</span>
+                  <div className="flex items-center flex-shrink-0">
+                    <input
+                      type="number" min={0} max={100} value={cat.target_pct}
+                      onChange={e => {
+                        const v = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                        handleSliderChange(i, v);
+                      }}
+                      className="w-8 text-sm font-semibold text-indigo-600 text-right bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-sm font-semibold text-indigo-600">%</span>
+                  </div>
                 </div>
               ))}
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Special Requests</label>
+              <label className="text-xs font-semibold text-gray-400 tracking-wider">Special Requests</label>
               <textarea
                 rows={2}
                 value={reviewCriteria.special_requests}
                 onChange={e => setReviewCriteria(prev => ({ ...prev, special_requests: e.target.value }))}
-                placeholder="e.g. Prefer CMU/Stanford affiliations; no more than 2 people from the same company"
+                placeholder="e.g. prefer Stanford affiliations"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:border-indigo-400 focus:outline-none resize-none"
               />
             </div>
@@ -519,25 +603,50 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
         />
       )}
 
-      <div className={`p-6 space-y-4 ${isExpanded ? 'max-w-5xl mx-auto' : ''}`}>
-        {/* ── Header row ── */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Stats — derived from localDecision so they update instantly on toggle */}
-          <div className="flex gap-4 flex-1 min-w-0">
-            {[
-              { label: 'Undecided', count: undecidedCount, colour: 'text-gray-600'   },
-              { label: 'Accepted',  count: acceptedCount,  colour: 'text-emerald-600' },
-              { label: 'Waitlist',  count: waitlistCount,  colour: 'text-amber-600'   },
-              { label: 'Declined',  count: declinedCount,  colour: 'text-red-500'     },
-            ].map(s => (
-              <div key={s.label} className="text-center">
-                <p className={`text-lg font-bold ${s.colour}`}>{s.count}</p>
-                <p className="text-[10px] text-gray-400 font-medium">{s.label}</p>
-              </div>
-            ))}
+      <div className={`p-6 ${isExpanded ? 'flex flex-col gap-4 flex-1 min-h-0 max-w-5xl mx-auto w-full' : 'space-y-4'}`}>
+        {/* ── Action row ── */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPhase('setup')} className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
+              Edit Criteria
+            </button>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }}
+            />
+            <button
+              onClick={() => csvInputRef.current?.click()}
+              disabled={uploadingCSV}
+              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            >
+              {uploadingCSV
+                ? <><div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing...</>
+                : '📄 Import CSV'}
+            </button>
+            <button
+              onClick={handleRunAIReview}
+              disabled={runningReview || pendingCount === 0}
+              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            >
+              {runningReview
+                ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Reviewing...</>
+                : `Run AI Review (${pendingCount})`}
+            </button>
+            {applicants.some(a => a.localDecision) && (
+              <button
+                onClick={handleConfirmAll}
+                disabled={confirmingAll}
+                className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              >
+                {confirmingAll
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Publishing...</>
+                  : 'Publish Decisions ✓'}
+              </button>
+            )}
           </div>
-
-          {/* Expand / collapse toggle */}
           <button
             onClick={() => setIsExpanded(e => !e)}
             title={isExpanded ? 'Collapse' : 'Expand'}
@@ -553,30 +662,27 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
               </svg>
             )}
           </button>
+        </div>
 
-          <button onClick={() => setPhase('setup')} className="text-xs text-indigo-600 hover:underline">
-            Edit Criteria
-          </button>
-          <button
-            onClick={handleRunAIReview}
-            disabled={runningReview || pendingCount === 0}
-            className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-          >
-            {runningReview
-              ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Reviewing...</>
-              : `Run AI Review (${pendingCount})`}
-          </button>
-          {applicants.some(a => a.localDecision) && (
-            <button
-              onClick={handleConfirmAll}
-              disabled={confirmingAll}
-              className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-            >
-              {confirmingAll
-                ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Publishing...</>
-                : 'Publish Decisions ✓'}
+        {/* ── Filter tabs ── */}
+        <div className="flex border-b border-gray-200 w-full">
+          {([
+            { key: 'all',       label: 'All',        count: applicants.length, color: 'text-gray-800',    border: 'border-gray-800'    },
+            { key: 'undecided', label: 'Pending',    count: undecidedCount,    color: 'text-gray-500',    border: 'border-gray-500'    },
+            { key: 'accept',    label: 'Accepted',   count: acceptedCount,     color: 'text-emerald-600', border: 'border-emerald-600' },
+            { key: 'waitlist',  label: 'Waitlisted', count: waitlistCount,     color: 'text-amber-500',   border: 'border-amber-500'   },
+            { key: 'decline',   label: 'Declined',   count: declinedCount,     color: 'text-red-500',     border: 'border-red-500'     },
+          ] as Array<{ key: typeof statusFilter; label: string; count: number; color: string; border: string }>).map(({ key, label, count, color, border }) => (
+            <button key={key} onClick={() => setStatusFilter(key)}
+              className={`flex-1 flex flex-col items-center px-2 py-2 border-b-2 transition-all ${
+                statusFilter === key
+                  ? `${border} ${color}`
+                  : `border-transparent ${color} opacity-40 hover:opacity-70`
+              }`}>
+              <span className="text-xl font-bold leading-tight">{count}</span>
+              <span className="text-xs font-medium mt-0.5">{label}</span>
             </button>
-          )}
+          ))}
         </div>
 
         {confirmed && (
@@ -584,25 +690,6 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
             Decisions published! Accepted applicants now appear in the Participants tab.
           </div>
         )}
-
-        {/* ── Decision filter tabs ── */}
-        <div className="flex gap-1 border-b border-gray-100">
-          {([
-            { key: 'all',       label: 'All'       },
-            { key: 'undecided', label: 'Undecided' },
-            { key: 'accept',    label: 'Accepted'  },
-            { key: 'waitlist',  label: 'Waitlisted'},
-            { key: 'decline',   label: 'Declined'  },
-          ] as const).map(({ key, label }) => (
-            <button key={key} onClick={() => setStatusFilter(key)}
-              className={`px-3 py-2 text-xs font-semibold transition-colors relative ${
-                statusFilter === key ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-700'
-              }`}>
-              {label}
-              {statusFilter === key && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />}
-            </button>
-          ))}
-        </div>
 
         {/* ── ICP Type filter (only shown after AI review has run) ── */}
         {reviewedCount > 0 && icpTypes.length > 0 && (
@@ -635,7 +722,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
         ) : visibleApplicants.length === 0 ? (
           <div className="text-center py-10 text-gray-400 text-sm">No applicants in this view.</div>
         ) : (
-          <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+          <div className={`space-y-2 overflow-y-auto pr-1 ${isExpanded ? 'flex-1 min-h-0' : 'max-h-[560px]'}`}>
             {visibleApplicants.map(applicant => {
               const decision = applicant.localDecision;
               const style = decision ? DECISION_STYLES[decision] : null;
@@ -725,8 +812,8 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
   // ── Expanded = full-screen overlay, collapsed = inline ───────────────────
   if (isExpanded) {
     return (
-      <div className="fixed inset-0 z-40 bg-white overflow-y-auto">
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
+      <div className="fixed inset-0 z-40 bg-white flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-700">Review Applicants</p>
           <button
             onClick={() => setIsExpanded(false)}

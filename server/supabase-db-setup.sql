@@ -305,3 +305,22 @@ ALTER TABLE public.conference_participants
 -- Schema: { prompt: string, categories: [{name, target_pct}], special_requests: string }
 ALTER TABLE public.conferences
   ADD COLUMN IF NOT EXISTS review_criteria jsonb;
+
+-- ============================================================
+-- CSV APPLICANT UPLOAD MIGRATION
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.csv_applicants (
+  id            uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  conference_id text        NOT NULL REFERENCES public.conferences(id) ON DELETE CASCADE,
+  name          text        NOT NULL,
+  email         text,
+  linkedin      text,
+  status        text        DEFAULT 'pending',
+  ai_score      numeric,
+  ai_review     jsonb,
+  final_decision text,
+  host_notes    text,
+  reviewed_at   timestamptz,
+  joined_at     timestamptz DEFAULT now()
+);
