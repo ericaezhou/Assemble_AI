@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+import { usePublicSWR } from '@/hooks/useAuthSWR';
+import { API_BASE_URL } from '@/utils/api';
 
 interface Message {
   id: number;
@@ -22,35 +22,16 @@ interface ChatProps {
 }
 
 export default function Chat({ conversationId, currentUserId, otherUserName, onBack }: ChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { data: messages = [], isLoading: loading, mutate: mutateMessages } = usePublicSWR<Message[]>(
+    `/api/conversations/${conversationId}/messages`
+  );
   const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchMessages();
-  }, [conversationId]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const fetchMessages = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`);
-      const data = await response.json();
-      setMessages(data);
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +54,7 @@ export default function Chat({ conversationId, currentUserId, otherUserName, onB
       });
 
       const message = await response.json();
-      setMessages([...messages, message]);
+      mutateMessages((current) => [...(current || []), message], { revalidate: false });
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

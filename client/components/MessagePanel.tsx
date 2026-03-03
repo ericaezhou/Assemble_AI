@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUserStore } from '@/store/userStore';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+import { usePublicSWR } from '@/hooks/useAuthSWR';
 
 interface Conversation {
   id: number;
@@ -31,39 +30,23 @@ export default function MessagePanel({
   className,
 }: MessagePanelProps) {
   const { hiddenConversationIds, hideConversation } = useUserStore();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const { data: conversations = [], mutate: mutateConversations } = usePublicSWR<Conversation[]>(
+    `/api/conversations/user/${currentUser.id}`,
+    { refreshInterval: 1000 }
+  );
   const [hoveredConvId, setHoveredConvId] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 1000);
-    return () => clearInterval(interval);
-  }, [currentUser.id]);
 
   // When Connect creates a new conversation, find it and open the floating window
   useEffect(() => {
     if (openConversationId == null) return;
     const open = async () => {
-      const convos = await fetchConversations();
-      const target = convos.find((c: Conversation) => c.id === openConversationId);
+      const convos = await mutateConversations();
+      const target = convos?.find((c: Conversation) => c.id === openConversationId);
       if (target) onOpenChat?.(target.id, target.other_user_name);
       onConversationOpened?.();
     };
     open();
   }, [openConversationId]);
-
-  const fetchConversations = async (): Promise<Conversation[]> => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/conversations/user/${currentUser.id}`);
-      const data = await res.json();
-      const convos = Array.isArray(data) ? data : [];
-      setConversations(convos);
-      return convos;
-    } catch (err) {
-      console.error('Error fetching conversations:', err);
-      return [];
-    }
-  };
 
   const formatLastTime = (timestamp: string) => {
     if (!timestamp) return '';
