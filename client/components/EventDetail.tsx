@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/auth';
+import { useState, useMemo } from 'react';
+import { useAuthSWR } from '@/hooks/useAuthSWR';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 
 interface Event {
@@ -51,49 +51,19 @@ function getAvatarGradient(name: string): string {
 }
 
 export default function EventDetail({ eventId, userId, onConnect }: EventDetailProps) {
-  const [event, setEvent] = useState<Event | null>(null);
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('description');
 
-  useEffect(() => {
-    fetchEventDetails();
-    fetchParticipants();
-  }, [eventId]);
+  const { data: event } = useAuthSWR<Event>(
+    `/api/conferences/${eventId}`
+  );
 
-  useEffect(() => {
-    filterParticipants();
-  }, [searchQuery, participants]);
-
-  const fetchEventDetails = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/conferences/${eventId}`);
-      const data = await response.json();
-      setEvent(data);
-    } catch (err) {
-      console.error('Error fetching event:', err);
-    }
-  };
-
-  const fetchParticipants = async () => {
-    setLoading(true);
-    try {
-      const response = await authenticatedFetch(
-        `/api/conferences/${eventId}/participants?current_user_id=${userId}`
-      );
-      const data = await response.json();
-      setParticipants(data);
-    } catch (err) {
-      console.error('Error fetching participants:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: participants = [], isLoading: loading } = useAuthSWR<Participant[]>(
+    `/api/conferences/${eventId}/participants?current_user_id=${userId}`
+  );
 
   // Filter participants by search query; sort alphabetically by name
-  const filterParticipants = () => {
+  const filteredParticipants = useMemo(() => {
     let filtered = participants;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -104,10 +74,10 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
         getInterestsString(p).toLowerCase().includes(query)
       );
     }
-    setFilteredParticipants([...filtered].sort((a, b) =>
+    return [...filtered].sort((a, b) =>
       (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1
-    ));
-  };
+    );
+  }, [searchQuery, participants]);
 
   const formatDateBlock = (dateString: string) => {
     const date = new Date(dateString + 'T12:00:00');

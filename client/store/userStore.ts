@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { mutate } from 'swr';
 import { authenticatedFetch, signOut } from '@/utils/auth';
 
 export interface UserProfile {
@@ -121,6 +122,12 @@ export const useUserStore = create<UserState>()(
 
           const updatedUser = await response.json();
           set({ user: updatedUser, isLoading: false });
+          // Invalidate SWR cache for this user's endpoints (profile, conferences, recommendations)
+          mutate(
+            (key) => typeof key === 'string' && key.startsWith(`/api/researchers/${user.id}`),
+            undefined,
+            { revalidate: true }
+          );
           return true;
         } catch (err) {
           // Rollback on error

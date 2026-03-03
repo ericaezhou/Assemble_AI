@@ -10,7 +10,7 @@ import MessagePanel from './MessagePanel';
 import FloatingChatWindow from './FloatingChatWindow';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
-import { authenticatedFetch } from '@/utils/auth';
+import { useAuthSWR } from '@/hooks/useAuthSWR';
 import { UserProfile, useUserStore } from '@/store/userStore';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -99,8 +99,6 @@ function formatEventDateLabel(dateString: string): { main: string; sub: string }
 export default function Dashboard({ user }: DashboardProps) {
   const { unhideConversation } = useUserStore();
   const [activeView, setActiveView] = useState<ActiveView>('events');
-  const [recommendations, setRecommendations] = useState<Researcher[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -120,88 +118,41 @@ export default function Dashboard({ user }: DashboardProps) {
   const handleDraftChange = (conversationId: number, text: string) => {
     setDrafts(prev => ({ ...prev, [conversationId]: text }));
   };
-  const [isRefreshingRecommendations, setIsRefreshingRecommendations] = useState(false);
-  const [hasRequestedRecommendations, setHasRequestedRecommendations] = useState(false);
   const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
+  // Track the submitted preference to use as SWR key
+  const [submittedPreference, setSubmittedPreference] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchEvents();
-    }
-  }, [user]);
+  // SWR: events
+  const { data: events = [], mutate: mutateEvents } = useAuthSWR<Event[]>(
+    user ? `/api/researchers/${user.id}/conferences` : null
+  );
+
+  // SWR: recommendations (fetched when Researchers tab opened or search submitted)
+  const recommendationsKey = submittedPreference !== null && user
+    ? (() => {
+        const params = new URLSearchParams({
+          top_k: '3', min_score: '0', apply_mmr: 'true', mmr_lambda: '0.5',
+        });
+        if (submittedPreference.trim()) params.set('preference', submittedPreference.trim());
+        return `/api/researchers/${user.id}/recommendations?${params.toString()}`;
+      })()
+    : null;
+
+  const {
+    data: recommendations = [],
+    isValidating: isRefreshingRecommendations,
+  } = useAuthSWR<Researcher[]>(recommendationsKey);
 
   // Auto-load recommendations when Researchers tab is first opened
   useEffect(() => {
-    if (activeView === 'researchers' && !hasRequestedRecommendations && user) {
-      handleRefreshRecommendations('');
+    if (activeView === 'researchers' && submittedPreference === null && user) {
+      setSubmittedPreference('');
     }
-  }, [activeView]);
+  }, [activeView, submittedPreference, user]);
 
-  const fetchRecommendations = async (options?: {
-    topK?: number;
-    minScore?: number;
-    applyMmr?: boolean;
-    mmrLambda?: number;
-    preferenceText?: string;
-  }) => {
-    if (!user) return;
-
-    try {
-      const params = new URLSearchParams({
-        top_k: String(options?.topK ?? 3),
-        min_score: String(options?.minScore ?? 0),
-        apply_mmr: String(options?.applyMmr ?? true),
-        mmr_lambda: String(options?.mmrLambda ?? 0.5),
-      });
-      const preferenceText = options?.preferenceText?.trim();
-      if (preferenceText) {
-        params.set('preference', preferenceText);
-      }
-      const response = await authenticatedFetch(`/api/researchers/${user.id}/recommendations?${params.toString()}`);
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Recommendations request failed:', data?.error || response.statusText);
-        setRecommendations([]);
-        return;
-      }
-      if (!Array.isArray(data)) {
-        console.error('Invalid recommendations payload:', data);
-        setRecommendations([]);
-        return;
-      }
-      setRecommendations(data);
-    } catch (err) {
-      console.error('Error fetching recommendations:', err);
-      setRecommendations([]);
-    }
-  };
-
-  const handleRefreshRecommendations = async (naturalLanguagePreference: string) => {
-    setIsRefreshingRecommendations(true);
-    setHasRequestedRecommendations(true);
-    try {
-      await fetchRecommendations({
-        topK: 3,
-        minScore: 0,
-        applyMmr: true,
-        mmrLambda: 0.5,
-        preferenceText: naturalLanguagePreference,
-      });
-    } finally {
-      setIsRefreshingRecommendations(false);
-    }
-  };
-
-  const fetchEvents = async () => {
-    if (!user) return;
-    try {
-      const response = await authenticatedFetch(`/api/researchers/${user.id}/conferences`);
-      const data = await response.json();
-      setEvents(data);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-    }
+  const handleRefreshRecommendations = async (preference: string) => {
+    setSubmittedPreference(preference);
   };
 
   const handleCopyId = async (id: string) => {
@@ -216,13 +167,13 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const handleCreateSuccess = (eventId: string) => {
     setShowCreateEvent(false);
-    fetchEvents();
+    mutateEvents();
     handleCopyId(eventId);
   };
 
   const handleJoinSuccess = () => {
     setShowJoinEvent(false);
-    fetchEvents();
+    mutateEvents();
   };
 
   const groupEvents = () => {
@@ -254,7 +205,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const handleBackToEvents = () => {
     setSelectedEventId(null);
-    fetchEvents();
+    mutateEvents();
   };
 
   const handleConnect = async (otherUserId: string, eventName?: string) => {
@@ -559,7 +510,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 researchers={recommendations}
                 currentUserId={user?.id || ''}
                 onConnect={handleConnect}
-                hasRequestedRecommendations={hasRequestedRecommendations}
+                hasRequestedRecommendations={submittedPreference !== null}
               />
             )}
           </div>
