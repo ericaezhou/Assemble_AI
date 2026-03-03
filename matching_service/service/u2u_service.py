@@ -11,6 +11,7 @@ This service orchestrates:
 import json
 import os
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional, Dict, Tuple, Any
 from uuid import UUID
 
@@ -170,14 +171,16 @@ class MatchingService:
         # Convert to UserProfile format
         user_profiles = profile_dtos_to_user_profiles(profile_dtos)
 
-        # Build vectors — always overwrite to ensure dimension consistency
-        # (fresh objects from DB always have None vectors, but overwrite=True
-        # also handles any stale cached vectors if the embedder ever changes)
+        # Reuse pre-computed embeddings from DB when available.
+        # overwrite=False preserves existing vectors and only computes
+        # embeddings for users whose vectors are None (no pre-computed
+        # embedding in the DB). Embeddings are kept fresh by
+        # rebuild_user_embedding() called on profile create/update.
         build_user_vectors(
             user_profiles,
             self.embedder,
             build_profile=True,
-            overwrite=True
+            overwrite=False
         )
 
         # Cache if enabled
@@ -586,37 +589,67 @@ class MatchingService:
         user_id_str = str(user_id)
         ranked_users = match_results.get(user_id_str, [])
 
-        results_with_reasons = []
+        # Phase 1: Collect match data (no OpenAI calls yet)
+        match_data = []
         for ranked_user in ranked_users:
-            # Get matched user profile
             matched_user = self._get_user_by_id(UUID(ranked_user.user_id))
             if not matched_user:
                 continue
 
-            # Extract similarity scores from debug info
             exp_sim = ranked_user.debug_info.get('exp_sim', 0.1)
             interest_sim = ranked_user.debug_info.get('interest_sim', 0.1)
             overall_score = ranked_user.score
 
-            # Generate match reason
-            reason = self._generate_match_reason(
+            match_data.append({
+                'ranked_user': ranked_user,
+                'matched_user': matched_user,
+                'exp_sim': exp_sim,
+                'interest_sim': interest_sim,
+                'overall_score': overall_score,
+            })
+
+        # Phase 2: Generate reasons in parallel
+        def _gen_reason(entry):
+            return self._generate_match_reason(
                 target_user,
-                matched_user,
-                exp_sim,
-                interest_sim,
-                overall_score
+                entry['matched_user'],
+                entry['exp_sim'],
+                entry['interest_sim'],
+                entry['overall_score'],
             )
 
-            # Build result dictionary
+        reasons = [None] * len(match_data)
+        max_workers = min(10, len(match_data)) or 1
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {
+                executor.submit(_gen_reason, entry): idx
+                for idx, entry in enumerate(match_data)
+            }
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    reasons[idx] = future.result()
+                except Exception as exc:
+                    logger.warning(
+                        "Parallel reason generation failed for match %d: %s",
+                        idx, exc,
+                    )
+                    reasons[idx] = "No match reason available."
+
+        # Phase 3: Assemble results (preserves original order)
+        results_with_reasons = []
+        for idx, entry in enumerate(match_data):
+            matched_user = entry['matched_user']
+            ranked_user = entry['ranked_user']
             results_with_reasons.append({
                 'user_id': UUID(ranked_user.user_id),
                 'name': matched_user.name,
                 'role': matched_user.role,
-                'score': overall_score,
-                'reason': reason,  # Human-readable explanation
-                'exp_similarity': exp_sim,
+                'score': entry['overall_score'],
+                'reason': reasons[idx],
+                'exp_similarity': entry['exp_sim'],
                 'exp_debug': ranked_user.debug_info.get('exp_debug', ''),
-                'interest_similarity': interest_sim,
+                'interest_similarity': entry['interest_sim'],
                 'interest_debug': ranked_user.debug_info.get('interest_debug', ''),
                 'tags': matched_user.tags,
                 'metadata': matched_user.metadata,
