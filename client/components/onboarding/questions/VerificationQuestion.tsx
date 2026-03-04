@@ -56,11 +56,11 @@ export default function VerificationQuestion({
     <div className="text-center space-y-12">
       {/* Question */}
       <div className="space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           {question}
         </h2>
-        <p className="text-lg text-gray-500">
-          {subtitle} <span className="font-medium text-gray-700">{email}</span>
+        <p className="text-lg" style={{ color: 'var(--text-muted)' }}>
+          {subtitle} <span className="font-semibold" style={{ color: 'var(--text)' }}>{email}</span>
         </p>
       </div>
 
@@ -80,24 +80,23 @@ export default function VerificationQuestion({
             onBlur={() => setIsFocused(false)}
             placeholder="000000"
             maxLength={6}
-            className={`w-full max-w-xs mx-auto px-6 py-5 text-3xl text-center text-gray-900 tracking-[0.5em] bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none font-mono ${
-              isFocused
-                ? 'border-indigo-500 shadow-lg shadow-indigo-100'
-                : error
-                ? 'border-red-300'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className="w-full max-w-xs mx-auto px-6 py-5 text-3xl text-center tracking-[0.5em] rounded-lg outline-none transition-all duration-200 font-mono"
+            style={{
+              background: 'var(--surface)',
+              border: `2px solid ${isFocused ? 'var(--accent)' : error ? '#f87171' : 'var(--border-light)'}`,
+              color: 'var(--text)',
+            }}
           />
         </div>
 
         {message && !error && (
-          <p className={`text-sm ${message.includes('Development') ? 'text-orange-600' : 'text-green-600'}`}>
+          <p className="text-sm" style={{ color: message.includes('Development') ? '#ea580c' : '#16a34a' }}>
             {message}
           </p>
         )}
 
         {error && (
-          <p className="text-sm text-red-500 animate-in fade-in duration-200">
+          <p className="text-sm animate-in fade-in duration-200" style={{ color: '#ef4444' }}>
             {error}
           </p>
         )}
@@ -106,7 +105,8 @@ export default function VerificationQuestion({
         <button
           onClick={onSendCode}
           disabled={sending}
-          className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors disabled:opacity-50"
+          className="text-sm font-semibold transition-colors disabled:opacity-50"
+          style={{ color: 'var(--accent)' }}
         >
           {sending ? 'Sending...' : 'Resend code'}
         </button>
@@ -117,11 +117,8 @@ export default function VerificationQuestion({
         <button
           onClick={onContinue}
           disabled={!isValid}
-          className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-            isValid
-              ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
-              : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-          }`}
+          className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >
           Continue →
         </button>
@@ -129,7 +126,7 @@ export default function VerificationQuestion({
 
       {/* Hint */}
       {isValid && (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Press Enter ↵
         </p>
       )}

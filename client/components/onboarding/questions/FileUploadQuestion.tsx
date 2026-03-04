@@ -81,14 +81,22 @@ export default function FileUploadQuestion({
 
   const isProcessing = uploadStatus === 'uploading' || uploadStatus === 'parsing';
 
+  const getDropZoneStyle = () => {
+    if (isDragOver) return { borderColor: 'var(--accent)', background: 'var(--accent-light)' };
+    if (isProcessing) return { borderColor: 'var(--border-light)', background: 'var(--bg)', cursor: 'default' };
+    if (selectedFile && uploadStatus === 'done') return { borderColor: '#4ade80', background: '#f0fdf4' };
+    if (fileError || error) return { borderColor: '#f87171', background: '#fef2f2' };
+    return { borderColor: 'var(--border-light)', background: 'var(--surface)' };
+  };
+
   return (
     <div className="text-center space-y-10">
       {/* Question */}
       <div className="space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           Speed up your signup
         </h2>
-        <p className="text-lg text-gray-500">
+        <p className="text-lg" style={{ color: 'var(--text-muted)' }}>
           Upload your resume or LinkedIn screenshot to auto-fill your profile
         </p>
       </div>
@@ -99,17 +107,8 @@ export default function FileUploadQuestion({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => !isProcessing && inputRef.current?.click()}
-        className={`relative w-full py-16 border-2 border-dashed rounded-2xl transition-all duration-200 cursor-pointer ${
-          isDragOver
-            ? 'border-indigo-500 bg-indigo-50'
-            : isProcessing
-            ? 'border-gray-300 bg-gray-50 cursor-default'
-            : selectedFile && uploadStatus === 'done'
-            ? 'border-green-400 bg-green-50'
-            : fileError || error
-            ? 'border-red-300 bg-red-50'
-            : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
-        }`}
+        className="relative w-full py-16 border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer"
+        style={getDropZoneStyle()}
       >
         <input
           ref={inputRef}
@@ -124,25 +123,15 @@ export default function FileUploadQuestion({
         {!selectedFile && uploadStatus === 'idle' && (
           <div className="space-y-3">
             <div className="flex justify-center">
-              <svg
-                className="w-12 h-12 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
+              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--border-light)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <p className="text-base text-gray-600">
+            <p className="text-base" style={{ color: 'var(--text-muted)' }}>
               Drag & drop your file here, or{' '}
-              <span className="text-indigo-600 font-semibold">browse</span>
+              <span className="font-bold" style={{ color: 'var(--accent)' }}>browse</span>
             </p>
-            <p className="text-sm text-gray-400">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
               PDF, PNG, or JPG up to 10MB
             </p>
           </div>
@@ -152,9 +141,9 @@ export default function FileUploadQuestion({
         {uploadStatus === 'uploading' && (
           <div className="space-y-3">
             <div className="flex justify-center">
-              <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-light)', borderTopColor: 'var(--accent)' }} />
             </div>
-            <p className="text-base text-gray-600">Uploading...</p>
+            <p className="text-base" style={{ color: 'var(--text-muted)' }}>Uploading...</p>
           </div>
         )}
 
@@ -162,14 +151,10 @@ export default function FileUploadQuestion({
         {uploadStatus === 'parsing' && (
           <div className="space-y-3">
             <div className="flex justify-center">
-              <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+              <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-light)', borderTopColor: 'var(--accent)' }} />
             </div>
-            <p className="text-base text-gray-600">
-              Parsing your profile...
-            </p>
-            <p className="text-sm text-gray-400">
-              This usually takes a few seconds
-            </p>
+            <p className="text-base" style={{ color: 'var(--text-muted)' }}>Parsing your profile...</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>This usually takes a few seconds</p>
           </div>
         )}
 
@@ -177,26 +162,12 @@ export default function FileUploadQuestion({
         {uploadStatus === 'done' && selectedFile && (
           <div className="space-y-3">
             <div className="flex justify-center">
-              <svg
-                className="w-12 h-12 text-green-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
+              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#16a34a' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-base text-gray-900 font-medium">
-              {selectedFile.name}
-            </p>
-            <p className="text-sm text-green-600">
-              Parsed successfully!
-            </p>
+            <p className="text-base font-semibold" style={{ color: 'var(--text)' }}>{selectedFile.name}</p>
+            <p className="text-sm" style={{ color: '#16a34a' }}>Parsed successfully!</p>
           </div>
         )}
 
@@ -204,45 +175,27 @@ export default function FileUploadQuestion({
         {uploadStatus === 'error' && (
           <div className="space-y-3">
             <div className="flex justify-center">
-              <svg
-                className="w-12 h-12 text-red-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
+              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#ef4444' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <p className="text-base text-red-600">
-              {error || 'Something went wrong'}
-            </p>
-            <p className="text-sm text-gray-500">
-              Click to try again, or skip below
-            </p>
+            <p className="text-base" style={{ color: '#ef4444' }}>{error || 'Something went wrong'}</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Click to try again, or skip below</p>
           </div>
         )}
 
-        {/* File selected but idle (shouldn't normally happen, fallback) */}
+        {/* File selected but idle (fallback) */}
         {selectedFile && uploadStatus === 'idle' && (
           <div className="space-y-2">
-            <p className="text-base text-gray-900 font-medium">
-              {selectedFile.name}
-            </p>
-            <p className="text-sm text-gray-400">
-              {formatFileSize(selectedFile.size)}
-            </p>
+            <p className="text-base font-semibold" style={{ color: 'var(--text)' }}>{selectedFile.name}</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{formatFileSize(selectedFile.size)}</p>
           </div>
         )}
       </div>
 
       {/* Validation error */}
       {fileError && (
-        <p className="text-sm text-red-500">{fileError}</p>
+        <p className="text-sm" style={{ color: '#ef4444' }}>{fileError}</p>
       )}
 
       {/* Continue button (shown when done) */}
@@ -250,7 +203,8 @@ export default function FileUploadQuestion({
         <div className="flex justify-center">
           <button
             onClick={onContinue}
-            className="px-8 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] transition-all duration-150 cursor-pointer"
+            className="btn btn-primary"
+            style={{ padding: '16px 32px', fontSize: '1.125rem' }}
           >
             Continue &rarr;
           </button>
@@ -262,7 +216,8 @@ export default function FileUploadQuestion({
         <button
           onClick={onSkip}
           disabled={isProcessing}
-          className="text-base text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+          className="text-base transition-colors disabled:opacity-50"
+          style={{ color: 'var(--text-muted)' }}
         >
           Skip &mdash; I&apos;ll fill it in manually
         </button>

@@ -25,7 +25,7 @@ export default function ChipList({
   return (
     <div className="space-y-2">
       {label && (
-        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <h4 className="section-heading">
           {label}
         </h4>
       )}
@@ -34,7 +34,7 @@ export default function ChipList({
           <ProfileChip key={item} value={item} type={type} />
         ))}
         {!showAll && remainingCount > 0 && (
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+          <span className="tag" style={{ color: 'var(--text-muted)' }}>
             +{remainingCount} more
           </span>
         )}

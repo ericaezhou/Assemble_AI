@@ -32,9 +32,7 @@ export default function Login({ onLoginSuccess, onSignupClick }: LoginProps) {
     try {
       // Sign in with Supabase Auth (client-side)
       const { user } = await signIn(formData.email, formData.password);
-
       // Session and token are automatically stored by Supabase
-      // Call success callback with user ID (UUID)
       onLoginSuccess(user.id);
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -44,67 +42,90 @@ export default function Login({ onLoginSuccess, onSignupClick }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700 p-5">
-      <div className="bg-white rounded-xl p-10 max-w-md w-full shadow-2xl">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h1>
-        <p className="text-gray-600 mb-8">Sign in to Assemble AI</p>
+    <div
+      className="min-h-screen flex items-center justify-center p-5"
+      style={{ background: 'var(--bg)' }}
+    >
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="flex items-center justify-center gap-1.5 mb-10">
+          <span className="text-3xl font-black tracking-tight" style={{ color: 'var(--text)' }}>
+            ASSEMBLE
+          </span>
+          <span
+            className="w-3 h-3 rounded-full"
+            style={{ background: 'var(--accent)' }}
+          />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label htmlFor="email" className="block mb-2 text-gray-700 font-medium text-sm">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
-            />
-          </div>
+        <div className="card p-8">
+          <h1 className="text-2xl font-black mb-1" style={{ color: 'var(--text)' }}>Welcome back</h1>
+          <p className="text-sm mb-7" style={{ color: 'var(--text-muted)' }}>Sign in to continue to Assemble AI</p>
 
-          <div>
-            <label htmlFor="password" className="block mb-2 text-gray-700 font-medium text-sm">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm">
-              {error}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block mb-1.5 text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                Email
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="input"
+                placeholder="you@example.com"
+              />
             </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg text-lg font-semibold hover:-translate-y-0.5 hover:shadow-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+            <div>
+              <label htmlFor="password" className="block mb-1.5 text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="input"
+                placeholder="••••••••"
+              />
+            </div>
 
-        <div className="mt-6 text-center">
-          <p className="text-gray-600 text-sm">
-            Don't have an account?{' '}
+            {error && (
+              <div
+                className="px-4 py-3 rounded-lg text-sm font-medium"
+                style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#dc2626' }}
+              >
+                {error}
+              </div>
+            )}
+
             <button
-              onClick={onSignupClick}
-              className="text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary w-full justify-center"
+              style={{ padding: '10px 16px', fontSize: '0.9rem', marginTop: '8px' }}
             >
-              Sign up
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
-          </p>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Don&apos;t have an account?{' '}
+              <button
+                onClick={onSignupClick}
+                className="font-semibold transition-colors"
+                style={{ color: 'var(--accent)' }}
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
         </div>
       </div>
     </div>

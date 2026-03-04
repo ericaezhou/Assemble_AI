@@ -37,15 +37,12 @@ export default function FloatingChatWindow({
   const [sending, setSending] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // Tracks temp IDs of optimistic messages not yet confirmed by the server
   const pendingIds = useRef<Set<number>>(new Set());
 
-  // Track previous conversationId and current newMessage via refs to avoid stale closures
   const prevConversationIdRef = useRef(conversationId);
   const newMessageRef = useRef(newMessage);
   useEffect(() => { newMessageRef.current = newMessage; }, [newMessage]);
 
-  // When conversation switches: save old draft, reset input with new draft, fetch messages
   useEffect(() => {
     const prevId = prevConversationIdRef.current;
     if (prevId !== conversationId) {
@@ -57,7 +54,6 @@ export default function FloatingChatWindow({
     fetchMessages();
   }, [conversationId]);
 
-  // Poll for new messages every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       if (!minimized) fetchMessages();
@@ -65,7 +61,6 @@ export default function FloatingChatWindow({
     return () => clearInterval(interval);
   }, [conversationId, minimized]);
 
-  // Save draft on unmount
   useEffect(() => {
     return () => {
       onDraftChange?.(prevConversationIdRef.current, newMessageRef.current);
@@ -84,7 +79,6 @@ export default function FloatingChatWindow({
       const data = await res.json();
       if (Array.isArray(data)) {
         setMessages(prev => {
-          // Preserve any optimistic messages not yet confirmed by the server
           const serverIds = new Set(data.map((m: Message) => m.id));
           const stillPending = prev.filter(m => pendingIds.current.has(m.id) && !serverIds.has(m.id));
           return [...data, ...stillPending];
@@ -103,7 +97,6 @@ export default function FloatingChatWindow({
     setNewMessage('');
     onDraftChange?.(conversationId, '');
 
-    // Optimistic update — show message instantly before server responds
     const tempId = Date.now();
     const optimisticMsg: Message = {
       id: tempId,
@@ -129,7 +122,6 @@ export default function FloatingChatWindow({
       const confirmedMsg = await res.json();
       pendingIds.current.delete(tempId);
       setMessages(prev =>
-        // If polling already added the real message, just drop the placeholder
         prev.some(m => m.id === confirmedMsg.id)
           ? prev.filter(m => m.id !== tempId)
           : prev.map(m => m.id === tempId ? confirmedMsg : m)
@@ -152,26 +144,39 @@ export default function FloatingChatWindow({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const initials = otherUserName.charAt(0).toUpperCase();
+
   return (
     <div
-      className="fixed bottom-0 z-50 bg-white rounded-t-xl shadow-2xl border border-gray-200 flex flex-col w-[400px]"
-      style={{ right: 'calc(20% + 8px)' }}
+      className="fixed bottom-0 z-50 flex flex-col w-[400px]"
+      style={{
+        right: 'calc(20% + 8px)',
+        background: 'var(--surface)',
+        border: '2px solid var(--border)',
+        borderBottom: 'none',
+        borderRadius: '8px 8px 0 0',
+        boxShadow: '-4px -4px 0 var(--border)',
+      }}
     >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-4 py-3 border-b border-gray-100 cursor-pointer select-none rounded-t-xl bg-white"
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none rounded-t-lg"
+        style={{ borderBottom: minimized ? 'none' : '2px solid var(--border)', background: 'var(--surface)' }}
         onClick={() => setMinimized(m => !m)}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-semibold flex-shrink-0">
-            {getInitialsFromName(otherUserName)}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+            style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}
+          >
+            {initials}
           </div>
-          <span className="text-sm font-semibold text-gray-800 truncate">{otherUserName}</span>
+          <span className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{otherUserName}</span>
         </div>
         <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
           <button
             onClick={e => { e.stopPropagation(); setMinimized(m => !m); }}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            className="p-1.5 rounded transition-colors btn-ghost"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={minimized ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
@@ -179,7 +184,7 @@ export default function FloatingChatWindow({
           </button>
           <button
             onClick={e => { e.stopPropagation(); onClose(); }}
-            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+            className="p-1.5 rounded transition-colors btn-ghost"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -191,17 +196,23 @@ export default function FloatingChatWindow({
       {!minimized && (
         <>
           {/* Messages area */}
-          <div className="overflow-y-auto px-4 py-3 space-y-2 bg-gray-50" style={{ height: '380px' }}>
+          <div
+            className="overflow-y-auto px-4 py-3 space-y-2"
+            style={{ height: '380px', background: 'var(--bg)' }}
+          >
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400 text-sm">No messages yet. Say hello!</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No messages yet. Say hello!</p>
               </div>
             ) : (
               messages.map(message => {
                 if (message.is_system_message) {
                   return (
                     <div key={message.id} className="flex justify-center">
-                      <div className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full text-xs text-center max-w-[90%]">
+                      <div
+                        className="px-3 py-1.5 rounded-full text-xs text-center max-w-[90%]"
+                        style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' }}
+                      >
                         {message.content}
                       </div>
                     </div>
@@ -211,14 +222,16 @@ export default function FloatingChatWindow({
                 return (
                   <div key={message.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] flex flex-col gap-0.5 ${isMe ? 'items-end' : 'items-start'}`}>
-                      <div className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                        isMe
-                          ? 'bg-indigo-600 text-white rounded-br-sm'
-                          : 'bg-white text-gray-800 rounded-bl-sm border border-gray-200'
-                      }`}>
+                      <div
+                        className="px-3 py-2 text-sm leading-relaxed"
+                        style={isMe
+                          ? { background: 'var(--accent)', color: '#fff', borderRadius: '14px 14px 4px 14px' }
+                          : { background: 'var(--surface)', color: 'var(--text)', border: '1.5px solid var(--border)', borderRadius: '14px 14px 14px 4px' }
+                        }
+                      >
                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
                       </div>
-                      <span className="text-xs text-gray-400 px-1">{formatTime(message.created_at)}</span>
+                      <span className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>{formatTime(message.created_at)}</span>
                     </div>
                   </div>
                 );
@@ -228,7 +241,10 @@ export default function FloatingChatWindow({
           </div>
 
           {/* Input */}
-          <div className="border-t border-gray-100 px-4 py-3 bg-white">
+          <div
+            className="px-4 py-3"
+            style={{ borderTop: '2px solid var(--border)', background: 'var(--surface)' }}
+          >
             <form onSubmit={handleSend} className="flex items-center gap-2">
               <input
                 type="text"
@@ -237,12 +253,20 @@ export default function FloatingChatWindow({
                 placeholder="Write a message…"
                 disabled={sending}
                 autoFocus
-                className="flex-1 px-4 py-2.5 text-sm border border-gray-200 rounded-full bg-gray-50 focus:outline-none focus:border-indigo-400 transition-colors text-gray-900"
+                className="flex-1 px-4 py-2 text-sm rounded-full outline-none transition-colors"
+                style={{
+                  background: 'var(--bg)',
+                  border: '2px solid var(--border-light)',
+                  color: 'var(--text)',
+                }}
+                onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                onBlur={e => (e.target.style.borderColor = 'var(--border-light)')}
               />
               <button
                 type="submit"
                 disabled={sending || !newMessage.trim()}
-                className="p-2.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-40 flex-shrink-0"
+                className="p-2.5 rounded-full flex-shrink-0 transition-colors disabled:opacity-40"
+                style={{ background: 'var(--accent)', color: '#fff' }}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

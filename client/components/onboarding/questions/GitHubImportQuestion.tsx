@@ -58,18 +58,18 @@ export default function GitHubImportQuestion({
     <div className="text-center space-y-12">
       {/* Question */}
       <div className="space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           {question}
         </h2>
         {subtitle && (
-          <p className="text-lg text-gray-500">{subtitle}</p>
+          <p className="text-lg" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
         )}
       </div>
 
       {/* Input */}
       <div className="space-y-4">
         <div className="relative max-w-md mx-auto">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg" style={{ color: 'var(--text-muted)' }}>
             github.com/
           </span>
           <input
@@ -82,41 +82,40 @@ export default function GitHubImportQuestion({
             onBlur={() => setIsFocused(false)}
             placeholder="username"
             disabled={isLoading}
-            className={`w-full pl-32 pr-6 py-5 text-xl text-gray-900 bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none ${
-              isFocused
-                ? 'border-indigo-500 shadow-lg shadow-indigo-100'
-                : error
-                ? 'border-red-300'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className="w-full pl-32 pr-6 py-5 text-xl rounded-lg outline-none transition-all duration-200"
+            style={{
+              background: 'var(--surface)',
+              border: `2px solid ${isFocused ? 'var(--accent)' : error ? '#f87171' : 'var(--border-light)'}`,
+              color: 'var(--text)',
+            }}
           />
         </div>
 
         {error && (
-          <p className="text-sm text-red-500 animate-in fade-in duration-200">
+          <p className="text-sm animate-in fade-in duration-200" style={{ color: '#ef4444' }}>
             {error}
           </p>
         )}
 
         {/* Success preview */}
         {fetchStatus === 'success' && fetchedData && (
-          <div className="max-w-md mx-auto text-left p-4 bg-green-50 rounded-xl border border-green-200 space-y-2">
-            <div className="flex items-center gap-2 text-green-700">
+          <div className="max-w-md mx-auto text-left p-4 space-y-2 rounded-lg" style={{ background: '#f0fdf4', border: '2px solid #86efac' }}>
+            <div className="flex items-center gap-2" style={{ color: '#15803d' }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="font-medium">Found your profile!</span>
+              <span className="font-semibold">Found your profile!</span>
             </div>
             {fetchedData.name && (
-              <p className="text-sm text-gray-700"><strong>Name:</strong> {fetchedData.name}</p>
+              <p className="text-sm" style={{ color: 'var(--text)' }}><strong>Name:</strong> {fetchedData.name}</p>
             )}
             {fetchedData.languages.length > 0 && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm" style={{ color: 'var(--text)' }}>
                 <strong>Languages:</strong> {fetchedData.languages.slice(0, 5).join(', ')}
               </p>
             )}
             {fetchedData.topics.length > 0 && (
-              <p className="text-sm text-gray-700">
+              <p className="text-sm" style={{ color: 'var(--text)' }}>
                 <strong>Topics:</strong> {fetchedData.topics.slice(0, 5).join(', ')}
               </p>
             )}
@@ -129,7 +128,8 @@ export default function GitHubImportQuestion({
         {fetchStatus === 'success' ? (
           <button
             onClick={onContinue}
-            className="px-8 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] transition-all duration-150 cursor-pointer"
+            className="btn btn-primary"
+            style={{ padding: '16px 32px', fontSize: '1.125rem' }}
           >
             Use this data &rarr;
           </button>
@@ -137,15 +137,12 @@ export default function GitHubImportQuestion({
           <button
             onClick={handleFetch}
             disabled={isLoading || !username.trim()}
-            className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-              !isLoading && username.trim()
-                ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
-                : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-            }`}
+            className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ padding: '16px 32px', fontSize: '1.125rem' }}
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: '#fff' }} />
                 Fetching...
               </span>
             ) : (
@@ -159,7 +156,8 @@ export default function GitHubImportQuestion({
       <button
         onClick={onSkip}
         disabled={isLoading}
-        className="text-base text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+        className="text-base transition-colors disabled:opacity-50"
+        style={{ color: 'var(--text-muted)' }}
       >
         Skip &mdash; I&apos;ll fill it in manually
       </button>

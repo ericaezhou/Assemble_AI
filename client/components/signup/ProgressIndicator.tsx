@@ -14,13 +14,14 @@ export default function ProgressIndicator({ currentStep, totalSteps, steps }: Pr
             {/* Step circle */}
             <div className="flex flex-col items-center">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition-all ${
+                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all"
+                style={
                   index + 1 < currentStep
-                    ? 'bg-green-500 text-white'
+                    ? { background: '#22c55e', color: '#fff', border: '2px solid var(--border)' }
                     : index + 1 === currentStep
-                    ? 'bg-indigo-600 text-white ring-4 ring-indigo-200'
-                    : 'bg-gray-200 text-gray-500'
-                }`}
+                    ? { background: 'var(--accent)', color: '#fff', border: '2px solid var(--border)', outline: '3px solid var(--accent-light)', outlineOffset: '2px' }
+                    : { background: 'var(--bg)', color: 'var(--text-muted)', border: '2px solid var(--border-light)' }
+                }
               >
                 {index + 1 < currentStep ? (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -36,9 +37,8 @@ export default function ProgressIndicator({ currentStep, totalSteps, steps }: Pr
               </div>
               {/* Step label */}
               <div
-                className={`mt-2 text-xs font-medium text-center ${
-                  index + 1 === currentStep ? 'text-indigo-600' : 'text-gray-500'
-                }`}
+                className="mt-2 text-xs font-semibold text-center"
+                style={{ color: index + 1 === currentStep ? 'var(--accent)' : 'var(--text-muted)' }}
               >
                 {step}
               </div>
@@ -46,10 +46,11 @@ export default function ProgressIndicator({ currentStep, totalSteps, steps }: Pr
             {/* Connecting line */}
             {index < totalSteps - 1 && (
               <div
-                className={`absolute top-5 left-1/2 w-full h-0.5 -z-10 ${
-                  index + 1 < currentStep ? 'bg-green-500' : 'bg-gray-200'
-                }`}
-                style={{ transform: 'translateY(-50%)' }}
+                className="absolute top-5 left-1/2 w-full h-0.5 -z-10"
+                style={{
+                  background: index + 1 < currentStep ? '#22c55e' : 'var(--border-light)',
+                  transform: 'translateY(-50%)',
+                }}
               />
             )}
           </div>
