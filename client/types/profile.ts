@@ -30,6 +30,9 @@ export interface Profile {
   similarity_score?: number;
   // Matching service explanation for why this user is recommended
   match_reason?: string;
+  // Optional debugging metadata from matching service
+  exp_similarity?: number;
+  interest_similarity?: number;
 }
 
 // Alias for backwards compatibility - Researcher and Participant are the same as Profile

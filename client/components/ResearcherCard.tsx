@@ -5,9 +5,20 @@ import { Researcher, getInstitution } from '@/types/profile';
 interface ResearcherCardProps {
   researcher: Researcher;
   onConnect?: (researcherId: string) => void;
+  onWhyMatch?: (researcherId: string) => void;
+  whyMatchReason?: string;
+  whyMatchLoading?: boolean;
+  whyMatchVisible?: boolean;
 }
 
-export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
+export default function ResearcherCard({
+  researcher,
+  onConnect,
+  onWhyMatch,
+  whyMatchReason,
+  whyMatchLoading = false,
+  whyMatchVisible = false,
+}: ResearcherCardProps) {
   const similarityScore =
     typeof researcher.similarity_score === 'number' ? researcher.similarity_score : null;
 
@@ -62,14 +73,22 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
         </p>
       )}
 
-      {researcher.match_reason && (
-        <div className="mb-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-          <strong className="block text-indigo-700 text-xs mb-1">Why matched:</strong>
-          <p className="text-indigo-700 text-sm leading-relaxed">{researcher.match_reason}</p>
-        </div>
-      )}
-
-      <div className="mt-auto pt-4 border-t border-gray-100">
+      <div className="mt-auto pt-4 border-t border-gray-100 flex flex-col items-start gap-2">
+        {onWhyMatch && (
+          <button
+            onClick={() => onWhyMatch(researcher.id)}
+            disabled={whyMatchLoading}
+            className="inline-block px-4 py-2 border border-indigo-500 text-indigo-600 rounded-lg font-semibold text-sm hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {whyMatchLoading ? 'Generating...' : whyMatchReason ? (whyMatchVisible ? 'hide reason' : 'show reason') : 'why match'}
+          </button>
+        )}
+        {(whyMatchReason || researcher.match_reason) && whyMatchVisible && (
+          <div className="w-full p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+            <strong className="block text-indigo-700 text-xs mb-1">Why matched:</strong>
+            <p className="text-indigo-700 text-sm leading-relaxed">{whyMatchReason || researcher.match_reason}</p>
+          </div>
+        )}
         {onConnect ? (
           <button
             onClick={() => onConnect(researcher.id)}

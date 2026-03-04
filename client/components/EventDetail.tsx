@@ -53,9 +53,14 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
   const [event, setEvent] = useState<Event | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
+  const [eventRecommendations, setEventRecommendations] = useState<Participant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('description');
+  const [wrappedTarget, setWrappedTarget] = useState<Participant | null>(null);
+  const [wrappedPage, setWrappedPage] = useState(0);
+  const [wrappedReasonByUserId, setWrappedReasonByUserId] = useState<Record<string, string>>({});
+  const [wrappedReasonLoading, setWrappedReasonLoading] = useState(false);
 
   useEffect(() => {
     fetchEventDetails();
@@ -84,10 +89,26 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
       );
       const data = await response.json();
       setParticipants(data);
+      fetchEventRecommendations(Array.isArray(data) ? data.length : 3);
     } catch (err) {
       console.error('Error fetching participants:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEventRecommendations = async (participantCountHint?: number) => {
+    try {
+      const participantCount = Math.max(3, participantCountHint || participants.length || 3);
+      const topK = Math.min(50, participantCount);
+      const response = await authenticatedFetch(
+        `/api/researchers/${userId}/recommendations/event/${eventId}?top_k=${topK}&min_score=0&apply_mmr=true&mmr_lambda=0.5`
+      );
+      const data = await response.json();
+      setEventRecommendations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching event recommendations:', err);
+      setEventRecommendations([]);
     }
   };
 
@@ -124,8 +145,102 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
     return event.location || 'Location TBD';
   };
 
+  const currentUser = participants.find(p => p.id === userId) || null;
+  const recMap = new Map(eventRecommendations.map(p => [p.id, p]));
+
+  const getCommonPoints = (other: Participant): string[] => {
+    if (!currentUser) return [];
+    const points: string[] = [];
+
+    const myInstitution = getInstitution(currentUser).trim().toLowerCase();
+    const otherInstitution = getInstitution(other).trim().toLowerCase();
+    if (myInstitution && otherInstitution && myInstitution === otherInstitution) {
+      points.push(`Both are connected to ${getInstitution(other)}`);
+    }
+
+    const myResearch = (currentUser.research_area || '').trim().toLowerCase();
+    const otherResearch = (other.research_area || '').trim().toLowerCase();
+    if (myResearch && otherResearch && (
+      myResearch === otherResearch ||
+      myResearch.includes(otherResearch) ||
+      otherResearch.includes(myResearch)
+    )) {
+      points.push(`Shared research focus around ${other.research_area}`);
+    }
+
+    const myInterests = new Set((currentUser.interest_areas || []).map(x => x.trim().toLowerCase()).filter(Boolean));
+    const otherInterests = (other.interest_areas || []).map(x => x.trim().toLowerCase()).filter(Boolean);
+    const commonInterests = otherInterests.filter(x => myInterests.has(x)).slice(0, 3);
+    commonInterests.forEach(x => points.push(`Common interest: ${x}`));
+
+    const mySkills = new Set((currentUser.current_skills || []).map(x => x.trim().toLowerCase()).filter(Boolean));
+    const otherSkills = (other.current_skills || []).map(x => x.trim().toLowerCase()).filter(Boolean);
+    const commonSkills = otherSkills.filter(x => mySkills.has(x)).slice(0, 2);
+    commonSkills.forEach(x => points.push(`Both work with ${x}`));
+
+    return points.slice(0, 4);
+  };
+
+  const getIceBreakers = (other: Participant, commonPoints: string[]): string[] => {
+    const cues: string[] = [];
+    if (commonPoints.length > 0) {
+      cues.push(`“I saw we both care about ${commonPoints[0].replace(/^Common interest:\s*/i, '').replace(/^Shared research focus around\s*/i, '')}. What are you building in that area?”`);
+    }
+    if (other.research_area) {
+      cues.push(`“What made you focus on ${other.research_area} recently?”`);
+    }
+    const otherInterests = (other.interest_areas || []).slice(0, 1);
+    if (otherInterests.length > 0) {
+      cues.push(`“How did you get interested in ${otherInterests[0]}?”`);
+    }
+    if (cues.length === 0) {
+      cues.push('“What are you most excited to learn from people at this event?”');
+    }
+    return cues.slice(0, 3);
+  };
+
+  const openWrapped = async (person: Participant) => {
+    setWrappedTarget(person);
+    setWrappedPage(0);
+    if (wrappedReasonByUserId[person.id]) return;
+
+    setWrappedReasonLoading(true);
+    try {
+      const rec = recMap.get(person.id);
+      const response = await authenticatedFetch(
+        `/api/researchers/${userId}/recommendations/${person.id}/why-match`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            score: rec?.similarity_score ?? person.similarity_score,
+            exp_similarity: rec?.exp_similarity,
+            interest_similarity: rec?.interest_similarity,
+          }),
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      const reason = typeof data?.reason === 'string' && data.reason.trim()
+        ? data.reason.trim()
+        : 'You seem to have a meaningful overlap worth chatting about.';
+      setWrappedReasonByUserId(prev => ({ ...prev, [person.id]: reason }));
+    } catch (err) {
+      console.error('Error generating wrapped reason:', err);
+      setWrappedReasonByUserId(prev => ({
+        ...prev,
+        [person.id]: 'You seem to have a meaningful overlap worth chatting about.',
+      }));
+    } finally {
+      setWrappedReasonLoading(false);
+    }
+  };
+
+  const closeWrapped = () => {
+    setWrappedTarget(null);
+    setWrappedPage(0);
+  };
+
   // Top 3 recommended (sorted by similarity_score, excluding self)
-  const topRecommended = [...participants]
+  const topRecommended = [...eventRecommendations]
     .filter(p => p.id !== userId && typeof p.similarity_score === 'number')
     .sort((a, b) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0))
     .slice(0, 3);
@@ -365,12 +480,20 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             </span>
                           )}
                           {onConnect && (
-                            <button
-                              onClick={() => onConnect(person.id, event?.name)}
-                              className="w-full mt-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                              Connect
-                            </button>
+                            <div className="w-full mt-1 space-y-1.5">
+                              <button
+                                onClick={() => openWrapped(person)}
+                                className="w-full px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors"
+                              >
+                                Match Wrapped
+                              </button>
+                              <button
+                                onClick={() => onConnect(person.id, event?.name)}
+                                className="w-full px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                              >
+                                Connect
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -429,12 +552,20 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             )}
                           </div>
                           {onConnect && !isMe && (
-                            <button
-                              onClick={() => onConnect(participant.id, event?.name)}
-                              className="flex-shrink-0 px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                              Connect
-                            </button>
+                            <div className="flex-shrink-0 flex flex-col gap-1.5">
+                              <button
+                                onClick={() => openWrapped(participant)}
+                                className="px-3 py-1.5 border border-indigo-300 text-indigo-700 text-xs font-semibold rounded-lg hover:bg-indigo-50 transition-colors"
+                              >
+                                Match Wrapped
+                              </button>
+                              <button
+                                onClick={() => onConnect(participant.id, event?.name)}
+                                className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors"
+                              >
+                                Connect
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -447,6 +578,106 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
         </div>
           </div>
         </div>
+      {wrappedTarget && (() => {
+        const rec = recMap.get(wrappedTarget.id);
+        const rawScore = rec?.similarity_score ?? wrappedTarget.similarity_score;
+        const score = typeof rawScore === 'number'
+          ? Math.max(0, Math.round(rawScore * 100))
+          : 0;
+        const commonPoints = getCommonPoints(wrappedTarget);
+        const iceBreakers = getIceBreakers(wrappedTarget, commonPoints);
+        const reason = wrappedReasonByUserId[wrappedTarget.id] || '';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">Match Wrapped</p>
+                <button
+                  onClick={closeWrapped}
+                  className="text-gray-400 hover:text-gray-700 text-sm font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="p-6 min-h-[320px]">
+                {wrappedPage === 0 && (
+                  <div className="h-full rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-8 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs uppercase tracking-[0.2em] opacity-80 mb-2">You + {wrappedTarget.name}</p>
+                    <p className="text-5xl font-extrabold leading-none">{score}%</p>
+                    <p className="mt-3 text-lg font-semibold">Event Match Score</p>
+                    <p className="mt-2 text-sm opacity-90">Based on this event&apos;s attendee pool</p>
+                  </div>
+                )}
+
+                {wrappedPage === 1 && (
+                  <div className="h-full rounded-2xl bg-gradient-to-br from-amber-50 to-rose-50 border border-amber-100 p-7">
+                    <p className="text-xs uppercase tracking-[0.2em] text-amber-700 font-semibold mb-3">What you have in common</p>
+                    {commonPoints.length > 0 ? (
+                      <div className="space-y-2">
+                        {commonPoints.map((point, idx) => (
+                          <div key={`${point}-${idx}`} className="bg-white rounded-xl p-3 border border-amber-100 text-sm text-gray-700">
+                            {point}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl p-4 border border-amber-100 text-sm text-gray-600">
+                        No obvious overlap detected, but this can still be a great “new perspective” conversation.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {wrappedPage === 2 && (
+                  <div className="h-full rounded-2xl bg-gradient-to-br from-emerald-50 to-cyan-50 border border-emerald-100 p-7">
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-700 font-semibold mb-3">Talk starters</p>
+                    <div className="space-y-2 mb-4">
+                      {iceBreakers.map((line, idx) => (
+                        <div key={`${line}-${idx}`} className="bg-white rounded-xl p-3 border border-emerald-100 text-sm text-gray-700">
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="bg-white rounded-xl p-3 border border-emerald-100">
+                      <p className="text-xs text-gray-500 mb-1">AI summary</p>
+                      <p className="text-sm text-gray-700">
+                        {wrappedReasonLoading && !reason ? 'Generating summary...' : (reason || 'You have enough overlap to start a meaningful conversation.')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 pb-6 flex items-center justify-between">
+                <button
+                  onClick={() => setWrappedPage(prev => Math.max(0, prev - 1))}
+                  disabled={wrappedPage === 0}
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-2">
+                  {[0, 1, 2].map(idx => (
+                    <span
+                      key={idx}
+                      className={`w-2.5 h-2.5 rounded-full ${wrappedPage === idx ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setWrappedPage(prev => Math.min(2, prev + 1))}
+                  disabled={wrappedPage === 2}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
