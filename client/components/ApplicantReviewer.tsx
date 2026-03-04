@@ -27,6 +27,7 @@ interface Applicant {
   name: string;
   email?: string;
   occupation?: string;
+  occupation_tags?: string[];
   school?: string;
   major?: string;
   year?: string;
@@ -132,6 +133,11 @@ function ProfileDrawer({
                   {applicant.ai_review.category}
                 </span>
               )}
+              {applicant.occupation_tags && applicant.occupation_tags.map(tag => (
+                <span key={tag} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
+                  {tag}
+                </span>
+              ))}
               {applicant.ai_score != null && (
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                   applicant.ai_score >= 7 ? 'bg-emerald-100 text-emerald-700' :
@@ -476,7 +482,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
               className="px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               {uploadingCSV
-                ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing...</>
+                ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing & enriching profiles...</>
                 : <>📄 Upload CSV</>}
             </button>
             {csvResult && (
@@ -623,7 +629,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
               className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
             >
               {uploadingCSV
-                ? <><div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing...</>
+                ? <><div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Enriching profiles...</>
                 : '📄 Import CSV'}
             </button>
             <button
@@ -746,11 +752,18 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
                         <span className="text-sm font-semibold text-gray-900">{applicant.name}</span>
+                        {/* AI review category (after review runs) */}
                         {category && (
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeColour(category, reviewCriteria.categories)}`}>
                             {category}
                           </span>
                         )}
+                        {/* Profile-based occupation tags (visible as soon as CSV is imported) */}
+                        {!category && applicant.occupation_tags && applicant.occupation_tags.length > 0 && applicant.occupation_tags.map(tag => (
+                          <span key={tag} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
+                            {tag}
+                          </span>
+                        ))}
                         {applicant.ai_score != null && (
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                             applicant.ai_score >= 7 ? 'bg-emerald-100 text-emerald-700' :

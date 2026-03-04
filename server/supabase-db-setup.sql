@@ -324,3 +324,7 @@ CREATE TABLE IF NOT EXISTS public.csv_applicants (
   reviewed_at   timestamptz,
   joined_at     timestamptz DEFAULT now()
 );
+
+-- Add profile_data column to store LinkedIn-extracted structured profile for CSV applicants
+ALTER TABLE public.csv_applicants
+  ADD COLUMN IF NOT EXISTS profile_data jsonb;

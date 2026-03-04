@@ -791,12 +791,13 @@ app.get('/api/conferences/:id/applicants', authenticateToken, async (req, res) =
       });
     }
 
-    // CSV-imported applicants
+    // CSV-imported applicants — merge extracted profile_data fields so the drawer shows full info
     (csvRows || []).forEach(row => {
       applicants.push({
+        ...(row.profile_data || {}),   // occupation, company, title, school, bio, skills, etc.
         id: row.id,
         source: 'csv',
-        name: row.name,
+        name: row.name,               // override profile_data name with the authoritative CSV name
         email: row.email,
         linkedin: row.linkedin,
         joined_at: row.joined_at,
@@ -870,6 +871,92 @@ app.put('/api/conferences/:id/review-criteria', authenticateToken, async (req, r
   }
 });
 
+// Helper: fetch a LinkedIn profile via Proxycurl and map to our schema
+async function extractLinkedInProfile(name, email, linkedinUrl) {
+  if (!linkedinUrl) return null;
+  try {
+    console.log(`[extractLinkedInProfile] ${name} — Proxycurl ${linkedinUrl}`);
+    const res = await fetch(
+      `https://nubela.co/proxycurl/api/v2/linkedin?url=${encodeURIComponent(linkedinUrl)}&use_cache=if-present`,
+      { headers: { Authorization: `Bearer ${process.env.PROXYCURL_API_KEY}` } }
+    );
+    if (!res.ok) {
+      console.warn(`[extractLinkedInProfile] ${name} — Proxycurl ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    return mapProxycurlProfile(data);
+  } catch (err) {
+    console.error(`[extractLinkedInProfile] ${name} — error:`, err.message);
+    return null;
+  }
+}
+
+function mapProxycurlProfile(data) {
+  const exps = data.experiences || [];
+  const edus = data.education || [];
+
+  // Current role = most recent experience with no end date
+  const currentExp = exps.find(e => !e.ends_at) || exps[0] || null;
+  const pastExps   = exps.filter(e => e !== currentExp && e.ends_at);
+
+  const company = currentExp?.company || null;
+  const title   = currentExp?.title   || null;
+
+  // Most recent education
+  const latestEdu = edus.sort((a, b) => (b.starts_at?.year || 0) - (a.starts_at?.year || 0))[0] || null;
+  const school    = latestEdu?.school || null;
+  const isStudent = edus.some(e => !e.ends_at);
+
+  // occupation_line
+  let occupation_line = null;
+  if (isStudent && school) {
+    occupation_line = [school, latestEdu?.field_of_study, latestEdu?.ends_at?.year ? `Class of ${latestEdu.ends_at.year}` : null].filter(Boolean).join(' · ');
+  } else if (company && title) {
+    occupation_line = `${company} · ${title}`;
+  } else if (data.headline) {
+    occupation_line = data.headline;
+  }
+
+  // occupation_tags — inferred from title + headline
+  const haystack = `${title || ''} ${data.headline || ''}`.toLowerCase();
+  const tags = new Set();
+  if (isStudent)                                                      tags.add('student');
+  if (/\bco.founder\b/.test(haystack))                               tags.add('co-founder');
+  if (/\bfounder\b/.test(haystack))                                  tags.add('founder');
+  if (/\bengineer|developer|sde|swe\b/.test(haystack))              tags.add('engineer');
+  if (/\bresearch(er)?\b/.test(haystack))                            tags.add('researcher');
+  if (/\bvc\b|venture capital/.test(haystack))                       tags.add('vc');
+  if (/\binvestor|partner|associate\b/.test(haystack))               tags.add('investor');
+  if (/\bproduct manager|head of product|\bpm\b/.test(haystack))    tags.add('product');
+  if (/\bdesign(er)?\b/.test(haystack))                              tags.add('designer');
+  if (/\bceo|cto|coo|cpo|vp |president\b/.test(haystack))          tags.add('executive');
+  if (/\boperations|operator\b/.test(haystack))                      tags.add('operator');
+
+  // years of experience — from earliest start year to now
+  const earliestYear = exps.reduce((min, e) => {
+    const y = e.starts_at?.year;
+    return y && y < min ? y : min;
+  }, new Date().getFullYear());
+  const work_experience_years = earliestYear < new Date().getFullYear()
+    ? String(new Date().getFullYear() - earliestYear)
+    : null;
+
+  return {
+    occupation_line,
+    occupation_tags:       [...tags],
+    company,
+    title,
+    school,
+    bio:                   data.summary || null,
+    current_skills:        (data.skills || []).slice(0, 8),
+    interest_areas:        [],
+    previous_companies:    pastExps.slice(0, 3).map(e => e.company).filter(Boolean),
+    work_experience_years,
+    extraction_status:     'ok',
+  };
+}
+
 // POST /api/conferences/:id/run-ai-review — batch AI review of all pending applicants (host only)
 app.post('/api/conferences/:id/run-ai-review', authenticateToken, async (req, res) => {
   const { id } = req.params;
@@ -897,7 +984,7 @@ app.post('/api/conferences/:id/run-ai-review', authenticateToken, async (req, re
     // Also fetch pending CSV applicants
     const { data: pendingCsvRecords } = await supabase
       .from('csv_applicants')
-      .select('id, name, email, linkedin')
+      .select('id, name, email, linkedin, profile_data')
       .eq('conference_id', id)
       .eq('status', 'pending');
 
@@ -999,38 +1086,40 @@ app.post('/api/conferences/:id/run-ai-review', authenticateToken, async (req, re
       }
     }
 
-    // Review CSV-imported applicants (same AI logic, no profile lookup needed)
+    // Review CSV-imported applicants — extract structured profile from LinkedIn first, then score
     for (const csvRecord of (pendingCsvRecords || [])) {
-      // Best-effort LinkedIn fetch
-      let linkedinContext = 'LinkedIn: not provided';
-      if (csvRecord.linkedin) {
-        try {
-          const linkedinRes = await fetch(csvRecord.linkedin, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Accept-Language': 'en-US,en;q=0.5'
-            },
-            signal: AbortSignal.timeout(5000)
-          });
-          if (linkedinRes.ok) {
-            const html = await linkedinRes.text();
-            const textSnippet = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 1500);
-            linkedinContext = `LinkedIn page content (partial): ${textSnippet}`;
-          } else {
-            linkedinContext = `LinkedIn URL: ${csvRecord.linkedin} (could not fetch page)`;
-          }
-        } catch {
-          linkedinContext = `LinkedIn URL: ${csvRecord.linkedin} (fetch failed)`;
+      // Step 1: use already-extracted profile_data if available, otherwise extract now
+      let profileData = csvRecord.profile_data || null;
+      if (!profileData && csvRecord.linkedin) {
+        profileData = await extractLinkedInProfile(csvRecord.name, csvRecord.email, csvRecord.linkedin);
+        if (profileData) {
+          await supabase
+            .from('csv_applicants')
+            .update({ profile_data: profileData })
+            .eq('id', csvRecord.id);
         }
       }
 
+      // Step 3: build rich applicant text for scoring (same structure as registered applicants)
+      const p = profileData || {};
       const applicantText = [
         `Name: ${csvRecord.name}`,
-        csvRecord.email ? `Email: ${csvRecord.email}` : null,
-        linkedinContext
+        p.occupation ? `Occupation: ${p.occupation}` : null,
+        p.school ? `School: ${p.school}` : null,
+        p.major ? `Major: ${p.major}` : null,
+        p.year ? `Year: ${p.year}` : null,
+        p.company ? `Company: ${p.company}` : null,
+        p.title ? `Title: ${p.title}` : null,
+        p.research_area ? `Research area: ${p.research_area}` : null,
+        p.bio ? `Bio: ${p.bio}` : null,
+        p.interest_areas?.length ? `Interests: ${p.interest_areas.join(', ')}` : null,
+        p.current_skills?.length ? `Skills: ${p.current_skills.join(', ')}` : null,
+        p.work_experience_years ? `Experience: ${p.work_experience_years} years` : null,
+        csvRecord.email ? `Email domain hint: ${csvRecord.email.split('@')[1]}` : null,
+        csvRecord.linkedin ? `LinkedIn: ${csvRecord.linkedin}` : null,
       ].filter(Boolean).join('\n');
 
+      // Step 4: score
       try {
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -1145,12 +1234,14 @@ app.post('/api/conferences/:id/upload-applicants', authenticateToken, upload.sin
 
     if (nameCol === -1) return res.status(400).json({ error: 'CSV must have a "name" or "full name" column' });
 
-    // Fetch existing emails for this conference to skip duplicates
+    // Fetch existing rows — used for dedup AND to catch un-enriched existing entries
     const { data: existing } = await supabase
       .from('csv_applicants')
-      .select('email')
+      .select('id, name, email, linkedin, profile_data')
       .eq('conference_id', id);
     const existingEmails = new Set((existing || []).map(r => r.email?.toLowerCase()).filter(Boolean));
+    // Existing rows that have a LinkedIn URL but were never enriched
+    const unenrichedExisting = (existing || []).filter(r => r.linkedin && !r.profile_data);
 
     const toInsert = [];
     const skipped = [];
@@ -1170,10 +1261,32 @@ app.post('/api/conferences/:id/upload-applicants', authenticateToken, upload.sin
       if (email) existingEmails.add(email);
     }
 
+    let insertedRows = [];
     if (toInsert.length > 0) {
-      const { error: insertError } = await supabase.from('csv_applicants').insert(toInsert);
+      const { data: inserted, error: insertError } = await supabase
+        .from('csv_applicants')
+        .insert(toInsert)
+        .select('id, name, email, linkedin');
       if (insertError) return res.status(500).json({ error: insertError.message });
+      insertedRows = inserted || [];
     }
+
+    // Enrich new rows + any existing rows that were never enriched, in parallel
+    const rowsToEnrich = [...insertedRows, ...unenrichedExisting];
+    await Promise.all(rowsToEnrich.map(async (row) => {
+      if (!row.linkedin) return;
+      try {
+        const profileData = await extractLinkedInProfile(row.name, row.email, row.linkedin);
+        if (profileData) {
+          await supabase
+            .from('csv_applicants')
+            .update({ profile_data: profileData })
+            .eq('id', row.id);
+        }
+      } catch (err) {
+        console.error(`LinkedIn enrichment failed for ${row.name}:`, err.message);
+      }
+    }));
 
     res.json({ imported: toInsert.length, skipped: skipped.length, errors });
   } catch (err) {
