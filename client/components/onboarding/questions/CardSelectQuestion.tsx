@@ -30,7 +30,7 @@ export default function CardSelectQuestion({
   return (
     <div className="text-center space-y-12">
       {/* Question */}
-      <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+      <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
         {question}
       </h2>
 
@@ -40,16 +40,16 @@ export default function CardSelectQuestion({
           <button
             key={option.value}
             onClick={() => handleSelect(option.value)}
-            className={`p-8 text-center bg-white border-2 rounded-2xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg ${
-              value === option.value
-                ? 'border-indigo-500 bg-indigo-50 shadow-lg'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className="p-8 text-center card transition-all duration-200"
+            style={value === option.value
+              ? { background: 'var(--accent-light)', borderColor: 'var(--accent)' }
+              : { background: 'var(--surface)', borderColor: 'var(--border-light)' }
+            }
           >
             {option.icon && (
               <div className="text-5xl mb-4">{option.icon}</div>
             )}
-            <div className="text-xl font-semibold text-gray-900">
+            <div className="text-xl font-bold" style={{ color: 'var(--text)' }}>
               {option.label}
             </div>
           </button>

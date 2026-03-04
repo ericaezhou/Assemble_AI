@@ -16,71 +16,68 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
     : null;
 
   return (
-    <div className="bg-white rounded-xl p-5 shadow-md hover:-translate-y-1 hover:shadow-xl transition-all flex flex-col">
+    <div className="card p-5 flex flex-col">
       <div className="mb-3">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="text-lg font-bold text-gray-800 min-w-0">{researcher.name}</h3>
+          <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>{researcher.name}</h3>
           {matchPercent !== null && (
-            <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-0.5 rounded-lg text-xs font-semibold flex-shrink-0">
-              {matchPercent}% match
-            </span>
+            <span className="tag tag-accent flex-shrink-0">{matchPercent}% match</span>
           )}
         </div>
       </div>
 
-      <p className="text-gray-600 italic text-sm mb-4">
+      <p className="text-sm italic mb-4" style={{ color: 'var(--text-muted)' }}>
         {getInstitution(researcher) || 'Institution not specified'}
       </p>
 
       {researcher.research_area && (
         <div className="mb-3">
-          <strong className="block text-gray-700 text-xs mb-1.5">Research Area:</strong>
+          <strong className="section-heading block mb-1.5">Research Area</strong>
           <div className="flex flex-wrap gap-1.5">
-            <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded text-xs font-medium">
-              {researcher.research_area}
-            </span>
+            <span className="tag">{researcher.research_area}</span>
           </div>
         </div>
       )}
 
       {researcher.interest_areas && researcher.interest_areas.length > 0 && (
         <div className="mb-3">
-          <strong className="block text-gray-700 text-xs mb-1.5">Interests:</strong>
+          <strong className="section-heading block mb-1.5">Interests</strong>
           <div className="flex flex-wrap gap-1.5">
             {researcher.interest_areas.map((interest: string, index: number) => (
-              <span key={index} className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded text-xs font-medium">
-                {interest}
-              </span>
+              <span key={index} className="tag">{interest}</span>
             ))}
           </div>
         </div>
       )}
 
       {researcher.other_description && (
-        <p className="text-gray-600 text-sm leading-relaxed mb-3 flex-grow">
+        <p className="text-sm leading-relaxed mb-3 flex-grow" style={{ color: 'var(--text-muted)' }}>
           {researcher.other_description.substring(0, 150)}{researcher.other_description.length > 150 ? '...' : ''}
         </p>
       )}
 
       {researcher.match_reason && (
-        <div className="mb-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-          <strong className="block text-indigo-700 text-xs mb-1">Why matched:</strong>
-          <p className="text-indigo-700 text-sm leading-relaxed">{researcher.match_reason}</p>
+        <div
+          className="mb-3 p-3 rounded-lg"
+          style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)' }}
+        >
+          <strong className="block text-xs mb-1" style={{ color: 'var(--accent)' }}>Why matched:</strong>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{researcher.match_reason}</p>
         </div>
       )}
 
-      <div className="mt-auto pt-4 border-t border-gray-100">
+      <div className="mt-auto pt-4" style={{ borderTop: '2px solid var(--border-light)' }}>
         {onConnect ? (
           <button
             onClick={() => onConnect(researcher.id)}
-            className="inline-block px-5 py-2 bg-indigo-500 text-white rounded-lg font-semibold text-sm hover:bg-indigo-600 transition-colors"
+            className="btn btn-primary"
           >
             Connect
           </button>
         ) : (
           <a
             href={`mailto:${researcher.email}`}
-            className="inline-block px-5 py-2 bg-indigo-500 text-white rounded-lg font-semibold text-sm hover:bg-indigo-600 transition-colors"
+            className="btn btn-primary"
           >
             Contact
           </a>

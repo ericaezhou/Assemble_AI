@@ -181,7 +181,6 @@ export default function ParsedReviewQuestion({
   );
 
   const handleFieldChange = (key: keyof ParsedData, value: string) => {
-    const field = FIELD_CONFIGS.find((f) => f.key === key);
     const isListField = key === 'interest_areas' || key === 'current_skills' || key === 'hobbies';
 
     if (isListField) {
@@ -198,16 +197,17 @@ export default function ParsedReviewQuestion({
     return (
       <div className="text-center space-y-8">
         <div className="space-y-3">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+          <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
             We couldn&apos;t extract much
           </h2>
-          <p className="text-lg text-gray-500">
+          <p className="text-lg" style={{ color: 'var(--text-muted)' }}>
             No worries, you can fill everything in manually.
           </p>
         </div>
         <button
           onClick={onSkip}
-          className="px-8 py-4 text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] transition-all duration-150 cursor-pointer"
+          className="btn btn-primary"
+          style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >
           Continue &rarr;
         </button>
@@ -219,10 +219,10 @@ export default function ParsedReviewQuestion({
     <div className="text-center space-y-8">
       {/* Header */}
       <div className="space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           We found your details!
         </h2>
-        <p className="text-lg text-gray-500">
+        <p className="text-lg" style={{ color: 'var(--text-muted)' }}>
           Review what we extracted. You can edit any field.
         </p>
       </div>
@@ -231,28 +231,31 @@ export default function ParsedReviewQuestion({
       <div className="text-left space-y-6 max-w-lg mx-auto max-h-[50vh] overflow-y-auto px-1">
         {Object.entries(groups).map(([groupName, fields]) => (
           <div key={groupName} className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+            <h3 className="section-heading">
               {groupName}
             </h3>
             {fields.map((field) => (
               <div key={field.key} className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-semibold" style={{ color: 'var(--text)' }}>
                   {field.label}
                 </label>
                 {/* Special input for GitHub with prefix */}
                 {field.key === 'github' ? (
-                  <div className={`flex items-center w-full bg-white border-2 rounded-xl transition-all duration-200 focus-within:border-indigo-500 focus-within:shadow-lg focus-within:shadow-indigo-100 ${
-                    githubStatus === 'invalid' || githubStatus === 'not-found'
-                      ? 'border-amber-400'
-                      : 'border-gray-200'
-                  }`}>
-                    <span className="pl-4 text-sm text-gray-500 select-none">github.com/</span>
+                  <div
+                    className="flex items-center w-full rounded-lg transition-all duration-200"
+                    style={{
+                      background: 'var(--surface)',
+                      border: `2px solid ${githubStatus === 'invalid' || githubStatus === 'not-found' ? '#f59e0b' : 'var(--border-light)'}`,
+                    }}
+                  >
+                    <span className="pl-4 text-sm select-none" style={{ color: 'var(--text-muted)' }}>github.com/</span>
                     <input
                       type="text"
                       value={editedData.github || ''}
                       onChange={(e) => handleFieldChange('github', e.target.value)}
                       placeholder="username"
-                      className="flex-1 px-1 py-2.5 text-sm text-gray-900 bg-transparent focus:outline-none"
+                      className="flex-1 px-1 py-2.5 text-sm bg-transparent outline-none"
+                      style={{ color: 'var(--text)' }}
                     />
                   </div>
                 ) : (
@@ -260,43 +263,43 @@ export default function ParsedReviewQuestion({
                     type="text"
                     value={displayValue(editedData[field.key])}
                     onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                    className={`w-full px-4 py-2.5 text-sm text-gray-900 bg-white border-2 rounded-xl transition-all duration-200 focus:outline-none focus:border-indigo-500 focus:shadow-lg focus:shadow-indigo-100 ${
-                      field.key === 'email' && (emailStatus === 'taken' || !editedData.email?.trim())
-                        ? 'border-amber-400'
-                        : 'border-gray-200'
-                    }`}
+                    className="input w-full text-sm"
+                    style={field.key === 'email' && (emailStatus === 'taken' || !editedData.email?.trim())
+                      ? { borderColor: '#f59e0b' }
+                      : {}
+                    }
                   />
                 )}
                 {/* GitHub validation feedback */}
                 {field.key === 'github' && githubStatus === 'validating' && (
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
+                  <p className="text-xs flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
+                    <span className="inline-block w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-light)', borderTopColor: 'var(--accent)' }} />
                     Checking GitHub profile...
                   </p>
                 )}
                 {field.key === 'github' && githubStatus === 'valid' && (
-                  <p className="text-xs text-green-600 flex items-center gap-1">
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#16a34a' }}>
                     <span>✓</span> GitHub profile verified
                   </p>
                 )}
                 {field.key === 'github' && githubStatus === 'not-found' && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> GitHub user not found. Please check the username.
                   </p>
                 )}
                 {field.key === 'github' && githubStatus === 'invalid' && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> Invalid username format.
                   </p>
                 )}
                 {/* Email validation warnings */}
                 {field.key === 'email' && !editedData.email?.trim() && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> Email is required.
                   </p>
                 )}
                 {field.key === 'email' && emailStatus === 'taken' && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> This email is already registered. Try signing in instead.
                   </p>
                 )}
@@ -318,18 +321,16 @@ export default function ParsedReviewQuestion({
             onAccept(finalData);
           }}
           disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking'}
-          className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-            !editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking'
-              ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
-              : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
-          }`}
+          className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >
           {emailStatus === 'checking' ? 'Checking email...' : 'Looks good! →'}
         </button>
         <div>
           <button
             onClick={onSkip}
-            className="text-base text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-base transition-colors"
+            style={{ color: 'var(--text-muted)' }}
           >
             I&apos;ll fill it in myself
           </button>

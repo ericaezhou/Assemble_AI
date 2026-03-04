@@ -361,61 +361,49 @@ export default function Dashboard({ user }: DashboardProps) {
   }
 
   return (
-    <div className="h-screen bg-[#f3f2ef] flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg)' }}>
       <TopNav currentView="home" />
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* Blank left margin ~15% */}
+        {/* Blank left margin */}
         <div className="hidden lg:block w-[8%] flex-shrink-0" />
 
-        {/* Left 15%: profile card */}
+        {/* Left: profile card */}
         <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5">
           {user && <MiniProfile user={user} />}
         </div>
 
-        {/* Center 45%: tab card pinned, cards scroll below */}
+        {/* Center: tab card pinned, cards scroll below */}
         <div className="w-[50%] flex-shrink-0 flex flex-col overflow-hidden">
 
           {/* Fixed: tab + action card */}
           <div className="flex-shrink-0 px-3 pt-5 pb-3">
-            <div className="bg-white rounded-xl shadow-sm">
+            <div className="card" style={{ boxShadow: 'var(--shadow-card)' }}>
               {/* Tabs row */}
-              <div className="flex px-2 border-b border-gray-100">
-                <button
-                  onClick={() => setActiveView('events')}
-                  className={`px-5 py-3 text-sm font-semibold transition-colors ${
-                    activeView === 'events'
-                      ? 'text-indigo-600 border-b-2 border-indigo-600'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  Events
-                </button>
-                <button
-                  onClick={() => setActiveView('researchers')}
-                  className={`px-5 py-3 text-sm font-semibold transition-colors ${
-                    activeView === 'researchers'
-                      ? 'text-indigo-600 border-b-2 border-indigo-600'
-                      : 'text-gray-500 hover:text-gray-800'
-                  }`}
-                >
-                  People
-                </button>
-              </div>
-              {/* Create/Join actions (events) or People search bar */}
-              {activeView === 'events' ? (
-                <div className="px-4 py-3 flex gap-3">
+              <div className="flex px-2" style={{ borderBottom: '2px solid var(--border-light)' }}>
+                {(['events', 'researchers'] as const).map(view => (
                   <button
-                    onClick={() => setShowCreateEvent(true)}
-                    className="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-full hover:bg-indigo-700 transition-colors"
+                    key={view}
+                    onClick={() => setActiveView(view)}
+                    className="relative px-5 py-3 text-sm font-bold transition-colors capitalize"
+                    style={{ color: activeView === view ? 'var(--accent)' : 'var(--text-muted)' }}
                   >
+                    {view === 'events' ? 'Events' : 'People'}
+                    {activeView === view && (
+                      <span className="absolute bottom-0 left-2 right-2 h-0.5" style={{ background: 'var(--accent)' }} />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Action row */}
+              {activeView === 'events' ? (
+                <div className="px-4 py-3 flex gap-2">
+                  <button onClick={() => setShowCreateEvent(true)} className="btn btn-primary">
                     + Create Event
                   </button>
-                  <button
-                    onClick={() => setShowJoinEvent(true)}
-                    className="px-4 py-2 border border-indigo-600 text-indigo-600 text-sm font-semibold rounded-full hover:bg-indigo-50 transition-colors"
-                  >
+                  <button onClick={() => setShowJoinEvent(true)} className="btn btn-secondary">
                     Join Event
                   </button>
                 </div>
@@ -426,12 +414,14 @@ export default function Dashboard({ user }: DashboardProps) {
                     placeholder="Who's on your mind today?"
                     value={naturalLanguagePreference}
                     onChange={(e) => setNaturalLanguagePreference(e.target.value)}
-                    className="flex-1 px-4 py-2 border-2 border-gray-200 rounded-full text-sm text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+                    className="input flex-1"
+                    style={{ borderRadius: '6px' }}
                   />
                   <button
                     onClick={() => handleRefreshRecommendations(naturalLanguagePreference)}
                     disabled={isRefreshingRecommendations}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                    className="btn btn-primary"
+                    style={{ opacity: isRefreshingRecommendations ? 0.6 : 1 }}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -443,53 +433,44 @@ export default function Dashboard({ user }: DashboardProps) {
             </div>
           </div>
 
-          {/* Scrollable: only cards scroll */}
+          {/* Scrollable cards */}
           <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-3">
             {copiedId && (
-              <div className="bg-green-50 text-green-700 px-4 py-3 rounded-xl text-sm shadow-sm">
-                Event ID copied to clipboard!
+              <div className="card-flat px-4 py-3 text-sm font-semibold" style={{ color: '#059669', borderColor: '#6ee7b7' }}>
+                ✓ Event ID copied to clipboard!
               </div>
             )}
             {activeView === 'events' ? (
               <>
-                {/* Upcoming / Past pill toggle */}
-                <div className="inline-flex items-center bg-gray-100 rounded-full p-1 mb-1">
-                  <button
-                    onClick={() => setEventsFilter('upcoming')}
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-all ${
-                      eventsFilter === 'upcoming'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Upcoming
-                  </button>
-                  <button
-                    onClick={() => setEventsFilter('past')}
-                    className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-all ${
-                      eventsFilter === 'past'
-                        ? 'bg-white text-gray-900 shadow-sm'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Past
-                  </button>
+                {/* Upcoming / Past toggle */}
+                <div className="inline-flex items-center gap-2">
+                  {(['upcoming', 'past'] as const).map(f => (
+                    <button
+                      key={f}
+                      onClick={() => setEventsFilter(f)}
+                      className={`btn capitalize ${eventsFilter === f ? 'btn-primary' : 'btn-ghost'}`}
+                      style={{ padding: '4px 14px', fontSize: '0.8rem' }}
+                    >
+                      {f}
+                    </button>
+                  ))}
                 </div>
 
                 {eventsFilter === 'upcoming' ? (
                   [...current, ...upcoming].length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 text-sm">
-                      No upcoming events. Create or join an event to get started!
+                    <div className="card-flat p-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                      No upcoming events. Create or join one to get started!
                     </div>
                   ) : (
                     <div className="space-y-6">
                       {groupEventsByMonth([...current, ...upcoming]).map(group => (
                         <div key={group.monthLabel}>
-                          <h3 className="text-xl font-bold text-gray-700 mb-3 flex items-center gap-1.5">
-                            <span>{group.emoji}</span> {group.monthLabel}
+                          <h3 className="text-base font-black mb-3 flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
+                            <span>{group.emoji}</span>
+                            <span style={{ borderBottom: '2px solid var(--accent)', paddingBottom: '1px' }}>{group.monthLabel}</span>
                           </h3>
                           <div className="relative">
-                            <div className="absolute right-32 top-4 bottom-4 w-px bg-gray-200" />
+                            <div className="absolute right-32 top-4 bottom-4 w-0.5" style={{ background: 'var(--border-light)' }} />
                             <div className="space-y-10">
                               {group.events.map(event => {
                                 const dl = formatEventDateLabel(event.start_date);
@@ -499,11 +480,11 @@ export default function Dashboard({ user }: DashboardProps) {
                                       <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                                     </div>
                                     <div className="w-8 flex-shrink-0 flex justify-center pt-4 z-10 relative">
-                                      <div className="w-3 h-3 rounded-full bg-indigo-400 ring-2 ring-indigo-100" />
+                                      <div className="w-3 h-3 rounded-full border-2" style={{ background: 'var(--accent)', borderColor: 'var(--border)' }} />
                                     </div>
                                     <div className="w-28 flex-shrink-0 pt-2">
-                                      <p className="font-bold text-gray-800 text-lg leading-tight">{dl.main}</p>
-                                      <p className="text-sm text-gray-400 mt-0.5">{dl.sub}</p>
+                                      <p className="font-black text-lg leading-tight" style={{ color: 'var(--text)' }}>{dl.main}</p>
+                                      <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{dl.sub}</p>
                                     </div>
                                   </div>
                                 );
@@ -516,18 +497,19 @@ export default function Dashboard({ user }: DashboardProps) {
                   )
                 ) : (
                   past.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm p-8 text-center text-gray-500 text-sm">
+                    <div className="card-flat p-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                       No past events yet.
                     </div>
                   ) : (
                     <div className="space-y-6">
                       {groupEventsByMonth(past).map(group => (
                         <div key={group.monthLabel}>
-                          <h3 className="text-xl font-bold text-gray-700 mb-3 flex items-center gap-1.5">
-                            <span>{group.emoji}</span> {group.monthLabel}
+                          <h3 className="text-base font-black mb-3 flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
+                            <span>{group.emoji}</span>
+                            <span style={{ borderBottom: '2px solid var(--accent)', paddingBottom: '1px' }}>{group.monthLabel}</span>
                           </h3>
                           <div className="relative">
-                            <div className="absolute right-32 top-4 bottom-4 w-px bg-gray-200" />
+                            <div className="absolute right-32 top-4 bottom-4 w-0.5" style={{ background: 'var(--border-light)' }} />
                             <div className="space-y-5">
                               {group.events.map(event => {
                                 const dl = formatEventDateLabel(event.start_date);
@@ -537,11 +519,11 @@ export default function Dashboard({ user }: DashboardProps) {
                                       <EventCard event={event} onCopyId={handleCopyId} onClick={handleEventClick} />
                                     </div>
                                     <div className="w-8 flex-shrink-0 flex justify-center pt-4 z-10 relative">
-                                      <div className="w-3 h-3 rounded-full bg-indigo-400 ring-2 ring-indigo-100" />
+                                      <div className="w-3 h-3 rounded-full border-2" style={{ background: 'var(--text-muted)', borderColor: 'var(--border)' }} />
                                     </div>
                                     <div className="w-28 flex-shrink-0 pt-2">
-                                      <p className="font-bold text-gray-800 text-lg leading-tight">{dl.main}</p>
-                                      <p className="text-sm text-gray-400 mt-0.5">{dl.sub}</p>
+                                      <p className="font-black text-lg leading-tight" style={{ color: 'var(--text)' }}>{dl.main}</p>
+                                      <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{dl.sub}</p>
                                     </div>
                                   </div>
                                 );
@@ -565,10 +547,10 @@ export default function Dashboard({ user }: DashboardProps) {
           </div>
         </div>
 
-        {/* Right 20%: messaging panel in inset card */}
+        {/* Right: messaging panel */}
         {user && (
           <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5 pb-4">
-            <div className="bg-white rounded-xl shadow-sm overflow-hidden h-[calc(100vh-84px)]">
+            <div className="card overflow-hidden h-[calc(100vh-84px)]" style={{ cursor: 'default' }}>
               <MessagePanel
                 currentUser={user}
                 openConversationId={openConversationId}

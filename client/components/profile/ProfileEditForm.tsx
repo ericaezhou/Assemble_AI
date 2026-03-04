@@ -95,8 +95,8 @@ export default function ProfileEditForm({
   ) => (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-800">{label}</h3>
-        <span className="text-sm text-gray-500">{selected.length}/10 selected</span>
+        <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>{label}</h3>
+        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{selected.length}/10 selected</span>
       </div>
       <div className="flex flex-wrap gap-2 max-h-64 overflow-y-auto p-2">
         {options.map((option) => {
@@ -106,11 +106,11 @@ export default function ProfileEditForm({
               key={option.value}
               type="button"
               onClick={() => toggleItem(option.value, selected, setSelected)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                isSelected
-                  ? 'bg-indigo-100 text-indigo-700 ring-2 ring-indigo-500'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className="px-3 py-2 rounded-lg text-sm font-semibold transition-all"
+              style={isSelected
+                ? { background: 'var(--accent-light)', color: 'var(--accent)', border: '2px solid var(--accent)' }
+                : { background: 'var(--bg)', color: 'var(--text-muted)', border: '2px solid var(--border-light)' }
+              }
             >
               {option.icon && <span className="mr-1">{option.icon}</span>}
               {option.label}
@@ -148,33 +148,33 @@ export default function ProfileEditForm({
         return (
           <div className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+              <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>Bio</label>
               <textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 rows={3}
                 placeholder="Tell people a bit about yourself..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                className="input w-full resize-none"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">GitHub</label>
+              <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>GitHub</label>
               <input
                 type="text"
                 value={github}
                 onChange={(e) => setGithub(e.target.value)}
                 placeholder="username or https://github.com/username"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="input w-full"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">LinkedIn</label>
+              <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>LinkedIn</label>
               <input
                 type="text"
                 value={linkedin}
                 onChange={(e) => setLinkedin(e.target.value)}
                 placeholder="username or https://linkedin.com/in/username"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="input w-full"
               />
             </div>
           </div>
@@ -182,51 +182,36 @@ export default function ProfileEditForm({
       case 'publications':
         return (
           <div className="space-y-3">
-            <h3 className="text-lg font-semibold text-gray-800">Edit Publications</h3>
-            <p className="text-sm text-gray-500">One publication per line</p>
+            <h3 className="text-lg font-black" style={{ color: 'var(--text)' }}>Edit Publications</h3>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>One publication per line</p>
             <textarea
               value={publicationsText}
               onChange={(e) => setPublicationsText(e.target.value)}
               rows={8}
               placeholder={"Impacts of Pandemic Instruction Mode on Student Learning\nConfigural Drivers of Team Performance"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+              className="input w-full resize-none"
             />
           </div>
         );
       case 'header':
         return (
           <div className="space-y-6">
-            {renderChipSelector(
-              INTEREST_AREAS,
-              selectedInterests,
-              setSelectedInterests,
-              'Interests'
-            )}
-            {renderChipSelector(
-              SKILLS,
-              selectedSkills,
-              setSelectedSkills,
-              'Skills'
-            )}
-            {renderChipSelector(
-              HOBBIES,
-              selectedHobbies,
-              setSelectedHobbies,
-              'Hobbies'
-            )}
+            {renderChipSelector(INTEREST_AREAS, selectedInterests, setSelectedInterests, 'Interests')}
+            {renderChipSelector(SKILLS, selectedSkills, setSelectedSkills, 'Skills')}
+            {renderChipSelector(HOBBIES, selectedHobbies, setSelectedHobbies, 'Hobbies')}
           </div>
         );
       default:
-        return <p className="text-gray-500">Unknown section</p>;
+        return <p style={{ color: 'var(--text-muted)' }}>Unknown section</p>;
     }
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+      <div className="card max-w-2xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">
+        <div className="px-6 py-4 flex justify-between items-center" style={{ borderBottom: '2px solid var(--border)' }}>
+          <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>
             {section === 'header'
               ? 'Edit Profile'
               : section === 'about'
@@ -235,7 +220,8 @@ export default function ProfileEditForm({
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="btn-ghost p-2 rounded"
+            style={{ color: 'var(--text-muted)' }}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -247,22 +233,23 @@ export default function ProfileEditForm({
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
           {renderSectionContent()}
           {error && (
-            <p className="mt-4 text-sm text-red-500">{error}</p>
+            <p className="mt-4 text-sm" style={{ color: '#ef4444' }}>{error}</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+        <div className="px-6 py-4 flex justify-end gap-3" style={{ borderTop: '2px solid var(--border)' }}>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+            className="btn btn-ghost"
+            style={{ color: 'var(--text-muted)' }}
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isLoading}
-            className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Saving...' : 'Save Changes'}
           </button>

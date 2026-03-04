@@ -43,12 +43,13 @@ export default function JoinEvent({ userId, onClose, onSuccess }: JoinEventProps
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-900">Join Event</h2>
+      <div className="card w-full max-w-md overflow-hidden">
+        <div className="px-6 py-5 flex justify-between items-center" style={{ borderBottom: '2px solid var(--border)' }}>
+          <h2 className="text-xl font-black" style={{ color: 'var(--text)' }}>Join Event</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-lg"
+            className="btn-ghost p-2 rounded"
+            style={{ color: 'var(--text-muted)' }}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -59,7 +60,7 @@ export default function JoinEvent({ userId, onClose, onSuccess }: JoinEventProps
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             <div>
-              <label htmlFor="eventId" className="block mb-2 text-sm font-medium text-gray-700">
+              <label htmlFor="eventId" className="block mb-2 text-sm font-semibold" style={{ color: 'var(--text)' }}>
                 Event ID
               </label>
               <input
@@ -70,15 +71,15 @@ export default function JoinEvent({ userId, onClose, onSuccess }: JoinEventProps
                 onChange={(e) => setEventId(e.target.value.toUpperCase())}
                 required
                 placeholder="e.g., A1B2C3D4"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-gray-900 font-mono text-center text-lg tracking-widest focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors uppercase"
+                className="input w-full text-center text-lg tracking-widest font-mono uppercase"
               />
-              <p className="mt-2 text-xs text-gray-500 text-center">
+              <p className="mt-2 text-xs text-center" style={{ color: 'var(--text-muted)' }}>
                 Enter the 8-character event ID provided by the host
               </p>
             </div>
 
             {error && (
-              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+              <div className="px-4 py-3 rounded-lg text-sm flex items-center gap-2" style={{ background: '#fef2f2', color: '#dc2626', border: '2px solid #fca5a5' }}>
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -87,11 +88,11 @@ export default function JoinEvent({ userId, onClose, onSuccess }: JoinEventProps
             )}
           </div>
 
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="px-6 py-4" style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)' }}>
             <button
               type="submit"
               disabled={loading || !eventId}
-              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              className="btn btn-primary w-full justify-center disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

@@ -43,15 +43,23 @@ export default function TextQuestion({
     }
   };
 
+  const getBorderColor = () => {
+    if (isFocused) return 'var(--accent)';
+    if (error) return '#f87171';
+    if (type === 'email' && (emailStatus === 'taken' || (emailStatus === 'idle' && value))) return '#f59e0b';
+    if (type === 'email' && emailStatus === 'available') return '#4ade80';
+    return 'var(--border-light)';
+  };
+
   return (
     <div className="text-center space-y-12">
       {/* Question */}
       <div className="space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           {question}
         </h2>
         {subtitle && (
-          <p className="text-lg text-gray-500">{subtitle}</p>
+          <p className="text-lg" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>
         )}
       </div>
 
@@ -67,47 +75,40 @@ export default function TextQuestion({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             placeholder={placeholder}
-            className={`w-full px-6 py-5 text-xl text-center text-gray-900 bg-white border-2 rounded-2xl transition-all duration-200 focus:outline-none ${
-              isFocused
-                ? 'border-indigo-500 shadow-lg shadow-indigo-100'
-                : error
-                ? 'border-red-300'
-                : type === 'email' && emailStatus === 'taken'
-                ? 'border-amber-400'
-                : type === 'email' && emailStatus === 'idle' && value
-                ? 'border-amber-400'
-                : type === 'email' && emailStatus === 'available'
-                ? 'border-green-400'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
+            className="w-full px-6 py-5 text-xl text-center rounded-lg outline-none transition-all duration-200"
+            style={{
+              background: 'var(--surface)',
+              border: `2px solid ${getBorderColor()}`,
+              color: 'var(--text)',
+            }}
           />
         </div>
 
         {/* Email status feedback */}
         {type === 'email' && emailStatus === 'idle' && value && (
-          <p className="text-sm text-amber-600 flex items-center justify-center gap-1">
+          <p className="text-sm flex items-center justify-center gap-1" style={{ color: '#d97706' }}>
             <span>⚠</span> Please enter a valid email address
           </p>
         )}
         {type === 'email' && emailStatus === 'checking' && (
-          <p className="text-sm text-gray-500 flex items-center justify-center gap-2">
-            <span className="inline-block w-3 h-3 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin" />
+          <p className="text-sm flex items-center justify-center gap-2" style={{ color: 'var(--text-muted)' }}>
+            <span className="inline-block w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--border-light)', borderTopColor: 'var(--accent)' }} />
             Checking email availability...
           </p>
         )}
         {type === 'email' && emailStatus === 'available' && (
-          <p className="text-sm text-green-600 flex items-center justify-center gap-1">
+          <p className="text-sm flex items-center justify-center gap-1" style={{ color: '#16a34a' }}>
             <span>✓</span> Email available
           </p>
         )}
         {type === 'email' && emailStatus === 'taken' && (
-          <p className="text-sm text-amber-600 flex items-center justify-center gap-1">
+          <p className="text-sm flex items-center justify-center gap-1" style={{ color: '#d97706' }}>
             <span>⚠</span> This email is already registered. Try signing in instead.
           </p>
         )}
 
         {error && (
-          <p className="text-sm text-red-500 animate-in fade-in duration-200">
+          <p className="text-sm animate-in fade-in duration-200" style={{ color: '#ef4444' }}>
             {error}
           </p>
         )}
@@ -118,11 +119,8 @@ export default function TextQuestion({
         <button
           onClick={onContinue}
           disabled={!isValid}
-          className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-            isValid
-              ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg hover:scale-[1.02] cursor-pointer'
-              : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-          }`}
+          className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >
           Continue →
         </button>
@@ -130,7 +128,7 @@ export default function TextQuestion({
 
       {/* Hint */}
       {isValid && (
-        <p className="text-sm text-gray-400">
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           Press Enter ↵
         </p>
       )}

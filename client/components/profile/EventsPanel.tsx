@@ -31,12 +31,12 @@ function formatEventDate(dateStr?: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function getActivityLevel(total: number): { label: string; color: string; emoji: string } {
-  if (total === 0) return { label: 'Just Getting Started', color: 'text-gray-500', emoji: '🌱' };
-  if (total <= 2) return { label: 'Event Explorer', color: 'text-blue-600', emoji: '🧭' };
-  if (total <= 5) return { label: 'Community Regular', color: 'text-indigo-600', emoji: '⭐' };
-  if (total <= 10) return { label: 'Community Builder', color: 'text-purple-600', emoji: '🔥' };
-  return { label: 'Super Connector', color: 'text-pink-600', emoji: '💫' };
+function getActivityLevel(total: number): { label: string; emoji: string } {
+  if (total === 0) return { label: 'Just Getting Started', emoji: '🌱' };
+  if (total <= 2) return { label: 'Event Explorer', emoji: '🧭' };
+  if (total <= 5) return { label: 'Community Regular', emoji: '⭐' };
+  if (total <= 10) return { label: 'Community Builder', emoji: '🔥' };
+  return { label: 'Super Connector', emoji: '💫' };
 }
 
 export default function EventsPanel({ events, isOwnProfile, userName }: EventsPanelProps) {
@@ -72,77 +72,83 @@ export default function EventsPanel({ events, isOwnProfile, userName }: EventsPa
   return (
     <div className="space-y-4 sticky top-6">
       {/* Stats Hero */}
-      <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-6 text-white shadow-lg overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-8 translate-x-8" />
-        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-6 -translate-x-6" />
-
-        <div className="relative">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">{activityLevel.emoji}</span>
-            <span className="text-white/90 text-sm font-semibold tracking-wide uppercase">
+      <div className="card overflow-hidden">
+        {/* Accent header strip */}
+        <div
+          className="px-5 py-4"
+          style={{ background: 'var(--accent)', borderBottom: '2px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-lg">{activityLevel.emoji}</span>
+            <span className="text-sm font-black tracking-wide" style={{ color: '#fff' }}>
               {activityLevel.label}
             </span>
           </div>
-          <p className="text-white/70 text-xs mb-5">
+          <p className="text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
             {isOwnProfile ? 'Your event journey' : `${firstName}'s event journey`}
           </p>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
-              <div className="text-2xl font-bold">{events.length}</div>
-              <div className="text-white/70 text-xs mt-0.5">Total</div>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
-              <div className="text-2xl font-bold">{hostedEvents.length}</div>
-              <div className="text-white/70 text-xs mt-0.5">Hosted</div>
-            </div>
-            <div className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
-              <div className="text-2xl font-bold">{attendedEvents.length}</div>
-              <div className="text-white/70 text-xs mt-0.5">Attended</div>
-            </div>
-          </div>
-
-          {upcoming.length > 0 && (
-            <div className="mt-4 flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
-              <span className="w-2 h-2 rounded-full bg-green-300 animate-pulse flex-shrink-0" />
-              <span className="text-sm text-white/90">
-                {upcoming.length} upcoming event{upcoming.length > 1 ? 's' : ''}
-              </span>
-            </div>
-          )}
         </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3" style={{ borderBottom: upcoming.length > 0 ? '2px solid var(--border-light)' : 'none' }}>
+          {[
+            { value: events.length, label: 'Total' },
+            { value: hostedEvents.length, label: 'Hosted' },
+            { value: attendedEvents.length, label: 'Attended' },
+          ].map((stat, i) => (
+            <div
+              key={stat.label}
+              className="py-4 text-center"
+              style={{ borderRight: i < 2 ? '2px solid var(--border-light)' : 'none' }}
+            >
+              <div className="text-2xl font-black" style={{ color: 'var(--text)' }}>{stat.value}</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {upcoming.length > 0 && (
+          <div className="px-5 py-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse" style={{ background: '#22c55e' }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              {upcoming.length} upcoming event{upcoming.length > 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Events Card */}
-      <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+      <div className="card overflow-hidden">
         {/* Tab bar */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex px-2" style={{ borderBottom: '2px solid var(--border-light)' }}>
           {[
-            { key: 'all', label: 'All Events', count: events.length },
+            { key: 'all', label: 'All', count: events.length },
             { key: 'hosted', label: 'Hosted', count: hostedEvents.length },
             { key: 'attended', label: 'Attended', count: attendedEvents.length },
           ].map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as 'all' | 'hosted' | 'attended')}
-              className={`flex-1 py-3 text-xs font-semibold transition-colors relative ${
-                activeTab === tab.key
-                  ? 'text-indigo-600'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
+              className="relative px-4 py-3 text-xs font-bold transition-colors flex items-center gap-1.5"
+              style={{ color: activeTab === tab.key ? 'var(--accent)' : 'var(--text-muted)' }}
             >
               {tab.label}
               {tab.count > 0 && (
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
-                  activeTab === tab.key
-                    ? 'bg-indigo-100 text-indigo-600'
-                    : 'bg-gray-100 text-gray-400'
-                }`}>
+                <span
+                  className="px-1.5 py-0.5 rounded-full text-xs font-semibold"
+                  style={activeTab === tab.key
+                    ? { background: 'var(--accent-light)', color: 'var(--accent)' }
+                    : { background: 'var(--bg)', color: 'var(--text-muted)' }
+                  }
+                >
                   {tab.count}
                 </span>
               )}
               {activeTab === tab.key && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full" />
+                <span
+                  className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                  style={{ background: 'var(--accent)' }}
+                />
               )}
             </button>
           ))}
@@ -153,25 +159,29 @@ export default function EventsPanel({ events, isOwnProfile, userName }: EventsPa
             <div className="text-3xl mb-2">
               {activeTab === 'hosted' ? '🎪' : activeTab === 'attended' ? '🎫' : '📅'}
             </div>
-            <p className="text-gray-400 text-sm">No events yet</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No events yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-50">
+          <div>
             {/* Upcoming section */}
             {activeTab === 'all' && upcoming.length > 0 && (
               <>
-                <div className="px-5 py-2 bg-green-50">
-                  <span className="text-xs font-semibold text-green-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                    Upcoming
-                  </span>
+                <div
+                  className="px-5 py-2 flex items-center gap-1.5"
+                  style={{ background: 'var(--accent-light)', borderBottom: '1px solid var(--border-light)' }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: '#22c55e' }} />
+                  <span className="section-heading" style={{ color: '#15803d' }}>Upcoming</span>
                 </div>
                 {upcoming.map(event => (
-                  <EventCard key={event.id} event={event} />
+                  <EventRow key={event.id} event={event} />
                 ))}
                 {past.filter(e => displayEvents.includes(e)).length > 0 && (
-                  <div className="px-5 py-2 bg-gray-50">
-                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Past</span>
+                  <div
+                    className="px-5 py-2"
+                    style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border-light)', borderTop: '1px solid var(--border-light)' }}
+                  >
+                    <span className="section-heading">Past</span>
                   </div>
                 )}
               </>
@@ -182,7 +192,7 @@ export default function EventsPanel({ events, isOwnProfile, userName }: EventsPa
               ? displayEvents
               : past.filter(e => events.includes(e))
             ).map(event => (
-              <EventCard key={event.id} event={event} />
+              <EventRow key={event.id} event={event} />
             ))}
           </div>
         )}
@@ -191,7 +201,7 @@ export default function EventsPanel({ events, isOwnProfile, userName }: EventsPa
   );
 }
 
-function EventCard({ event }: { event: Conference }) {
+function EventRow({ event }: { event: Conference }) {
   const isHosted = event.is_host === 1;
   const isVirtual = event.location_type === 'virtual';
 
@@ -201,31 +211,39 @@ function EventCard({ event }: { event: Conference }) {
   const isUpcoming = eventDate && !isNaN(eventDate.getTime()) && eventDate >= today;
 
   return (
-    <div className={`px-5 py-4 hover:bg-gray-50 transition-colors flex gap-3 items-start`}>
-      {/* Color accent */}
-      <div className={`mt-1 w-1 flex-shrink-0 self-stretch rounded-full ${
-        isHosted
-          ? 'bg-gradient-to-b from-indigo-400 to-purple-500'
-          : isUpcoming
-          ? 'bg-gradient-to-b from-green-400 to-emerald-500'
-          : 'bg-gray-200'
-      }`} />
+    <div
+      className="px-5 py-4 flex gap-3 items-start"
+      style={{ borderBottom: '1px solid var(--border-light)' }}
+    >
+      {/* Accent left bar */}
+      <div
+        className="mt-1 w-1 self-stretch rounded-full flex-shrink-0"
+        style={{
+          background: isHosted
+            ? 'var(--accent)'
+            : isUpcoming
+            ? '#22c55e'
+            : 'var(--border-light)',
+        }}
+      />
 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-900 leading-snug">{event.name}</p>
-          <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-            isHosted
-              ? 'bg-indigo-50 text-indigo-700'
-              : 'bg-emerald-50 text-emerald-700'
-          }`}>
+          <p className="text-sm font-semibold leading-snug" style={{ color: 'var(--text)' }}>{event.name}</p>
+          <span
+            className="tag flex-shrink-0"
+            style={isHosted
+              ? { background: 'var(--accent-light)', borderColor: 'var(--accent)', color: 'var(--accent)' }
+              : { background: '#f0fdf4', borderColor: '#86efac', color: '#15803d' }
+            }
+          >
             {isHosted ? '👑 Host' : '✓ Attended'}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
           {event.start_date && (
-            <span className="flex items-center gap-1 text-xs text-gray-500">
+            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -233,7 +251,7 @@ function EventCard({ event }: { event: Conference }) {
             </span>
           )}
           {(event.location || isVirtual) && (
-            <span className="flex items-center gap-1 text-xs text-gray-500">
+            <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
               {isVirtual ? (
                 <>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -253,7 +271,7 @@ function EventCard({ event }: { event: Conference }) {
             </span>
           )}
           {event.price_type === 'free' && (
-            <span className="text-xs text-green-600 font-medium">Free</span>
+            <span className="text-xs font-semibold" style={{ color: '#15803d' }}>Free</span>
           )}
         </div>
       </div>

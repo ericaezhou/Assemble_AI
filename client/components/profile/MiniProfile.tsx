@@ -9,7 +9,6 @@ interface MiniProfileProps {
 }
 
 export default function MiniProfile({ user }: MiniProfileProps) {
-  // Determine institution display based on occupation
   const getInstitutionDisplay = () => {
     if (user.occupation === 'Student' && user.school) {
       return `Student at ${user.school}`;
@@ -26,63 +25,53 @@ export default function MiniProfile({ user }: MiniProfileProps) {
     return user.occupation || '';
   };
 
+  const initials = user.name
+    ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
-      {/* Header with gradient */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-        <h3 className="text-xl font-bold">{user.name}</h3>
-        <p className="text-indigo-100 text-sm mt-1">{getInstitutionDisplay()}</p>
+    <div className="card overflow-hidden">
+      {/* Header */}
+      <div className="p-5" style={{ background: 'var(--accent)', borderBottom: '2px solid var(--border)' }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black border-2 flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-black text-base leading-tight" style={{ color: '#fff' }}>{user.name}</h3>
+            <p className="text-sm mt-0.5 truncate" style={{ color: 'rgba(255,255,255,0.8)' }}>{getInstitutionDisplay()}</p>
+          </div>
+        </div>
       </div>
 
       {/* Content sections */}
-      <div className="p-5 space-y-5">
-        {/* Academic Interests */}
+      <div className="p-5 space-y-4">
         {user.interest_areas && user.interest_areas.length > 0 && (
-          <ChipList
-            items={user.interest_areas}
-            type="interest"
-            maxDisplay={3}
-            label="Interests"
-          />
+          <ChipList items={user.interest_areas} type="interest" maxDisplay={3} label="Interests" />
         )}
-
-        {/* Skills */}
         {user.current_skills && user.current_skills.length > 0 && (
-          <ChipList
-            items={user.current_skills}
-            type="skill"
-            maxDisplay={3}
-            label="Skills"
-          />
+          <ChipList items={user.current_skills} type="skill" maxDisplay={3} label="Skills" />
         )}
-
-        {/* Hobbies */}
         {user.hobbies && user.hobbies.length > 0 && (
-          <ChipList
-            items={user.hobbies}
-            type="hobby"
-            maxDisplay={3}
-            label="Hobbies"
-          />
+          <ChipList items={user.hobbies} type="hobby" maxDisplay={3} label="Hobbies" />
         )}
-
-        {/* Research area fallback */}
-        {(!user.interest_areas || user.interest_areas.length === 0) &&
-          user.research_area && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Research Area
-              </h4>
-              <p className="text-sm text-gray-700">{user.research_area}</p>
-            </div>
-          )}
+        {(!user.interest_areas || user.interest_areas.length === 0) && user.research_area && (
+          <div className="space-y-1">
+            <h4 className="section-heading">Research Area</h4>
+            <p className="text-sm" style={{ color: 'var(--text)' }}>{user.research_area}</p>
+          </div>
+        )}
       </div>
 
       {/* View More Link */}
       <div className="px-5 pb-5">
         <Link
           href={`/profile/${user.id}`}
-          className="block w-full text-center px-4 py-3 text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+          className="btn btn-secondary w-full justify-center"
+          style={{ fontSize: '0.8rem' }}
         >
           View Full Profile →
         </Link>

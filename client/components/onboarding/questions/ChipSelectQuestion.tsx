@@ -44,11 +44,11 @@ export default function ChipSelectQuestion({
     <div className="space-y-12">
       {/* Question */}
       <div className="text-center space-y-3">
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
           {question}
         </h2>
-        {subtitle && <p className="text-lg text-gray-500">{subtitle}</p>}
-        <p className="text-sm text-gray-400">
+        {subtitle && <p className="text-lg" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           {selectedValues.length}/{maxSelections} selected
           {optional && ' (optional)'}
         </p>
@@ -67,13 +67,13 @@ export default function ChipSelectQuestion({
                 onMouseEnter={() => setHoveredChip(option.value)}
                 onMouseLeave={() => setHoveredChip(null)}
                 disabled={isDisabled}
-                className={`w-full flex items-center justify-between px-4 py-3 text-sm font-medium rounded-full transition-all duration-200 ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg'
-                    : isDisabled
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                    : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-indigo-300 hover:shadow-md'
-                }`}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold rounded-full transition-all duration-200"
+                style={isSelected
+                  ? { background: 'var(--accent)', color: '#fff', border: '2px solid var(--accent)' }
+                  : isDisabled
+                  ? { background: 'var(--bg)', color: 'var(--border-light)', cursor: 'not-allowed', border: '2px solid var(--border-light)' }
+                  : { background: 'var(--surface)', color: 'var(--text)', border: '2px solid var(--border-light)' }
+                }
               >
                 {/* Checkbox on left */}
                 <input
@@ -81,7 +81,8 @@ export default function ChipSelectQuestion({
                   checked={isSelected}
                   disabled={isDisabled}
                   onChange={() => handleToggle(option.value)}
-                  className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                  className="w-5 h-5 rounded"
+                  style={{ accentColor: 'var(--accent)' }}
                 />
 
                 {/* Label with left indent */}
@@ -93,9 +94,9 @@ export default function ChipSelectQuestion({
 
               {/* Tooltip */}
               {hoveredChip === option.value && !isDisabled && (
-                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-xl whitespace-nowrap animate-in fade-in duration-150">
+                <div className="absolute z-10 bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-2 text-xs rounded-lg shadow-xl whitespace-nowrap animate-in fade-in duration-150" style={{ background: 'var(--border)', color: '#fff' }}>
                   {option.description}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" />
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent" style={{ borderTopColor: 'var(--border)' }} />
                 </div>
               )}
             </div>
@@ -108,11 +109,8 @@ export default function ChipSelectQuestion({
         <button
           onClick={onContinue}
           disabled={!canContinue}
-          className={`px-8 py-4 text-lg font-semibold rounded-xl transition-all duration-150 ${
-            canContinue
-              ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-lg cursor-pointer'
-              : 'text-gray-400 bg-gray-100 cursor-not-allowed'
-          }`}
+          className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >
           Continue →
         </button>
@@ -120,4 +118,3 @@ export default function ChipSelectQuestion({
     </div>
   );
 }
-

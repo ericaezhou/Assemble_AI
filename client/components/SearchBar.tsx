@@ -34,7 +34,7 @@ export default function SearchBar({ onSearch, searchResults, isSearching, onSele
 
   return (
     <div className="relative w-full">
-      <h3 className="text-lg font-semibold text-gray-800 mb-3">Find Researchers by Keyword</h3>
+      <h3 className="text-lg font-black mb-3" style={{ color: 'var(--text)' }}>Find Researchers by Keyword</h3>
       <input
         type="text"
         placeholder="Search by name, institution, or interests..."
@@ -42,14 +42,14 @@ export default function SearchBar({ onSearch, searchResults, isSearching, onSele
         onChange={handleChange}
         onFocus={() => query.length > 0 && setShowDropdown(true)}
         onBlur={handleBlur}
-        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-base text-gray-900 focus:border-indigo-500 focus:outline-none transition-colors"
+        className="input w-full"
       />
 
       {/* Dropdown Results */}
       {showDropdown && isSearching && (
-        <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-75 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-2 max-h-75 overflow-y-auto" style={{ background: 'var(--surface)', border: '2px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '2px 2px 0 var(--border)' }}>
           {searchResults.length === 0 ? (
-            <div className="px-4 py-3 text-gray-500 text-sm">
+            <div className="px-4 py-3 text-sm" style={{ color: 'var(--text-muted)' }}>
               No researchers found matching your search.
             </div>
           ) : (
@@ -57,19 +57,22 @@ export default function SearchBar({ onSearch, searchResults, isSearching, onSele
               <div
                 key={researcher.id}
                 onClick={() => handleSelectResearcher(researcher)}
-                className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                className="px-4 py-3 cursor-pointer"
+                style={{ borderBottom: '1px solid var(--border-light)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-light)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <h4 className="font-semibold text-gray-800">{researcher.name}</h4>
+                  <h4 className="font-semibold" style={{ color: 'var(--text)' }}>{researcher.name}</h4>
                   {researcher.similarity_score !== undefined && researcher.similarity_score > 0 && (
-                    <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-medium">
+                    <span className="tag tag-accent text-xs">
                       Match: {researcher.similarity_score}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 italic">{getInstitution(researcher) || 'Institution not specified'}</p>
+                <p className="text-sm italic" style={{ color: 'var(--text-muted)' }}>{getInstitution(researcher) || 'Institution not specified'}</p>
                 {researcher.interest_areas && researcher.interest_areas.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                  <p className="text-xs mt-1 line-clamp-1" style={{ color: 'var(--text-muted)' }}>
                     {getInterestsString(researcher)}
                   </p>
                 )}

@@ -65,14 +65,13 @@ const DECISION_STYLES = {
   decline: { bg: 'bg-red-50',     text: 'text-red-600',     border: 'border-red-300',     badge: 'bg-red-100   text-red-600',     label: 'Decline'  },
 };
 
-// Colour palette for ICP type badges — cycles through on index
 const TYPE_COLOURS = [
   'bg-violet-100 text-violet-700',
   'bg-sky-100    text-sky-700',
   'bg-pink-100   text-pink-700',
   'bg-teal-100   text-teal-700',
   'bg-orange-100 text-orange-700',
-  'bg-indigo-100 text-indigo-700',
+  'bg-amber-100  text-amber-700',
 ];
 
 function typeColour(name: string, categories: Category[]): string {
@@ -84,21 +83,11 @@ function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
-function getAvatarGradient(name: string) {
-  const g = ['from-indigo-400 to-purple-500','from-pink-400 to-rose-500','from-emerald-400 to-teal-500','from-amber-400 to-orange-500','from-cyan-400 to-blue-500','from-violet-400 to-fuchsia-500'];
-  let h = 0; for (const c of name) h = c.charCodeAt(0) + ((h << 5) - h);
-  return g[Math.abs(h) % g.length];
-}
-
 function tagline(a: Applicant): string {
-  return [
-    a.school || a.company,
-    a.major || a.title,
-    a.year,
-  ].filter(Boolean).join(' · ');
+  return [a.school || a.company, a.major || a.title, a.year].filter(Boolean).join(' · ');
 }
 
-// ── Profile Drawer ────────────────────────────────────────────────────────────
+// ── Profile Drawer ─────────────────────────────────────────────────────────────
 function ProfileDrawer({
   applicant,
   categories,
@@ -114,19 +103,20 @@ function ProfileDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      {/* backdrop */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
-      {/* drawer */}
-      <div className="relative w-full max-w-md bg-white h-full overflow-y-auto shadow-2xl flex flex-col">
-        {/* header */}
-        <div className="flex items-start gap-4 p-6 border-b border-gray-100">
-          <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarGradient(applicant.name)} flex items-center justify-center text-white text-lg font-bold flex-shrink-0`}>
+      <div className="relative w-full max-w-md h-full overflow-y-auto flex flex-col" style={{ background: 'var(--surface)', borderLeft: '2px solid var(--border)' }}>
+        {/* Header */}
+        <div className="flex items-start gap-4 p-6" style={{ borderBottom: '2px solid var(--border-light)' }}>
+          <div
+            className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0"
+            style={{ background: 'var(--accent-light)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
+          >
             {getInitials(applicant.name)}
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-bold text-gray-900">{applicant.name}</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{tagline(applicant)}</p>
+            <h2 className="text-base font-black" style={{ color: 'var(--text)' }}>{applicant.name}</h2>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{tagline(applicant)}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {applicant.ai_review?.category && (
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeColour(applicant.ai_review.category, categories)}`}>
@@ -134,9 +124,7 @@ function ProfileDrawer({
                 </span>
               )}
               {applicant.occupation_tags && applicant.occupation_tags.map(tag => (
-                <span key={tag} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
-                  {tag}
-                </span>
+                <span key={tag} className="tag capitalize" style={{ fontSize: '0.7rem' }}>{tag}</span>
               ))}
               {applicant.ai_score != null && (
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -148,80 +136,66 @@ function ProfileDrawer({
               )}
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 mt-0.5">
+          <button onClick={onClose} className="btn-ghost p-1 rounded" style={{ color: 'var(--text-muted)' }}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* body */}
+        {/* Body */}
         <div className="flex-1 p-6 space-y-5">
-          {/* Bio */}
           {applicant.bio && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">About</p>
-              <p className="text-sm text-gray-700 leading-relaxed">{applicant.bio}</p>
+              <p className="section-heading mb-1">About</p>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{applicant.bio}</p>
             </div>
           )}
-
-          {/* Research / description */}
           {applicant.research_area && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Research</p>
-              <p className="text-sm text-gray-700">{applicant.research_area}</p>
+              <p className="section-heading mb-1">Research</p>
+              <p className="text-sm" style={{ color: 'var(--text)' }}>{applicant.research_area}</p>
             </div>
           )}
-
-          {/* Skills */}
           {applicant.current_skills && applicant.current_skills.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Skills</p>
+              <p className="section-heading mb-1.5">Skills</p>
               <div className="flex flex-wrap gap-1.5">
                 {applicant.current_skills.map(s => (
-                  <span key={s} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{s}</span>
+                  <span key={s} className="tag" style={{ fontSize: '0.7rem' }}>{s}</span>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Interests */}
           {applicant.interest_areas && applicant.interest_areas.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Interests</p>
+              <p className="section-heading mb-1.5">Interests</p>
               <div className="flex flex-wrap gap-1.5">
                 {applicant.interest_areas.map(i => (
-                  <span key={i} className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full">{i}</span>
+                  <span key={i} className="tag tag-accent" style={{ fontSize: '0.7rem' }}>{i}</span>
                 ))}
               </div>
             </div>
           )}
-
-          {/* RSVP answers */}
           {applicant.rsvp_responses && applicant.rsvp_responses.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">RSVP Answers</p>
+              <p className="section-heading mb-1.5">RSVP Answers</p>
               <div className="space-y-1.5">
                 {applicant.rsvp_responses.map((ans, i) => (
-                  <p key={i} className="text-xs text-gray-600 bg-gray-50 rounded-lg px-3 py-2">{ans}</p>
+                  <p key={i} className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border-light)' }}>{ans}</p>
                 ))}
               </div>
             </div>
           )}
-
-          {/* AI reasoning */}
           {applicant.ai_review?.reasoning && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-              <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider mb-1">AI Assessment</p>
-              <p className="text-sm text-indigo-800 leading-relaxed italic">&ldquo;{applicant.ai_review.reasoning}&rdquo;</p>
+            <div className="rounded-lg px-4 py-3" style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)' }}>
+              <p className="section-heading mb-1" style={{ color: 'var(--accent)' }}>AI Assessment</p>
+              <p className="text-sm leading-relaxed italic" style={{ color: 'var(--text)' }}>&ldquo;{applicant.ai_review.reasoning}&rdquo;</p>
             </div>
           )}
-
-          {/* Links */}
-          <div className="flex gap-3">
+          <div className="flex gap-2">
             {applicant.linkedin && (
-              <a href={applicant.linkedin} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
+              <a href={applicant.linkedin} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                 </svg>
@@ -229,8 +203,7 @@ function ProfileDrawer({
               </a>
             )}
             {applicant.github && (
-              <a href={applicant.github} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors">
+              <a href={applicant.github} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
                 </svg>
@@ -241,8 +214,8 @@ function ProfileDrawer({
         </div>
 
         {/* Decision footer */}
-        <div className="p-5 border-t border-gray-100 bg-gray-50">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Decision</p>
+        <div className="p-5" style={{ borderTop: '2px solid var(--border-light)', background: 'var(--bg)' }}>
+          <p className="section-heading mb-3">Decision</p>
           <div className="flex gap-2">
             {(['accept', 'waitlist', 'decline'] as const).map(d => {
               const s = DECISION_STYLES[d];
@@ -250,8 +223,8 @@ function ProfileDrawer({
               return (
                 <button key={d}
                   onClick={() => onDecision(applicant.id, d)}
-                  className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition-all ${
-                    selected ? `${s.bg} ${s.text} ${s.border} shadow-sm` : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                  className={`flex-1 py-2.5 text-sm font-semibold rounded-lg border transition-all ${
+                    selected ? `${s.bg} ${s.text} ${s.border}` : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                   }`}>
                   {s.label}
                 </button>
@@ -264,7 +237,7 @@ function ProfileDrawer({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main component ─────────────────────────────────────────────────────────────
 export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantReviewerProps) {
   const [phase, setPhase]                   = useState<ReviewPhase>('setup');
   const [applicants, setApplicants]         = useState<Applicant[]>([]);
@@ -276,7 +249,6 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
   const [confirmingAll, setConfirmingAll]   = useState(false);
   const [confirmed, setConfirmed]           = useState(false);
   const [loading, setLoading]               = useState(true);
-  // statusFilter is purely client-side — we always fetch all applicants
   const [statusFilter, setStatusFilter]     = useState<'all' | 'undecided' | 'accept' | 'waitlist' | 'decline'>('all');
   const [typeFilter, setTypeFilter]         = useState<string>('all');
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
@@ -285,7 +257,6 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
   const [csvResult, setCsvResult]           = useState<{ imported: number; skipped: number } | null>(null);
   const csvInputRef                         = useRef<HTMLInputElement>(null);
 
-  // Always fetch ALL applicants — filtering happens client-side so stats never go stale
   const fetchApplicants = useCallback(async () => {
     setLoading(true);
     try {
@@ -307,11 +278,10 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     } finally {
       setLoading(false);
     }
-  }, [eventId]); // no statusFilter dep — fetch is always all
+  }, [eventId]);
 
   useEffect(() => { fetchApplicants(); }, [fetchApplicants]);
 
-  // Sync drawer with latest local state
   useEffect(() => {
     if (selectedApplicant) {
       const updated = applicants.find(a => a.id === selectedApplicant.id);
@@ -402,10 +372,8 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     }
   };
 
-  // Auto-save final_decision draft on each toggle (no status change yet — that's Publish)
   const handleDecisionChange = async (applicantId: string, decision: 'accept' | 'waitlist' | 'decline') => {
     const applicant = applicants.find(a => a.id === applicantId);
-    // Optimistic update
     setApplicants(prev => prev.map(a => a.id === applicantId ? { ...a, localDecision: decision } : a));
     try {
       await authenticatedFetch(`/api/conferences/${eventId}/applicants/${applicantId}`, {
@@ -417,7 +385,6 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     }
   };
 
-  // Publish All — sets participant status based on final_decision, refreshes participants tab
   const handleConfirmAll = async () => {
     setConfirmingAll(true);
     try {
@@ -439,16 +406,12 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     }
   };
 
-  // ── Derived ────────────────────────────────────────────────────────────────
   const icpTypes = reviewCriteria.categories.map(c => c.name);
-
-  // Stats reflect local decisions immediately (not DB status)
   const undecidedCount = applicants.filter(a => !a.localDecision).length;
   const acceptedCount  = applicants.filter(a => a.localDecision === 'accept').length;
   const waitlistCount  = applicants.filter(a => a.localDecision === 'waitlist').length;
   const declinedCount  = applicants.filter(a => a.localDecision === 'decline').length;
   const reviewedCount  = applicants.filter(a => a.ai_review).length;
-  // pending = still in DB as pending (unreviewed by AI yet)
   const pendingCount   = applicants.filter(a => a.status === 'pending').length;
 
   const visibleApplicants = applicants.filter(a => {
@@ -460,47 +423,45 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     return typeMatch && statusMatch;
   });
 
-  // ── SETUP PHASE ────────────────────────────────────────────────────────────
+  // ── SETUP PHASE ──────────────────────────────────────────────────────────────
   if (phase === 'setup') {
     return (
       <div className="p-6 space-y-4">
-        {/* ── CSV Import ── */}
+        {/* CSV Import */}
         <div>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Import Applicants</h2>
-          <p className="text-sm text-gray-500 mb-2">Upload a CSV with columns: <span className="font-medium text-gray-700">full name, email, linkedin</span></p>
-          <input
-            ref={csvInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }}
-          />
+          <h2 className="text-base font-black mb-1" style={{ color: 'var(--text)' }}>Import Applicants</h2>
+          <p className="text-sm mb-2" style={{ color: 'var(--text-muted)' }}>
+            Upload a CSV with columns: <span className="font-semibold" style={{ color: 'var(--text)' }}>full name, email, linkedin</span>
+          </p>
+          <input ref={csvInputRef} type="file" accept=".csv" className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }} />
           <div className="flex items-center gap-3">
             <button
               onClick={() => csvInputRef.current?.click()}
               disabled={uploadingCSV}
-              className="px-4 py-2 border border-gray-300 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-2"
+              className="btn btn-secondary disabled:opacity-50"
+              style={{ fontSize: '0.8rem', padding: '6px 12px' }}
             >
               {uploadingCSV
-                ? <><div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Importing & enriching profiles...</>
+                ? <><div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} /> Importing & enriching...</>
                 : <>📄 Upload CSV</>}
             </button>
             {csvResult && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs font-medium">
                 {csvResult.imported > 0
-                  ? <span className="text-emerald-600 font-medium">✓ Imported {csvResult.imported} applicant{csvResult.imported !== 1 ? 's' : ''}{csvResult.skipped > 0 ? `, skipped ${csvResult.skipped} duplicates` : ''}</span>
-                  : <span className="text-amber-600 font-medium">No new applicants imported</span>
+                  ? <span className="text-emerald-600">✓ Imported {csvResult.imported}{csvResult.skipped > 0 ? `, skipped ${csvResult.skipped} duplicates` : ''}</span>
+                  : <span className="text-amber-600">No new applicants imported</span>
                 }
               </span>
             )}
           </div>
         </div>
 
-        <hr className="border-gray-100" />
+        <hr style={{ borderColor: 'var(--border-light)' }} />
 
         <div>
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Review Criteria</h2>
-          <p className="text-sm text-gray-500">Describe your ideal attendee mix</p>
+          <h2 className="text-base font-black mb-1" style={{ color: 'var(--text)' }}>Review Criteria</h2>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Describe your ideal attendee mix</p>
         </div>
 
         <div className="space-y-2">
@@ -509,12 +470,13 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
             value={promptInput}
             onChange={e => setPromptInput(e.target.value)}
             placeholder="e.g. 40% builders, 25% students, 20% founders, 15% VCs — strong AI/ML background preferred"
-            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:border-indigo-400 focus:outline-none resize-none"
+            className="input resize-none"
+            style={{ padding: '12px' }}
           />
           <button
             onClick={handleGenerateCriteria}
             disabled={generatingCriteria || !promptInput.trim()}
-            className="w-full py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="btn btn-primary w-full justify-center disabled:opacity-50"
           >
             {generatingCriteria
               ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating...</>
@@ -525,8 +487,8 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
         {reviewCriteria.categories.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-gray-400 tracking-wider">Fine-tuning</label>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalPct === 100 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+              <span className="section-heading">Fine-tuning</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${totalPct === 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
                 Total: {totalPct}%
               </span>
             </div>
@@ -536,56 +498,52 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                   <textarea
                     rows={1}
                     value={cat.name}
-                    ref={el => {
-                      if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
-                    }}
+                    ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
                     onChange={e => {
-                      const el = e.target;
-                      el.style.height = 'auto';
-                      el.style.height = `${el.scrollHeight}px`;
+                      const el = e.target; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`;
                       setReviewCriteria(prev => {
                         const updated = [...prev.categories];
                         updated[i] = { ...updated[i], name: e.target.value };
                         return { ...prev, categories: updated };
                       });
                     }}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-xl w-28 flex-shrink-0 text-center border-none focus:outline-none resize-none overflow-hidden ${TYPE_COLOURS[i % TYPE_COLOURS.length]}`}
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-lg w-28 flex-shrink-0 text-center border-none focus:outline-none resize-none overflow-hidden ${TYPE_COLOURS[i % TYPE_COLOURS.length]}`}
                   />
                   <input
                     type="range" min={0} max={100} value={cat.target_pct}
                     onChange={e => handleSliderChange(i, parseInt(e.target.value))}
-                    className="flex-1 accent-indigo-600"
+                    className="flex-1"
+                    style={{ accentColor: 'var(--accent)' }}
                   />
                   <div className="flex items-center flex-shrink-0">
                     <input
                       type="number" min={0} max={100} value={cat.target_pct}
-                      onChange={e => {
-                        const v = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                        handleSliderChange(i, v);
-                      }}
-                      className="w-8 text-sm font-semibold text-indigo-600 text-right bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={e => handleSliderChange(i, Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                      className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ color: 'var(--accent)' }}
                     />
-                    <span className="text-sm font-semibold text-indigo-600">%</span>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>%</span>
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-gray-400 tracking-wider">Special Requests</label>
+              <label className="section-heading">Special Requests</label>
               <textarea
                 rows={2}
                 value={reviewCriteria.special_requests}
                 onChange={e => setReviewCriteria(prev => ({ ...prev, special_requests: e.target.value }))}
                 placeholder="e.g. prefer Stanford affiliations"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-900 focus:border-indigo-400 focus:outline-none resize-none"
+                className="input resize-none"
+                style={{ padding: '12px' }}
               />
             </div>
 
             <button
               onClick={handleSaveCriteria}
               disabled={savingCriteria || totalPct !== 100}
-              className="w-full py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              className="btn btn-primary w-full justify-center disabled:opacity-50"
             >
               {savingCriteria
                 ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Saving...</>
@@ -597,7 +555,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     );
   }
 
-  // ── REVIEW PHASE ───────────────────────────────────────────────────────────
+  // ── REVIEW PHASE ─────────────────────────────────────────────────────────────
   const reviewContent = (
     <>
       {selectedApplicant && (
@@ -610,32 +568,29 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
       )}
 
       <div className={`p-6 ${isExpanded ? 'flex flex-col gap-4 flex-1 min-h-0 max-w-5xl mx-auto w-full' : 'space-y-4'}`}>
-        {/* ── Action row ── */}
+        {/* Action row */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button onClick={() => setPhase('setup')} className="text-xs text-indigo-600 hover:underline whitespace-nowrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => setPhase('setup')} className="text-xs font-semibold hover:underline" style={{ color: 'var(--accent)' }}>
               Edit Criteria
             </button>
-            <input
-              ref={csvInputRef}
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }}
-            />
+            <input ref={csvInputRef} type="file" accept=".csv" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); }} />
             <button
               onClick={() => csvInputRef.current?.click()}
               disabled={uploadingCSV}
-              className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              className="btn btn-secondary disabled:opacity-50"
+              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
             >
               {uploadingCSV
-                ? <><div className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> Enriching profiles...</>
+                ? <><div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }} /> Enriching...</>
                 : '📄 Import CSV'}
             </button>
             <button
               onClick={handleRunAIReview}
               disabled={runningReview || pendingCount === 0}
-              className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+              className="btn btn-primary disabled:opacity-50"
+              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
             >
               {runningReview
                 ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Reviewing...</>
@@ -645,7 +600,8 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
               <button
                 onClick={handleConfirmAll}
                 disabled={confirmingAll}
-                className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+                className="btn disabled:opacity-50"
+                style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#059669', color: '#fff', borderColor: '#047857' }}
               >
                 {confirmingAll
                   ? <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Publishing...</>
@@ -656,7 +612,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
           <button
             onClick={() => setIsExpanded(e => !e)}
             title={isExpanded ? 'Collapse' : 'Expand'}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="btn-ghost p-1.5 rounded-lg"
           >
             {isExpanded ? (
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -670,43 +626,46 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
           </button>
         </div>
 
-        {/* ── Filter tabs ── */}
-        <div className="flex border-b border-gray-200 w-full">
+        {/* Filter tabs */}
+        <div className="flex w-full" style={{ borderBottom: '2px solid var(--border-light)' }}>
           {([
-            { key: 'all',       label: 'All',        count: applicants.length, color: 'text-gray-800',    border: 'border-gray-800'    },
-            { key: 'undecided', label: 'Pending',    count: undecidedCount,    color: 'text-gray-500',    border: 'border-gray-500'    },
-            { key: 'accept',    label: 'Accepted',   count: acceptedCount,     color: 'text-emerald-600', border: 'border-emerald-600' },
-            { key: 'waitlist',  label: 'Waitlisted', count: waitlistCount,     color: 'text-amber-500',   border: 'border-amber-500'   },
-            { key: 'decline',   label: 'Declined',   count: declinedCount,     color: 'text-red-500',     border: 'border-red-500'     },
-          ] as Array<{ key: typeof statusFilter; label: string; count: number; color: string; border: string }>).map(({ key, label, count, color, border }) => (
-            <button key={key} onClick={() => setStatusFilter(key)}
-              className={`flex-1 flex flex-col items-center px-2 py-2 border-b-2 transition-all ${
-                statusFilter === key
-                  ? `${border} ${color}`
-                  : `border-transparent ${color} opacity-40 hover:opacity-70`
-              }`}>
-              <span className="text-xl font-bold leading-tight">{count}</span>
-              <span className="text-xs font-medium mt-0.5">{label}</span>
-            </button>
-          ))}
+            { key: 'all',       label: 'All',        count: applicants.length  },
+            { key: 'undecided', label: 'Pending',    count: undecidedCount     },
+            { key: 'accept',    label: 'Accepted',   count: acceptedCount      },
+            { key: 'waitlist',  label: 'Waitlisted', count: waitlistCount      },
+            { key: 'decline',   label: 'Declined',   count: declinedCount      },
+          ] as Array<{ key: typeof statusFilter; label: string; count: number }>).map(({ key, label, count }) => {
+            const active = statusFilter === key;
+            return (
+              <button key={key} onClick={() => setStatusFilter(key)}
+                className="flex-1 flex flex-col items-center px-2 py-2 border-b-2 transition-all"
+                style={{
+                  borderBottomColor: active ? 'var(--accent)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--text-muted)',
+                  opacity: active ? 1 : 0.6,
+                }}
+              >
+                <span className="text-xl font-black leading-tight">{count}</span>
+                <span className="text-xs font-medium mt-0.5">{label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {confirmed && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700 font-medium">
+          <div className="rounded-lg px-4 py-3 text-sm font-medium" style={{ background: '#f0fdf4', border: '1.5px solid #86efac', color: '#15803d' }}>
             Decisions published! Accepted applicants now appear in the Participants tab.
           </div>
         )}
 
-        {/* ── ICP Type filter (only shown after AI review has run) ── */}
+        {/* ICP Type filter */}
         {reviewedCount > 0 && icpTypes.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <button
               onClick={() => setTypeFilter('all')}
-              className={`text-xs font-semibold px-3 py-1 rounded-full border transition-colors ${
-                typeFilter === 'all'
-                  ? 'bg-gray-800 text-white border-gray-800'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
-              }`}>
+              className={`btn ${typeFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: '0.7rem', padding: '2px 10px' }}
+            >
               All Types
             </button>
             {icpTypes.map((t, i) => (
@@ -714,19 +673,21 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                 className={`text-xs font-semibold px-3 py-1 rounded-full border transition-colors ${
                   typeFilter === t
                     ? `${TYPE_COLOURS[i % TYPE_COLOURS.length]} border-current`
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
-                }`}>
+                    : 'border-gray-200 hover:border-gray-400'
+                }`}
+                style={typeFilter !== t ? { color: 'var(--text-muted)', background: 'transparent' } : {}}
+              >
                 {t}
               </button>
             ))}
           </div>
         )}
 
-        {/* ── Applicant list ── */}
+        {/* Applicant list */}
         {loading ? (
-          <div className="text-center py-10 text-gray-400 text-sm">Loading applicants...</div>
+          <div className="text-center py-10 text-sm" style={{ color: 'var(--text-muted)' }}>Loading applicants...</div>
         ) : visibleApplicants.length === 0 ? (
-          <div className="text-center py-10 text-gray-400 text-sm">No applicants in this view.</div>
+          <div className="text-center py-10 text-sm" style={{ color: 'var(--text-muted)' }}>No applicants in this view.</div>
         ) : (
           <div className={`space-y-2 overflow-y-auto pr-1 ${isExpanded ? 'flex-1 min-h-0' : 'max-h-[560px]'}`}>
             {visibleApplicants.map(applicant => {
@@ -738,31 +699,29 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                 <div
                   key={applicant.id}
                   onClick={() => setSelectedApplicant(applicant)}
-                  className={`rounded-2xl border p-4 cursor-pointer transition-all hover:shadow-md ${
-                    style ? `${style.bg} ${style.border}` : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                  className={`rounded-lg border p-4 cursor-pointer transition-all ${
+                    style ? `${style.bg} ${style.border}` : 'border-gray-200 hover:border-gray-300'
                   }`}
+                  style={!style ? { background: 'var(--bg)' } : {}}
                 >
                   <div className="flex items-center gap-3">
-                    {/* Avatar */}
-                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarGradient(applicant.name)} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                      style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
+                    >
                       {getInitials(applicant.name)}
                     </div>
 
-                    {/* Main info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
-                        <span className="text-sm font-semibold text-gray-900">{applicant.name}</span>
-                        {/* AI review category (after review runs) */}
+                        <span className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{applicant.name}</span>
                         {category && (
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeColour(category, reviewCriteria.categories)}`}>
                             {category}
                           </span>
                         )}
-                        {/* Profile-based occupation tags (visible as soon as CSV is imported) */}
                         {!category && applicant.occupation_tags && applicant.occupation_tags.length > 0 && applicant.occupation_tags.map(tag => (
-                          <span key={tag} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
-                            {tag}
-                          </span>
+                          <span key={tag} className="tag capitalize" style={{ fontSize: '0.65rem' }}>{tag}</span>
                         ))}
                         {applicant.ai_score != null && (
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -778,27 +737,22 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{tagline(applicant)}</p>
+                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{tagline(applicant)}</p>
                       {applicant.interest_areas && applicant.interest_areas.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {applicant.interest_areas.slice(0, 3).map(area => (
-                            <span key={area} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{area}</span>
+                            <span key={area} className="tag tag-accent" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>{area}</span>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Chevron */}
-                    <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--border-light)' }}>
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                   </div>
 
-                  {/* Decision buttons — stop propagation so clicking them doesn't open drawer */}
-                  <div
-                    className="flex gap-2 mt-3 pt-3 border-t border-black/5"
-                    onClick={e => e.stopPropagation()}
-                  >
+                  <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }} onClick={e => e.stopPropagation()}>
                     {(['accept', 'waitlist', 'decline'] as const).map(d => {
                       const s = DECISION_STYLES[d];
                       const selected = decision === d;
@@ -806,7 +760,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                         <button key={d}
                           onClick={() => handleDecisionChange(applicant.id, d)}
                           className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-                            selected ? `${s.bg} ${s.text} ${s.border} border shadow-sm` : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+                            selected ? `${s.bg} ${s.text} ${s.border}` : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                           }`}>
                           {s.label}
                         </button>
@@ -822,15 +776,15 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
     </>
   );
 
-  // ── Expanded = full-screen overlay, collapsed = inline ───────────────────
   if (isExpanded) {
     return (
-      <div className="fixed inset-0 z-40 bg-white flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
-          <p className="text-sm font-semibold text-gray-700">Review Applicants</p>
+      <div className="fixed inset-0 z-40 flex flex-col overflow-hidden" style={{ background: 'var(--surface)' }}>
+        <div className="flex-shrink-0 px-6 py-3 flex items-center justify-between" style={{ borderBottom: '2px solid var(--border-light)' }}>
+          <p className="text-sm font-black" style={{ color: 'var(--text)' }}>Review Applicants</p>
           <button
             onClick={() => setIsExpanded(false)}
-            className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1"
+            className="btn btn-ghost"
+            style={{ fontSize: '0.75rem', padding: '4px 10px' }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0l5 0M4 4v5M15 9l5-5m0 0l-5 0m5 0v5M9 15l-5 5m0 0l5 0m-5 0v-5M15 15l5 5m0 0l-5 0m5 0v-5" />

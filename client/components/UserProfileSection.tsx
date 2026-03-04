@@ -41,19 +41,18 @@ interface CollapsibleSectionProps {
 
 function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSectionProps) {
   return (
-    <div className="border-b border-gray-100 last:border-b-0">
+    <div style={{ borderBottom: '1px solid var(--border-light)' }} className="last:border-b-0">
       <button
         onClick={onToggle}
-        className="w-full flex items-center justify-between py-3 px-2 hover:bg-gray-50 transition-colors rounded-lg"
+        className="w-full flex items-center justify-between py-3 px-2 rounded-lg transition-colors btn-ghost"
       >
-        <span className="font-semibold text-sm text-gray-800">{title}</span>
+        <span className="section-heading">{title}</span>
         <svg
-          className={`w-4 h-4 text-gray-500 transition-transform ${
-            isOpen ? 'transform rotate-180' : ''
-          }`}
+          className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
+          style={{ color: 'var(--text-muted)' }}
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -83,12 +82,24 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
     }));
   };
 
+  const initials = user.name.charAt(0).toUpperCase();
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden">
+    <div className="card overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
-        <h3 className="text-2xl font-bold mb-1">{user.name}</h3>
-        <p className="text-indigo-100 text-sm">{user.email}</p>
+      <div className="p-6" style={{ background: 'var(--accent)', borderBottom: '2px solid var(--border)' }}>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-black flex-shrink-0"
+            style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: '2px solid rgba(255,255,255,0.4)' }}
+          >
+            {initials}
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-white">{user.name}</h3>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>{user.email}</p>
+          </div>
+        </div>
       </div>
 
       {/* Collapsible sections */}
@@ -101,14 +112,14 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
         >
           {user.occupation && (
             <div>
-              <span className="text-xs text-gray-500">Occupation</span>
-              <p className="text-sm text-gray-800 font-medium">{user.occupation}</p>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Occupation</span>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.occupation}</p>
             </div>
           )}
           {user.degree && (
             <div>
-              <span className="text-xs text-gray-500">Education</span>
-              <p className="text-sm text-gray-800 font-medium">{user.degree}</p>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Education</span>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.degree}</p>
             </div>
           )}
         </CollapsibleSection>
@@ -125,20 +136,20 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
               <>
                 {user.school && (
                   <div>
-                    <span className="text-xs text-gray-500">School</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.school}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>School</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.school}</p>
                   </div>
                 )}
                 {user.major && (
                   <div>
-                    <span className="text-xs text-gray-500">Major</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.major}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Major</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.major}</p>
                   </div>
                 )}
                 {user.year && (
                   <div>
-                    <span className="text-xs text-gray-500">Year</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.year}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Year</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.year}</p>
                   </div>
                 )}
               </>
@@ -149,26 +160,26 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
               <>
                 {user.company && (
                   <div>
-                    <span className="text-xs text-gray-500">Company</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.company}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Company</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.company}</p>
                   </div>
                 )}
                 {user.title && (
                   <div>
-                    <span className="text-xs text-gray-500">Title</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.title}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Title</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.title}</p>
                   </div>
                 )}
                 {user.work_experience_years && (
                   <div>
-                    <span className="text-xs text-gray-500">Experience</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.work_experience_years}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Experience</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.work_experience_years}</p>
                   </div>
                 )}
                 {user.school && (
                   <div>
-                    <span className="text-xs text-gray-500">School</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.school}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>School</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.school}</p>
                   </div>
                 )}
               </>
@@ -179,14 +190,14 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
               <>
                 {user.school && (
                   <div>
-                    <span className="text-xs text-gray-500">Institution</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.school}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Institution</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.school}</p>
                   </div>
                 )}
                 {user.research_area && (
                   <div>
-                    <span className="text-xs text-gray-500">Research Area</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.research_area}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Research Area</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.research_area}</p>
                   </div>
                 )}
               </>
@@ -197,14 +208,14 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
               <>
                 {user.other_description && (
                   <div>
-                    <span className="text-xs text-gray-500">About</span>
-                    <p className="text-sm text-gray-800">{user.other_description}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>About</span>
+                    <p className="text-sm" style={{ color: 'var(--text)' }}>{user.other_description}</p>
                   </div>
                 )}
                 {user.school && (
                   <div>
-                    <span className="text-xs text-gray-500">School</span>
-                    <p className="text-sm text-gray-800 font-medium">{user.school}</p>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>School</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.school}</p>
                   </div>
                 )}
               </>
@@ -213,14 +224,14 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
             {/* Legacy fields fallback */}
             {!user.occupation && user.institution && (
               <div>
-                <span className="text-xs text-gray-500">Institution</span>
-                <p className="text-sm text-gray-800 font-medium">{user.institution}</p>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Institution</span>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{user.institution}</p>
               </div>
             )}
             {!user.occupation && user.bio && (
               <div>
-                <span className="text-xs text-gray-500">Bio</span>
-                <p className="text-sm text-gray-800">{user.bio}</p>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Bio</span>
+                <p className="text-sm" style={{ color: 'var(--text)' }}>{user.bio}</p>
               </div>
             )}
           </CollapsibleSection>
@@ -240,7 +251,7 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
                   <ProfileChip key={interest} value={interest} type="interest" />
                 ))
               ) : (
-                <p className="text-sm text-gray-600">{user.research_areas || user.interests}</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user.research_areas || user.interests}</p>
               )}
             </div>
           </CollapsibleSection>
@@ -278,8 +289,8 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
       </div>
 
       {/* Edit button */}
-      <div className="p-4 bg-gray-50 border-t border-gray-100">
-        <button className="w-full px-4 py-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors">
+      <div className="p-4" style={{ borderTop: '2px solid var(--border-light)', background: 'var(--bg)' }}>
+        <button className="btn btn-ghost w-full text-sm" style={{ color: 'var(--accent)' }}>
           Edit Profile
         </button>
       </div>
