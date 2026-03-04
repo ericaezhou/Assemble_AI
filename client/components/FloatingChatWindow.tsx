@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { getInitialsFromName } from '@/utils/name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const POLL_INTERVAL_MS = 3000;
@@ -163,7 +164,7 @@ export default function FloatingChatWindow({
       >
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-sm font-semibold flex-shrink-0">
-            {otherUserName.charAt(0).toUpperCase()}
+            {getInitialsFromName(otherUserName)}
           </div>
           <span className="text-sm font-semibold text-gray-800 truncate">{otherUserName}</span>
         </div>

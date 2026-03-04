@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { UserProfile } from '@/store/userStore';
+import { getInitialsFromName } from '@/utils/name';
 import ChipList from './ChipList';
 import ProfileEditForm from './ProfileEditForm';
 
@@ -9,15 +10,6 @@ interface FullProfileProps {
   user: UserProfile;
   isOwnProfile: boolean;
   onProfileUpdate: () => void;
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function getAvatarGradient(name: string): string {
@@ -124,7 +116,7 @@ export default function FullProfile({
                 user.name
               )} flex items-center justify-center text-white text-2xl font-bold ring-4 ring-white shadow-lg`}
             >
-              {getInitials(user.name)}
+              {getInitialsFromName(user.name)}
             </div>
 
             {isOwnProfile && (
