@@ -404,7 +404,8 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
         return {
           ...profile,
           similarity_score: typeof match.score === 'number' ? match.score : 0,
-          match_reason: typeof match.reason === 'string' ? match.reason : undefined
+          exp_similarity: typeof match.exp_similarity === 'number' ? match.exp_similarity : undefined,
+          interest_similarity: typeof match.interest_similarity === 'number' ? match.interest_similarity : undefined
         };
       })
       .filter(Boolean);
@@ -427,6 +428,129 @@ app.get('/api/researchers/:id/recommendations', authenticateToken, authorizeUser
     }
 
     res.json(finalRecommendations);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get recommendations within one event only (Protected)
+app.get('/api/researchers/:id/recommendations/event/:eventId', authenticateToken, authorizeUser, async (req, res) => {
+  const { id, eventId } = req.params;
+  let topK;
+  let minScore;
+  let applyMmr;
+  let mmrLambda;
+
+  try {
+    topK = parseIntBounded(req.query.top_k, 3, TOP_K_MIN, TOP_K_MAX, 'top_k');
+    minScore = parseFloatBounded(req.query.min_score, 0, 0, 1, 'min_score');
+    applyMmr = parseBooleanStrict(req.query.apply_mmr, true, 'apply_mmr');
+    mmrLambda = parseFloatBounded(
+      req.query.mmr_lambda,
+      0.5,
+      MMR_LAMBDA_MIN_EXCLUSIVE,
+      MMR_LAMBDA_MAX_INCLUSIVE,
+      'mmr_lambda',
+      { minExclusive: true }
+    );
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message });
+  }
+
+  try {
+    const matchingPayload = {
+      target_id: id,
+      event_id: eventId,
+      top_k: topK,
+      min_score: minScore,
+      apply_mmr: applyMmr,
+      mmr_lambda: mmrLambda,
+    };
+
+    const matchingResponse = await fetch(`${MATCHING_SERVICE_URL}/api/u2u/event-matches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(matchingPayload),
+    });
+
+    const matchingData = await matchingResponse.json().catch(() => ({}));
+    if (!matchingResponse.ok) {
+      return res.status(matchingResponse.status).json({
+        error: matchingData.error || 'Failed to fetch event recommendations from matching service',
+      });
+    }
+
+    const matches = Array.isArray(matchingData.matches) ? matchingData.matches : [];
+    const matchedUserIds = matches
+      .map(match => match.user_id)
+      .filter(Boolean);
+
+    if (matchedUserIds.length === 0) {
+      return res.json([]);
+    }
+
+    const { data: matchedProfiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .in('id', matchedUserIds);
+
+    if (profileError) {
+      return res.status(500).json({ error: profileError.message });
+    }
+
+    const profileMap = new Map((matchedProfiles || []).map(profile => [profile.id, profile]));
+    const recommendations = matches
+      .map(match => {
+        const profile = profileMap.get(match.user_id);
+        if (!profile) return null;
+
+        return {
+          ...profile,
+          similarity_score: typeof match.score === 'number' ? match.score : 0,
+          exp_similarity: typeof match.exp_similarity === 'number' ? match.exp_similarity : undefined,
+          interest_similarity: typeof match.interest_similarity === 'number' ? match.interest_similarity : undefined,
+        };
+      })
+      .filter(Boolean);
+
+    res.json(recommendations);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate one recommendation reason on-demand (Protected)
+app.post('/api/researchers/:id/recommendations/:matchedId/why-match', authenticateToken, authorizeUser, async (req, res) => {
+  const { id, matchedId } = req.params;
+  const score = req.body?.score;
+  const expSimilarity = req.body?.exp_similarity;
+  const interestSimilarity = req.body?.interest_similarity;
+
+  try {
+    const matchingPayload = {
+      target_id: id,
+      matched_user_id: matchedId,
+      ...(score !== undefined ? { score } : {}),
+      ...(expSimilarity !== undefined ? { exp_similarity: expSimilarity } : {}),
+      ...(interestSimilarity !== undefined ? { interest_similarity: interestSimilarity } : {}),
+    };
+
+    const matchingResponse = await fetch(`${MATCHING_SERVICE_URL}/api/u2u/match-reason`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(matchingPayload),
+    });
+
+    const matchingData = await matchingResponse.json().catch(() => ({}));
+    if (!matchingResponse.ok) {
+      return res.status(matchingResponse.status).json({
+        error: matchingData.error || 'Failed to generate why-match reason',
+      });
+    }
+
+    res.json({
+      reason: typeof matchingData.reason === 'string' ? matchingData.reason : '',
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

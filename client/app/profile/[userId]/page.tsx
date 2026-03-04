@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUserStore, UserProfile } from '@/store/userStore';
 import TopNav from '@/components/layout/TopNav';
 import FullProfile from '@/components/profile/FullProfile';
 import EventsPanel from '@/components/profile/EventsPanel';
-import { authenticatedFetch } from '@/utils/auth';
+import { useAuthSWR } from '@/hooks/useAuthSWR';
 
 interface Conference {
   id: string;
@@ -28,10 +28,6 @@ export default function ProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user: currentUser, isAuthenticated } = useUserStore();
-  const [profileUser, setProfileUser] = useState<UserProfile | null>(null);
-  const [events, setEvents] = useState<Conference[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const userId = params.userId as string;
   const isOwnProfile = currentUser?.id === userId;
@@ -39,38 +35,21 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/');
-      return;
     }
-    fetchProfile();
-    fetchEvents();
-  }, [userId, isAuthenticated, router]);
+  }, [isAuthenticated, router]);
 
-  const fetchProfile = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await authenticatedFetch(`/api/researchers/${userId}`);
-      if (!response.ok) throw new Error('Failed to fetch profile');
-      const data = await response.json();
-      setProfileUser(data);
-    } catch (err) {
-      setError('Could not load profile');
-      console.error('Error fetching profile:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    data: profileUser,
+    error: profileError,
+    isLoading,
+    mutate: mutateProfile,
+  } = useAuthSWR<UserProfile>(
+    isAuthenticated ? `/api/researchers/${userId}` : null
+  );
 
-  const fetchEvents = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/researchers/${userId}/conferences`);
-      if (!response.ok) return;
-      const data = await response.json();
-      setEvents(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-    }
-  };
+  const { data: events = [] } = useAuthSWR<Conference[]>(
+    isAuthenticated ? `/api/researchers/${userId}/conferences` : null
+  );
 
   if (isLoading) {
     return (
@@ -93,13 +72,13 @@ export default function ProfilePage() {
     );
   }
 
-  if (error || !profileUser) {
+  if (profileError || !profileUser) {
     return (
       <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
         <TopNav currentView="profile" />
         <div className="max-w-6xl mx-auto p-8">
           <div className="card p-8 text-center">
-            <p style={{ color: 'var(--text-muted)' }}>{error || 'Profile not found'}</p>
+            <p style={{ color: 'var(--text-muted)' }}>{profileError?.message || 'Profile not found'}</p>
             <button
               onClick={() => router.push('/')}
               className="btn btn-secondary mt-4"
@@ -120,7 +99,7 @@ export default function ProfilePage() {
           <FullProfile
             user={profileUser}
             isOwnProfile={isOwnProfile}
-            onProfileUpdate={fetchProfile}
+            onProfileUpdate={() => mutateProfile()}
           />
           <EventsPanel
             events={events}

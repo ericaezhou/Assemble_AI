@@ -5,9 +5,20 @@ import { Researcher, getInstitution } from '@/types/profile';
 interface ResearcherCardProps {
   researcher: Researcher;
   onConnect?: (researcherId: string) => void;
+  onWhyMatch?: (researcherId: string) => void;
+  whyMatchReason?: string;
+  whyMatchLoading?: boolean;
+  whyMatchVisible?: boolean;
 }
 
-export default function ResearcherCard({ researcher, onConnect }: ResearcherCardProps) {
+export default function ResearcherCard({
+  researcher,
+  onConnect,
+  onWhyMatch,
+  whyMatchReason,
+  whyMatchLoading = false,
+  whyMatchVisible = false,
+}: ResearcherCardProps) {
   const similarityScore =
     typeof researcher.similarity_score === 'number' ? researcher.similarity_score : null;
 
@@ -56,17 +67,25 @@ export default function ResearcherCard({ researcher, onConnect }: ResearcherCard
         </p>
       )}
 
-      {researcher.match_reason && (
-        <div
-          className="mb-3 p-3 rounded-lg"
-          style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)' }}
-        >
-          <strong className="block text-xs mb-1" style={{ color: 'var(--accent)' }}>Why matched:</strong>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{researcher.match_reason}</p>
-        </div>
-      )}
-
-      <div className="mt-auto pt-4" style={{ borderTop: '2px solid var(--border-light)' }}>
+      <div className="mt-auto pt-4 flex flex-col items-start gap-2" style={{ borderTop: '2px solid var(--border-light)' }}>
+        {onWhyMatch && (
+          <button
+            onClick={() => onWhyMatch(researcher.id)}
+            disabled={whyMatchLoading}
+            className="btn btn-secondary text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {whyMatchLoading ? 'Generating...' : whyMatchReason ? (whyMatchVisible ? 'hide reason' : 'show reason') : 'why match'}
+          </button>
+        )}
+        {(whyMatchReason || researcher.match_reason) && whyMatchVisible && (
+          <div
+            className="w-full p-3 rounded-lg"
+            style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)' }}
+          >
+            <strong className="block text-xs mb-1" style={{ color: 'var(--accent)' }}>Why matched:</strong>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text)' }}>{whyMatchReason || researcher.match_reason}</p>
+          </div>
+        )}
         {onConnect ? (
           <button
             onClick={() => onConnect(researcher.id)}

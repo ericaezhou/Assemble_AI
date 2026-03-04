@@ -10,9 +10,10 @@ import { useUserStore } from '@/store/userStore';
 type ViewState = 'login' | 'signup' | 'dashboard';
 
 export default function Home() {
-  const { user, setUser, clearUser } = useUserStore();
-  const [view, setView] = useState<ViewState>('login');
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated, setUser, clearUser } = useUserStore();
+  // If user is already known from persisted store, skip the loading spinner
+  const [view, setView] = useState<ViewState>(isAuthenticated && user ? 'dashboard' : 'login');
+  const [loading, setLoading] = useState(!isAuthenticated || !user);
 
   useEffect(() => {
     // Check if user is already signed in via Supabase session
@@ -29,6 +30,10 @@ export default function Home() {
           }
           // If profile fetch fails for a non-401 reason (transient error, slow server),
           // don't sign out — 401 is already handled by authenticatedFetch itself
+        } else if (isAuthenticated) {
+          // Session expired but store still thinks we're authenticated
+          clearUser();
+          setView('login');
         }
       } catch (err) {
         const error = err as Error;
@@ -42,7 +47,7 @@ export default function Home() {
     };
 
     checkAuth();
-  }, [setUser, clearUser]);
+  }, [setUser, clearUser, isAuthenticated]);
 
   const handleLoginSuccess = async (userId: string) => {
     try {

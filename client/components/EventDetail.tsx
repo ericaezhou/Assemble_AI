@@ -40,9 +40,14 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
   const [event, setEvent] = useState<Event | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
+  const [eventRecommendations, setEventRecommendations] = useState<Participant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('description');
+  const [wrappedTarget, setWrappedTarget] = useState<Participant | null>(null);
+  const [wrappedPage, setWrappedPage] = useState(0);
+  const [wrappedReasonByUserId, setWrappedReasonByUserId] = useState<Record<string, string>>({});
+  const [wrappedReasonLoading, setWrappedReasonLoading] = useState(false);
 
   useEffect(() => {
     fetchEventDetails();
@@ -71,10 +76,26 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
       );
       const data = await response.json();
       setParticipants(data);
+      fetchEventRecommendations(Array.isArray(data) ? data.length : 3);
     } catch (err) {
       console.error('Error fetching participants:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEventRecommendations = async (participantCountHint?: number) => {
+    try {
+      const participantCount = Math.max(3, participantCountHint || participants.length || 3);
+      const topK = Math.min(50, participantCount);
+      const response = await authenticatedFetch(
+        `/api/researchers/${userId}/recommendations/event/${eventId}?top_k=${topK}&min_score=0&apply_mmr=true&mmr_lambda=0.5`
+      );
+      const data = await response.json();
+      setEventRecommendations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching event recommendations:', err);
+      setEventRecommendations([]);
     }
   };
 
@@ -110,7 +131,68 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
     return event.location || 'Location TBD';
   };
 
-  const topRecommended = [...participants]
+  const currentUser = participants.find(p => p.id === userId) || null;
+  const recMap = new Map(eventRecommendations.map(p => [p.id, p]));
+
+  const getCommonPoints = (other: Participant): string[] => {
+    if (!currentUser) return [];
+    const points: string[] = [];
+    const myInstitution = getInstitution(currentUser).trim().toLowerCase();
+    const otherInstitution = getInstitution(other).trim().toLowerCase();
+    if (myInstitution && otherInstitution && myInstitution === otherInstitution) {
+      points.push(`Both are connected to ${getInstitution(other)}`);
+    }
+    const myResearch = (currentUser.research_area || '').trim().toLowerCase();
+    const otherResearch = (other.research_area || '').trim().toLowerCase();
+    if (myResearch && otherResearch && (myResearch === otherResearch || myResearch.includes(otherResearch) || otherResearch.includes(myResearch))) {
+      points.push(`Shared research focus around ${other.research_area}`);
+    }
+    const myInterests = new Set((currentUser.interest_areas || []).map(x => x.trim().toLowerCase()).filter(Boolean));
+    const otherInterests = (other.interest_areas || []).map(x => x.trim().toLowerCase()).filter(Boolean);
+    otherInterests.filter(x => myInterests.has(x)).slice(0, 3).forEach(x => points.push(`Common interest: ${x}`));
+    const mySkills = new Set((currentUser.current_skills || []).map(x => x.trim().toLowerCase()).filter(Boolean));
+    const otherSkills = (other.current_skills || []).map(x => x.trim().toLowerCase()).filter(Boolean);
+    otherSkills.filter(x => mySkills.has(x)).slice(0, 2).forEach(x => points.push(`Both work with ${x}`));
+    return points.slice(0, 4);
+  };
+
+  const getIceBreakers = (other: Participant, commonPoints: string[]): string[] => {
+    const cues: string[] = [];
+    if (commonPoints.length > 0) {
+      cues.push(`"I saw we both care about ${commonPoints[0].replace(/^Common interest:\s*/i, '').replace(/^Shared research focus around\s*/i, '')}. What are you building in that area?"`);
+    }
+    if (other.research_area) cues.push(`"What made you focus on ${other.research_area} recently?"`);
+    const otherInterests = (other.interest_areas || []).slice(0, 1);
+    if (otherInterests.length > 0) cues.push(`"How did you get interested in ${otherInterests[0]}?"`);
+    if (cues.length === 0) cues.push('"What are you most excited to learn from people at this event?"');
+    return cues.slice(0, 3);
+  };
+
+  const openWrapped = async (person: Participant) => {
+    setWrappedTarget(person);
+    setWrappedPage(0);
+    if (wrappedReasonByUserId[person.id]) return;
+    setWrappedReasonLoading(true);
+    try {
+      const rec = recMap.get(person.id);
+      const response = await authenticatedFetch(`/api/researchers/${userId}/recommendations/${person.id}/why-match`, {
+        method: 'POST',
+        body: JSON.stringify({ score: rec?.similarity_score ?? person.similarity_score, exp_similarity: rec?.exp_similarity, interest_similarity: rec?.interest_similarity }),
+      });
+      const data = await response.json().catch(() => ({}));
+      const reason = typeof data?.reason === 'string' && data.reason.trim() ? data.reason.trim() : 'You seem to have a meaningful overlap worth chatting about.';
+      setWrappedReasonByUserId(prev => ({ ...prev, [person.id]: reason }));
+    } catch {
+      setWrappedReasonByUserId(prev => ({ ...prev, [person.id]: 'You seem to have a meaningful overlap worth chatting about.' }));
+    } finally {
+      setWrappedReasonLoading(false);
+    }
+  };
+
+  const closeWrapped = () => { setWrappedTarget(null); setWrappedPage(0); };
+
+  // Top 3 recommended (sorted by similarity_score, excluding self)
+  const topRecommended = [...eventRecommendations]
     .filter(p => p.id !== userId && typeof p.similarity_score === 'number')
     .sort((a, b) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0))
     .slice(0, 3);
@@ -349,13 +431,22 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             <span className="tag tag-accent">{matchPercent}% match</span>
                           )}
                           {onConnect && (
-                            <button
-                              onClick={() => onConnect(person.id, event?.name)}
-                              className="btn btn-primary w-full justify-center"
-                              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-                            >
-                              Connect
-                            </button>
+                            <div className="w-full mt-1 space-y-1.5">
+                              <button
+                                onClick={() => openWrapped(person)}
+                                className="btn btn-secondary w-full justify-center"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                              >
+                                Match Wrapped
+                              </button>
+                              <button
+                                onClick={() => onConnect(person.id, event?.name)}
+                                className="btn btn-primary w-full justify-center"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                              >
+                                Connect
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -416,13 +507,22 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             )}
                           </div>
                           {onConnect && !isMe && (
-                            <button
-                              onClick={() => onConnect(participant.id, event?.name)}
-                              className="btn btn-primary flex-shrink-0"
-                              style={{ fontSize: '0.75rem', padding: '4px 10px' }}
-                            >
-                              Connect
-                            </button>
+                            <div className="flex-shrink-0 flex flex-col gap-1.5">
+                              <button
+                                onClick={() => openWrapped(participant)}
+                                className="btn btn-secondary"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                              >
+                                Match Wrapped
+                              </button>
+                              <button
+                                onClick={() => onConnect(participant.id, event?.name)}
+                                className="btn btn-primary"
+                                style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                              >
+                                Connect
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -434,6 +534,102 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
           )}
         </div>
       </div>
+
+      {/* ── Match Wrapped Modal ── */}
+      {wrappedTarget && (() => {
+        const rec = recMap.get(wrappedTarget.id);
+        const rawScore = rec?.similarity_score ?? wrappedTarget.similarity_score;
+        const score = typeof rawScore === 'number' ? Math.max(0, Math.round(rawScore * 100)) : 0;
+        const commonPoints = getCommonPoints(wrappedTarget);
+        const iceBreakers = getIceBreakers(wrappedTarget, commonPoints);
+        const reason = wrappedReasonByUserId[wrappedTarget.id] || '';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/55 flex items-center justify-center p-4">
+            <div className="card w-full max-w-2xl overflow-hidden">
+              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '2px solid var(--border-light)' }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Match Wrapped</p>
+                <button onClick={closeWrapped} className="btn-ghost text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
+                  Close
+                </button>
+              </div>
+
+              <div className="p-6 min-h-[320px]">
+                {wrappedPage === 0 && (
+                  <div className="h-full rounded-lg bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-8 flex flex-col items-center justify-center text-center">
+                    <p className="text-xs uppercase tracking-[0.2em] opacity-80 mb-2">You + {wrappedTarget.name}</p>
+                    <p className="text-5xl font-extrabold leading-none">{score}%</p>
+                    <p className="mt-3 text-lg font-semibold">Event Match Score</p>
+                    <p className="mt-2 text-sm opacity-90">Based on this event&apos;s attendee pool</p>
+                  </div>
+                )}
+                {wrappedPage === 1 && (
+                  <div className="h-full rounded-lg p-7" style={{ background: 'var(--accent-light)', border: '1.5px solid var(--border-light)' }}>
+                    <p className="section-heading mb-3">What you have in common</p>
+                    {commonPoints.length > 0 ? (
+                      <div className="space-y-2">
+                        {commonPoints.map((point, idx) => (
+                          <div key={`${point}-${idx}`} className="rounded-lg p-3 text-sm" style={{ background: 'var(--surface)', border: '1.5px solid var(--border-light)', color: 'var(--text)' }}>
+                            {point}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg p-4 text-sm" style={{ background: 'var(--surface)', border: '1.5px solid var(--border-light)', color: 'var(--text-muted)' }}>
+                        No obvious overlap detected, but this can still be a great "new perspective" conversation.
+                      </div>
+                    )}
+                  </div>
+                )}
+                {wrappedPage === 2 && (
+                  <div className="h-full rounded-lg p-7" style={{ background: '#f0fdf4', border: '1.5px solid #86efac' }}>
+                    <p className="section-heading mb-3" style={{ color: '#15803d' }}>Talk starters</p>
+                    <div className="space-y-2 mb-4">
+                      {iceBreakers.map((line, idx) => (
+                        <div key={`${line}-${idx}`} className="rounded-lg p-3 text-sm" style={{ background: 'var(--surface)', border: '1.5px solid #86efac', color: 'var(--text)' }}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1.5px solid #86efac' }}>
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>AI summary</p>
+                      <p className="text-sm" style={{ color: 'var(--text)' }}>
+                        {wrappedReasonLoading && !reason ? 'Generating summary...' : (reason || 'You have enough overlap to start a meaningful conversation.')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 pb-6 flex items-center justify-between" style={{ borderTop: '2px solid var(--border-light)' }}>
+                <button
+                  onClick={() => setWrappedPage(prev => Math.max(0, prev - 1))}
+                  disabled={wrappedPage === 0}
+                  className="btn btn-secondary disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-2">
+                  {[0, 1, 2].map(idx => (
+                    <span
+                      key={idx}
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: wrappedPage === idx ? 'var(--accent)' : 'var(--border-light)' }}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setWrappedPage(prev => Math.min(2, prev + 1))}
+                  disabled={wrappedPage === 2}
+                  className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

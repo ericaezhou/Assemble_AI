@@ -18,6 +18,7 @@ from uuid import UUID
 from openai import OpenAI
 
 from db.repositories.profile_repository import ProfileRepository
+from db.repositories.conference_participant_repository import ConferenceParticipantRepository
 from src.matching.matching_pojo import UserProfile, MatchingParams
 from src.matching.adapters import (
     BgeM3Embedder,
@@ -87,6 +88,7 @@ class MatchingService:
         """
         # Initialize database repository
         self.profile_repo = ProfileRepository()
+        self.conference_participant_repo = ConferenceParticipantRepository()
 
         # Initialize matching components
         self.embedder = self._create_embedder(
@@ -528,6 +530,159 @@ class MatchingService:
         ]
 
         return results
+
+    def find_matches_without_reasons(
+            self,
+            user_id: UUID,
+            top_k: int = 10,
+            min_score: float = 0.02,
+            apply_mmr: bool = True,
+            mmr_lambda: float = 0.5,
+    ) -> List[Dict[str, any]]:
+        """
+        Find matching users with metadata, but DO NOT call OpenAI.
+
+        This keeps the initial recommendation path fast. Match reasons can be
+        generated later on demand via generate_reason_for_pair().
+        """
+        target_user = self._get_user_by_id(user_id)
+        if not target_user:
+            raise ValueError(f"User {user_id} not found in database")
+
+        all_users = self._fetch_all_users()
+        match_results = self.engine.match_users(
+            users=all_users,
+            params=self.default_params,
+            top_k=top_k,
+            apply_mmr=apply_mmr,
+            mmr_lambda=mmr_lambda,
+            min_score=min_score,
+        )
+
+        user_id_str = str(user_id)
+        ranked_users = match_results.get(user_id_str, [])
+
+        results = []
+        for ranked_user in ranked_users:
+            matched_user = self._get_user_by_id(UUID(ranked_user.user_id))
+            if not matched_user:
+                continue
+
+            results.append({
+                'user_id': UUID(ranked_user.user_id),
+                'name': matched_user.name,
+                'role': matched_user.role,
+                'score': ranked_user.score,
+                'exp_similarity': ranked_user.debug_info.get('exp_sim', 0.1),
+                'exp_debug': ranked_user.debug_info.get('exp_debug', ''),
+                'interest_similarity': ranked_user.debug_info.get('interest_sim', 0.1),
+                'interest_debug': ranked_user.debug_info.get('interest_debug', ''),
+                'tags': matched_user.tags,
+                'metadata': matched_user.metadata,
+            })
+
+        return results
+
+    def find_matches_in_event_without_reasons(
+            self,
+            user_id: UUID,
+            event_id: str,
+            top_k: int = 10,
+            min_score: float = 0.02,
+            apply_mmr: bool = True,
+            mmr_lambda: float = 0.5,
+    ) -> List[Dict[str, any]]:
+        """
+        Find matching users only within one event's participant pool.
+        """
+        target_user = self._get_user_by_id(user_id)
+        if not target_user:
+            raise ValueError(f"User {user_id} not found in database")
+
+        participants = self.conference_participant_repo.get_conference_participants(event_id)
+        if not participants:
+            return []
+
+        participant_ids = {str(p.researcher_id) for p in participants}
+        if str(user_id) not in participant_ids:
+            raise ValueError(f"User {user_id} is not a participant of event {event_id}")
+
+        event_users: List[UserProfile] = []
+        for participant_id in participant_ids:
+            try:
+                profile = self._get_user_by_id(UUID(participant_id))
+                if profile is not None:
+                    event_users.append(profile)
+            except Exception:
+                # Skip malformed ids or missing users to keep endpoint resilient.
+                continue
+
+        if len(event_users) <= 1:
+            return []
+
+        match_results = self.engine.match_users(
+            users=event_users,
+            params=self.default_params,
+            top_k=top_k,
+            apply_mmr=apply_mmr,
+            mmr_lambda=mmr_lambda,
+            min_score=min_score,
+        )
+
+        ranked_users = match_results.get(str(user_id), [])
+        results = []
+        for ranked_user in ranked_users:
+            matched_user = self._get_user_by_id(UUID(ranked_user.user_id))
+            if not matched_user:
+                continue
+
+            results.append({
+                'user_id': UUID(ranked_user.user_id),
+                'name': matched_user.name,
+                'role': matched_user.role,
+                'score': ranked_user.score,
+                'exp_similarity': ranked_user.debug_info.get('exp_sim', 0.1),
+                'exp_debug': ranked_user.debug_info.get('exp_debug', ''),
+                'interest_similarity': ranked_user.debug_info.get('interest_sim', 0.1),
+                'interest_debug': ranked_user.debug_info.get('interest_debug', ''),
+                'tags': matched_user.tags,
+                'metadata': matched_user.metadata,
+            })
+
+        return results
+
+    def generate_reason_for_pair(
+            self,
+            user_id: UUID,
+            matched_user_id: UUID,
+            score: Optional[float] = None,
+            exp_similarity: Optional[float] = None,
+            interest_similarity: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate one match reason on demand for (user_id -> matched_user_id).
+        """
+        target_user = self._get_user_by_id(user_id)
+        if not target_user:
+            raise ValueError(f"User {user_id} not found in database")
+
+        matched_user = self._get_user_by_id(matched_user_id)
+        if not matched_user:
+            raise ValueError(f"User {matched_user_id} not found in database")
+
+        reason = self._generate_match_reason(
+            target_user,
+            matched_user,
+            float(exp_similarity if exp_similarity is not None else 0.1),
+            float(interest_similarity if interest_similarity is not None else 0.1),
+            float(score if score is not None else 0.1),
+        )
+
+        return {
+            "target_id": user_id,
+            "matched_user_id": matched_user_id,
+            "reason": reason,
+        }
 
     def find_matches_with_reasons(
             self,

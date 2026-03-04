@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useUserStore } from '@/store/userStore';
 import TopNav from '@/components/layout/TopNav';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+import { usePublicSWR } from '@/hooks/useAuthSWR';
+import { API_BASE_URL } from '@/utils/api';
 
 interface Message {
   id: number;
@@ -28,13 +28,17 @@ const DRAFTS_KEY = 'assemble-message-drafts';
 
 export default function MessagesPage() {
   const { user, hiddenConversationIds, hideConversation } = useUserStore();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const { data: conversations = [] } = usePublicSWR<Conversation[]>(
+    user ? `/api/conversations/user/${user.id}` : null,
+    { refreshInterval: 1000 }
+  );
   const [hoveredConvId, setHoveredConvId] = useState<number | null>(null);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { data: messages = [], isLoading: loadingMessages, mutate: mutateMessages } = usePublicSWR<Message[]>(
+    activeConversation ? `/api/conversations/${activeConversation.id}/messages` : null
+  );
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [drafts, setDrafts] = useState<Record<number, string>>(() => {
     try {
       const stored = localStorage.getItem(DRAFTS_KEY);
@@ -51,13 +55,6 @@ export default function MessagesPage() {
     localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
   }, [drafts]);
 
-  useEffect(() => {
-    if (!user) return;
-    fetchConversations();
-    const interval = setInterval(fetchConversations, 1000);
-    return () => clearInterval(interval);
-  }, [user]);
-
   // On conversation switch: save old draft, restore new one
   useEffect(() => {
     const prevId = prevConvIdRef.current;
@@ -67,38 +64,12 @@ export default function MessagesPage() {
     prevConvIdRef.current = activeConversation?.id ?? null;
     if (activeConversation) {
       setNewMessage(drafts[activeConversation.id] ?? '');
-      fetchMessages(activeConversation.id);
     }
   }, [activeConversation?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const fetchConversations = async () => {
-    if (!user) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/conversations/user/${user.id}`);
-      const data = await res.json();
-      setConversations(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Error fetching conversations:', err);
-    }
-  };
-
-  const fetchMessages = async (conversationId: number) => {
-    setLoadingMessages(true);
-    setMessages([]);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/conversations/${conversationId}/messages`);
-      const data = await res.json();
-      setMessages(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Error fetching messages:', err);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
 
   const handleDeleteConversation = (e: React.MouseEvent, convId: number) => {
     e.stopPropagation();
@@ -131,7 +102,7 @@ export default function MessagesPage() {
         }),
       });
       const msg = await res.json();
-      setMessages(prev => [...prev, msg]);
+      mutateMessages((current) => [...(current || []), msg], { revalidate: false });
     } catch (err) {
       console.error('Error sending message:', err);
       setNewMessage(textToSend); // restore on error
