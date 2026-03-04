@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useAuthSWR } from '@/hooks/useAuthSWR';
+import { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/auth';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
+import { getInitialsFromName } from '@/utils/name';
+import ApplicantReviewer from './ApplicantReviewer';
 
 interface Event {
   id: string;
@@ -19,6 +21,7 @@ interface Event {
   cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
+  require_approval?: boolean;
 }
 
 interface EventDetailProps {
@@ -28,11 +31,7 @@ interface EventDetailProps {
   onConnect?: (researcherId: string, eventName?: string) => void;
 }
 
-type ActiveTab = 'description' | 'announcement' | 'participants';
-
-function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
+type ActiveTab = 'description' | 'announcement' | 'participants' | 'review';
 
 function getAvatarGradient(name: string): string {
   const gradients = [
@@ -51,19 +50,49 @@ function getAvatarGradient(name: string): string {
 }
 
 export default function EventDetail({ eventId, userId, onConnect }: EventDetailProps) {
+  const [event, setEvent] = useState<Event | null>(null);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [filteredParticipants, setFilteredParticipants] = useState<Participant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>('description');
 
-  const { data: event } = useAuthSWR<Event>(
-    `/api/conferences/${eventId}`
-  );
+  useEffect(() => {
+    fetchEventDetails();
+    fetchParticipants();
+  }, [eventId]);
 
-  const { data: participants = [], isLoading: loading } = useAuthSWR<Participant[]>(
-    `/api/conferences/${eventId}/participants?current_user_id=${userId}`
-  );
+  useEffect(() => {
+    filterParticipants();
+  }, [searchQuery, participants]);
+
+  const fetchEventDetails = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/conferences/${eventId}`);
+      const data = await response.json();
+      setEvent(data);
+    } catch (err) {
+      console.error('Error fetching event:', err);
+    }
+  };
+
+  const fetchParticipants = async () => {
+    setLoading(true);
+    try {
+      const response = await authenticatedFetch(
+        `/api/conferences/${eventId}/participants?current_user_id=${userId}`
+      );
+      const data = await response.json();
+      setParticipants(data);
+    } catch (err) {
+      console.error('Error fetching participants:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filter participants by search query; sort alphabetically by name
-  const filteredParticipants = useMemo(() => {
+  const filterParticipants = () => {
     let filtered = participants;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -74,10 +103,10 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
         getInterestsString(p).toLowerCase().includes(query)
       );
     }
-    return [...filtered].sort((a, b) =>
+    setFilteredParticipants([...filtered].sort((a, b) =>
       (a.name || '').toLowerCase() < (b.name || '').toLowerCase() ? -1 : 1
-    );
-  }, [searchQuery, participants]);
+    ));
+  };
 
   const formatDateBlock = (dateString: string) => {
     const date = new Date(dateString + 'T12:00:00');
@@ -114,6 +143,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
 
   const isUpcoming = new Date(event.start_date) > new Date();
   const isAttending = !loading && participants.some(p => p.id === userId);
+  const isHost = event.host_id === userId;
   const dateBlock = formatDateBlock(event.start_date);
 
   return (
@@ -193,16 +223,20 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
           <div>
         <div className="bg-white rounded-2xl shadow-md overflow-hidden">
           {/* Tab bar */}
-          <div className="flex border-b border-gray-100 px-2">
+          <div className="flex border-b border-gray-100 px-2 overflow-x-auto">
             {[
               { key: 'description', label: 'About' },
               { key: 'announcement', label: 'Announcement' },
               { key: 'participants', label: `Participants (${participants.length})` },
+              ...(isHost && event.require_approval ? [{
+                key: 'review',
+                label: 'Review Applicants'
+              }] : []),
             ].map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as ActiveTab)}
-                className={`px-5 py-4 text-sm font-semibold relative transition-colors ${
+                className={`px-5 py-4 text-sm font-semibold relative transition-colors whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'text-indigo-600'
                     : 'text-gray-400 hover:text-gray-700'
@@ -289,6 +323,16 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
             </div>
           )}
 
+          {/* ── Review Applicants Tab (host only) ── */}
+          {activeTab === 'review' && isHost && event.require_approval && (
+            <ApplicantReviewer
+              eventId={eventId}
+              userId={userId}
+              eventName={event.name}
+              onConfirmed={fetchParticipants}
+            />
+          )}
+
           {/* ── Participants Tab ── */}
           {activeTab === 'participants' && (
             <div className="p-6 space-y-8">
@@ -307,7 +351,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           className="bg-gradient-to-b from-indigo-50 to-white border border-indigo-100 rounded-xl p-4 flex flex-col items-center text-center gap-2"
                         >
                           <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarGradient(person.name)} flex items-center justify-center text-white text-sm font-bold shadow-sm`}>
-                            {getInitials(person.name)}
+                            {getInitialsFromName(person.name)}
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-900 leading-tight">{person.name}</p>
@@ -368,7 +412,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-indigo-50 rounded-xl transition-colors"
                         >
                           <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${getAvatarGradient(participant.name)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
-                            {getInitials(participant.name)}
+                            {getInitialsFromName(participant.name)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
