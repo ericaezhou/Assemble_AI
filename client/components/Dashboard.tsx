@@ -38,6 +38,8 @@ interface Researcher {
   interests?: string;
   similarity_score?: number;
   match_reason?: string;
+  exp_similarity?: number;
+  interest_similarity?: number;
 }
 
 interface Event {

@@ -172,7 +172,7 @@ def u2u_matches():
     )
 
     try:
-        matches = SERVICE.find_matches_with_reasons(
+        matches = SERVICE.find_matches_without_reasons(
             user_id=target_id,
             top_k=top_k,
             min_score=min_score,
@@ -191,6 +191,163 @@ def u2u_matches():
             "matches": matches,
         })
     )
+
+
+@app.post("/api/u2u/event-matches")
+def u2u_event_matches():
+    """
+    Event-scoped user-to-user matching.
+
+    Request JSON:
+      {
+        "target_id": "<uuid-string>",
+        "event_id": "<event-id>",
+        "top_k": 5,                 # optional
+        "min_score": 0.0,           # optional
+        "apply_mmr": true,          # optional
+        "mmr_lambda": 0.5           # optional
+      }
+    """
+    data = request.get_json(silent=True) or {}
+
+    target_id_str = data.get("target_id")
+    event_id = (data.get("event_id") or "").strip()
+    if not target_id_str:
+        return jsonify({"error": "Missing field: target_id"}), 400
+    if not event_id:
+        return jsonify({"error": "Missing field: event_id"}), 400
+
+    try:
+        target_id = UUID(str(target_id_str))
+    except Exception:
+        return jsonify({"error": "Invalid UUID format for target_id"}), 400
+
+    try:
+        top_k = parse_int_bounded(
+            data.get("top_k"),
+            field_name="top_k",
+            default=5,
+            min_value=TOP_K_MIN,
+            max_value=TOP_K_MAX,
+        )
+        min_score = parse_float_bounded(
+            data.get("min_score"),
+            field_name="min_score",
+            default=0.0,
+            min_value=0.0,
+            max_value=1.0,
+        )
+        apply_mmr = parse_bool_strict(
+            data.get("apply_mmr"),
+            field_name="apply_mmr",
+            default=True,
+        )
+        mmr_lambda = parse_float_bounded(
+            data.get("mmr_lambda"),
+            field_name="mmr_lambda",
+            default=0.5,
+            min_value=MMR_LAMBDA_MIN_EXCLUSIVE,
+            max_value=MMR_LAMBDA_MAX_INCLUSIVE,
+            min_exclusive=True,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        matches = SERVICE.find_matches_in_event_without_reasons(
+            user_id=target_id,
+            event_id=event_id,
+            top_k=top_k,
+            min_score=min_score,
+            apply_mmr=apply_mmr,
+            mmr_lambda=mmr_lambda,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": f"Internal error: {e}"}), 500
+
+    return jsonify(
+        to_jsonable({
+            "target_id": target_id,
+            "event_id": event_id,
+            "matches": matches,
+        })
+    )
+
+
+@app.post("/api/u2u/match-reason")
+def u2u_match_reason():
+    """
+    Generate one match reason on demand.
+
+    Request JSON:
+      {
+        "target_id": "<uuid-string>",
+        "matched_user_id": "<uuid-string>",
+        "score": 0.42,                # optional
+        "exp_similarity": 0.31,       # optional
+        "interest_similarity": 0.55   # optional
+      }
+    """
+    data = request.get_json(silent=True) or {}
+
+    target_id_str = data.get("target_id")
+    matched_user_id_str = data.get("matched_user_id")
+    if not target_id_str:
+        return jsonify({"error": "Missing field: target_id"}), 400
+    if not matched_user_id_str:
+        return jsonify({"error": "Missing field: matched_user_id"}), 400
+
+    try:
+        target_id = UUID(str(target_id_str))
+    except Exception:
+        return jsonify({"error": "Invalid UUID format for target_id"}), 400
+
+    try:
+        matched_user_id = UUID(str(matched_user_id_str))
+    except Exception:
+        return jsonify({"error": "Invalid UUID format for matched_user_id"}), 400
+
+    try:
+        score = parse_float_bounded(
+            data.get("score"),
+            field_name="score",
+            default=0.1,
+            min_value=0.0,
+            max_value=1.0,
+        )
+        exp_similarity = parse_float_bounded(
+            data.get("exp_similarity"),
+            field_name="exp_similarity",
+            default=0.1,
+            min_value=0.0,
+            max_value=1.0,
+        )
+        interest_similarity = parse_float_bounded(
+            data.get("interest_similarity"),
+            field_name="interest_similarity",
+            default=0.1,
+            min_value=0.0,
+            max_value=1.0,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        result = SERVICE.generate_reason_for_pair(
+            user_id=target_id,
+            matched_user_id=matched_user_id,
+            score=score,
+            exp_similarity=exp_similarity,
+            interest_similarity=interest_similarity,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        return jsonify({"error": f"Internal error: {e}"}), 500
+
+    return jsonify(to_jsonable(result))
 
 
 @app.post("/api/u2u/embeddings/rebuild")
