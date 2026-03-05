@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
+import { getInitialsFromName } from '@/utils/name';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 import ApplicantReviewer from './ApplicantReviewer';
 
@@ -31,10 +32,6 @@ interface EventDetailProps {
 }
 
 type ActiveTab = 'description' | 'announcement' | 'participants' | 'review';
-
-function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
 
 export default function EventDetail({ eventId, userId, onConnect }: EventDetailProps) {
   const [event, setEvent] = useState<Event | null>(null);
@@ -419,7 +416,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
                             style={{ background: 'var(--surface)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitials(person.name)}
+                            {getInitialsFromName(person.name)}
                           </div>
                           <div>
                             <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{person.name}</p>
@@ -492,7 +489,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                             className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
                             style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitials(participant.name)}
+                            {getInitialsFromName(participant.name)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">

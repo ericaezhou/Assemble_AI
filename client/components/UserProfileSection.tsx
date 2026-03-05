@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { getInitialsFromName } from '@/utils/name';
 import ProfileChip from './ProfileChip';
 
 interface UserData {
@@ -82,7 +83,7 @@ export default function UserProfileSection({ user }: UserProfileSectionProps) {
     }));
   };
 
-  const initials = user.name.charAt(0).toUpperCase();
+  const initials = getInitialsFromName(user.name);
 
   return (
     <div className="card overflow-hidden">
