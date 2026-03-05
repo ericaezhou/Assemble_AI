@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getInitialsFromName } from '@/utils/name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 const POLL_INTERVAL_MS = 3000;
@@ -155,7 +154,7 @@ export default function FloatingChatWindow({
         border: '2px solid var(--border)',
         borderBottom: 'none',
         borderRadius: '8px 8px 0 0',
-        boxShadow: '-4px -4px 0 var(--border)',
+        boxShadow: '0 -4px 20px rgba(0,0,0,0.12)',
       }}
     >
       {/* Header */}

@@ -78,7 +78,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
   const [currentStep, setCurrentStep] = useState<Step>('logistics');
   const [formData, setFormData] = useState<EventFormData>({
     name: '',
-    startDate: '',
+    startDate: new Date().toISOString().split('T')[0],
     startTime: '09:00',
     endDate: '',
     endTime: '17:00',
@@ -450,10 +450,10 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                   className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
                   style={
                     index < currentStepIndex
-                      ? { background: 'var(--accent)', color: '#fff', border: '2px solid var(--border)' }
+                      ? { background: 'var(--accent)', color: '#fff' }
                       : index === currentStepIndex
                       ? { background: 'var(--accent-light)', color: 'var(--accent)', border: '2px solid var(--accent)' }
-                      : { background: 'var(--bg)', color: 'var(--text-muted)', border: '2px solid var(--border-light)' }
+                      : { background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border-light)' }
                   }
                 >
                   {index < currentStepIndex ? (
@@ -465,8 +465,10 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                   )}
                 </div>
                 <span
-                  className="text-sm font-semibold"
-                  style={{ color: index === currentStepIndex ? 'var(--accent)' : 'var(--text-muted)' }}
+                  className="text-sm font-semibold transition-colors"
+                  style={{ color: index === currentStepIndex ? 'var(--accent)' : 'var(--text-muted)', cursor: index !== currentStepIndex ? 'default' : 'default' }}
+                  onMouseEnter={e => { if (index !== currentStepIndex) e.currentTarget.style.color = 'var(--accent)'; }}
+                  onMouseLeave={e => { if (index !== currentStepIndex) e.currentTarget.style.color = 'var(--text-muted)'; }}
                 >
                   {getStepLabel(step)}
                 </span>
@@ -653,6 +655,9 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                       onChange={handleChange}
                       placeholder="e.g., AI Research Symposium 2025"
                       className="input w-full"
+                      style={{ borderColor: 'var(--border-light)' }}
+                      onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                      onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                     />
                   </div>
 
@@ -666,12 +671,18 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           value={formData.startDate}
                           onChange={handleChange}
                           className="input flex-1 text-sm"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light' }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         />
                         <select
                           name="startTime"
                           value={formData.startTime}
                           onChange={handleChange}
-                          className="input w-28 text-sm cursor-pointer"
+                          className="input w-20 text-sm cursor-pointer"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)' }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         >
                           {TIME_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -690,12 +701,18 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           value={formData.endDate}
                           onChange={handleChange}
                           className="input flex-1 text-sm"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light' }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         />
                         <select
                           name="endTime"
                           value={formData.endTime}
                           onChange={handleChange}
-                          className="input w-28 text-sm cursor-pointer"
+                          className="input w-20 text-sm cursor-pointer"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)' }}
+                          onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                          onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         >
                           {TIME_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -715,11 +732,13 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           key={option.value}
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, locationType: option.value }))}
-                          className="btn flex items-center justify-center gap-2 text-sm"
+                          className="btn flex items-center justify-center gap-2 text-sm transition-colors"
                           style={formData.locationType === option.value
                             ? { background: 'var(--accent-light)', color: 'var(--accent)', borderColor: 'var(--accent)' }
-                            : { background: 'var(--bg)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
+                            : { background: 'var(--surface)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
                           }
+                          onMouseEnter={e => { if (formData.locationType !== option.value) { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}}
+                          onMouseLeave={e => { if (formData.locationType !== option.value) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = 'var(--surface)'; }}}
                         >
                           <span>{option.icon}</span>
                           {option.label}
@@ -735,14 +754,15 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                             name="location"
                             value={formData.location}
                             onChange={handleLocationInput}
-                            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                            onFocus={() => locationSuggestions.length > 0 && setShowSuggestions(true)}
+                            onBlur={e => { setTimeout(() => setShowSuggestions(false), 150); e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                            onFocus={e => { locationSuggestions.length > 0 && setShowSuggestions(true); e.currentTarget.style.borderColor = 'var(--accent)'; }}
                             placeholder="Search for a venue address..."
                             className="input w-full text-sm"
+                            style={{ borderColor: 'var(--border-light)' }}
                             autoComplete="off"
                           />
                           {showSuggestions && locationSuggestions.length > 0 && (
-                            <ul className="absolute z-50 top-full left-0 right-0 mt-1 max-h-52 overflow-y-auto text-sm" style={{ background: 'var(--surface)', border: '2px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: '2px 2px 0 var(--border)' }}>
+                            <ul className="absolute z-50 top-full left-0 right-0 mt-1 max-h-52 overflow-y-auto text-sm" style={{ background: 'var(--surface)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
                               {locationSuggestions.map((s, i) => (
                                 <li
                                   key={i}
@@ -760,7 +780,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         </div>
 
                         {/* Vague location toggle */}
-                        <div className="flex items-center justify-between mt-2 px-3 py-2.5 rounded-lg" style={{ background: 'var(--bg)', border: '2px solid var(--border-light)' }}>
+                        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-light)' }}>
                           <div>
                             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Hide exact address publicly</p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Show only city/area on the card — exact address visible to approved attendees</p>
@@ -788,6 +808,9 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         onChange={handleChange}
                         placeholder="Video conference link"
                         className="input w-full text-sm"
+                        style={{ borderColor: 'var(--border-light)' }}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                       />
                     )}
                   </div>
@@ -799,22 +822,26 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         <button
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, priceType: 'free' }))}
-                          className="btn flex-1 text-sm"
+                          className="btn flex-1 text-sm transition-colors"
                           style={formData.priceType === 'free'
                             ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
-                            : { background: 'var(--bg)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
+                            : { background: 'var(--surface)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
                           }
+                          onMouseEnter={e => { if (formData.priceType !== 'free') { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}}
+                          onMouseLeave={e => { if (formData.priceType !== 'free') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = 'var(--surface)'; }}}
                         >
                           Free
                         </button>
                         <button
                           type="button"
                           onClick={() => setFormData((prev) => ({ ...prev, priceType: 'paid' }))}
-                          className="btn flex-1 text-sm"
+                          className="btn flex-1 text-sm transition-colors"
                           style={formData.priceType === 'paid'
                             ? { background: 'var(--accent-light)', color: 'var(--accent)', borderColor: 'var(--accent)' }
-                            : { background: 'var(--bg)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
+                            : { background: 'var(--surface)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
                           }
+                          onMouseEnter={e => { if (formData.priceType !== 'paid') { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}}
+                          onMouseLeave={e => { if (formData.priceType !== 'paid') { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = 'var(--surface)'; }}}
                         >
                           Paid
                         </button>
@@ -829,6 +856,9 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                             onChange={handleChange}
                             placeholder="0.00"
                             className="input w-full pl-8 text-sm"
+                            style={{ borderColor: 'var(--border-light)' }}
+                            onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                           />
                         </div>
                       )}
@@ -842,6 +872,9 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         onChange={handleChange}
                         placeholder="Unlimited"
                         className="input w-full text-sm"
+                        style={{ borderColor: 'var(--border-light)' }}
+                        onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
+                        onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                       />
                     </div>
                   </div>
@@ -862,7 +895,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                     </label>
 
                     {/* Formatting Toolbar */}
-                    <div className="flex items-center gap-1 p-2" style={{ border: '2px solid var(--border)', borderBottom: 'none', borderRadius: 'var(--radius) var(--radius) 0 0', background: 'var(--bg)' }}>
+                    <div className="flex items-center gap-1 p-2" style={{ border: '1px solid var(--border-light)', borderBottom: 'none', borderRadius: 'var(--radius) var(--radius) 0 0', background: 'var(--surface)' }}>
                       <button type="button" onClick={handleBold} className="btn-ghost p-2 rounded" title="Bold">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24" style={{ color: 'var(--text)' }}>
                           <path d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6V4zm0 8h9a4 4 0 014 4 4 4 0 01-4 4H6v-8z" />
@@ -913,7 +946,8 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                       onBlur={handleDescriptionBlur}
                       className="w-full min-h-[320px] max-h-[400px] overflow-y-auto px-4 py-3 text-sm leading-relaxed outline-none [&:empty]:before:content-['Tell_potential_attendees_what_makes_this_event_special...'] [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5"
                       style={{
-                        border: '2px solid var(--border)',
+                        border: '1px solid var(--border-light)',
+                        borderTop: 'none',
                         borderRadius: '0 0 var(--radius) var(--radius)',
                         color: 'var(--text)',
                         background: 'var(--surface)',
@@ -987,7 +1021,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                     <p style={{ color: 'var(--text-muted)' }}>Configure attendance approval and RSVP questions.</p>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg" style={{ background: 'var(--bg)', border: '2px solid var(--border-light)' }}>
+                  <div className="flex items-center justify-between py-3" style={{ borderBottom: '1px solid var(--border-light)' }}>
                     <div>
                       <p className="font-semibold" style={{ color: 'var(--text)' }}>Require approval to join</p>
                       <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Review attendees before they can access the event</p>
