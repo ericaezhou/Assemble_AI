@@ -1,0 +1,6 @@
+scrapfly-sdk[all]
+jmespath
+loguru
+parsel
+flask
+python-dotenv
