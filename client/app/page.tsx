@@ -91,8 +91,14 @@ export default function Home() {
   // Show loading state while checking authentication
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-purple-700">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-2xl font-black tracking-tight" style={{ color: 'var(--text)' }}>ASSEMBLE</span>
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: 'var(--accent)' }} />
+          </div>
+          <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }} />
+        </div>
       </div>
     );
   }

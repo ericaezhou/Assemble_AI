@@ -264,7 +264,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
           <div className="flex items-center gap-4">
             <div
               className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--bg)', border: '2px solid var(--border-light)', color: 'var(--text-muted)' }}
+              style={{ color: 'var(--accent)' }}
             >
               {event.location_type === 'virtual' ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,7 +345,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
               {event.location_type !== 'virtual' && event.location && (
                 <div>
                   <h2 className="section-heading mb-3">Location</h2>
-                  <div className="rounded-lg overflow-hidden" style={{ border: '2px solid var(--border)' }}>
+                  <div className="rounded-lg overflow-hidden">
                     <iframe
                       title="Event location"
                       src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location)}&output=embed`}
@@ -355,7 +355,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                       loading="lazy"
                       referrerPolicy="no-referrer-when-downgrade"
                     />
-                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--bg)', borderTop: '2px solid var(--border-light)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--bg)' }}>
                       <span className="text-sm" style={{ color: 'var(--text)' }}>{event.location}</span>
                       <a
                         href={`https://maps.google.com/?q=${encodeURIComponent(event.location)}`}
@@ -465,6 +465,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="input mb-4"
+                  style={{ borderColor: 'var(--border-light)' }}
                 />
 
                 {loading ? (
