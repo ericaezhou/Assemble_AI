@@ -70,7 +70,7 @@ export default function EventsPanel({ events, isOwnProfile, userName }: EventsPa
   const firstName = userName.split(' ')[0];
 
   return (
-    <div className="space-y-4 sticky top-6">
+    <div className="space-y-4 sticky top-0">
       {/* Stats Hero */}
       <div className="card overflow-hidden">
         {/* Accent header strip */}

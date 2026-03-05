@@ -28,6 +28,12 @@ export interface UserProfile {
   created_at?: string;
 }
 
+export interface FloatingChatState {
+  id: number;
+  name: string;
+  userId: string;
+}
+
 interface UserState {
   // State
   user: UserProfile | null;
@@ -35,6 +41,8 @@ interface UserState {
   isLoading: boolean;
   error: string | null;
   hiddenConversationIds: number[];
+  floatingChat: FloatingChatState | null;
+  chatDrafts: Record<number, string>;
 
   // Actions
   setUser: (user: UserProfile) => void;
@@ -44,6 +52,8 @@ interface UserState {
   setError: (error: string | null) => void;
   hideConversation: (id: number) => void;
   unhideConversation: (id: number) => void;
+  setFloatingChat: (chat: FloatingChatState | null) => void;
+  setChatDraft: (conversationId: number, text: string) => void;
 
   // Async actions
   fetchUser: (userId: string) => Promise<UserProfile | null>;
@@ -59,8 +69,18 @@ export const useUserStore = create<UserState>()(
       isLoading: false,
       error: null,
       hiddenConversationIds: [],
+      floatingChat: null,
+      chatDrafts: {},
 
       setUser: (user) => set({ user, isAuthenticated: true, error: null }),
+
+      setFloatingChat: (chat) => set({ floatingChat: chat }),
+
+      setChatDraft: (conversationId, text) => set(state => ({
+        chatDrafts: text
+          ? { ...state.chatDrafts, [conversationId]: text }
+          : Object.fromEntries(Object.entries(state.chatDrafts).filter(([k]) => Number(k) !== conversationId)),
+      })),
 
       hideConversation: (id) => set(state => ({
         hiddenConversationIds: [...new Set([...state.hiddenConversationIds, id])],

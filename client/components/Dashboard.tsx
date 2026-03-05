@@ -7,7 +7,6 @@ import CreateEvent from './CreateEvent';
 import JoinEvent from './JoinEvent';
 import EventDetail from './EventDetail';
 import MessagePanel from './MessagePanel';
-import FloatingChatWindow from './FloatingChatWindow';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
 import { useAuthSWR } from '@/hooks/useAuthSWR';
@@ -99,27 +98,13 @@ function formatEventDateLabel(dateString: string): { main: string; sub: string }
 
 
 export default function Dashboard({ user }: DashboardProps) {
-  const { unhideConversation } = useUserStore();
+  const { unhideConversation, setFloatingChat, chatDrafts } = useUserStore();
   const [activeView, setActiveView] = useState<ActiveView>('events');
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [openConversationId, setOpenConversationId] = useState<number | null>(null);
-  const [floatingChat, setFloatingChat] = useState<{ id: number; name: string } | null>(null);
-  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const stored = localStorage.getItem('assemble-message-drafts');
-      return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
-  });
-  useEffect(() => {
-    localStorage.setItem('assemble-message-drafts', JSON.stringify(drafts));
-  }, [drafts]);
-  const handleDraftChange = (conversationId: number, text: string) => {
-    setDrafts(prev => ({ ...prev, [conversationId]: text }));
-  };
   const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
   // Track the submitted preference to use as SWR key
@@ -245,7 +230,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <div className="hidden lg:block w-[8%] flex-shrink-0" />
 
           {/* Left 15%: back button + cover image */}
-          <div className="hidden lg:flex w-[20%] flex-shrink-0 px-4 pt-5 pb-4 flex-col gap-3">
+          <div className="hidden lg:flex w-[20%] flex-shrink-0 px-4 pt-8 pb-4 flex-col gap-3">
             <button
               onClick={handleBackToEvents}
               className="btn-ghost flex items-center gap-1.5 text-sm font-semibold self-start"
@@ -285,31 +270,20 @@ export default function Dashboard({ user }: DashboardProps) {
 
           {/* Right 20%: message panel (same as normal view) */}
           {user && (
-            <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5 pb-4">
+            <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8 pb-4">
               <div className="card overflow-hidden h-[calc(100vh-84px)]" style={{ cursor: 'default' }}>
                 <MessagePanel
                   currentUser={user}
                   openConversationId={openConversationId}
                   onConversationOpened={() => setOpenConversationId(null)}
-                  onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
-                  drafts={drafts}
+                  onOpenChat={(id, name, userId) => { unhideConversation(id); setFloatingChat({ id, name, userId }); }}
+                  drafts={chatDrafts}
                   className="h-full flex flex-col"
                 />
               </div>
             </div>
           )}
         </div>
-
-        {floatingChat && (
-          <FloatingChatWindow
-            conversationId={floatingChat.id}
-            otherUserName={floatingChat.name}
-            currentUser={user}
-            draft={drafts[floatingChat.id] || ''}
-            onDraftChange={handleDraftChange}
-            onClose={() => setFloatingChat(null)}
-          />
-        )}
       </div>
     );
   }
@@ -324,7 +298,7 @@ export default function Dashboard({ user }: DashboardProps) {
         <div className="hidden lg:block w-[8%] flex-shrink-0" />
 
         {/* Left: profile card */}
-        <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5">
+        <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8">
           {user && <MiniProfile user={user} />}
         </div>
 
@@ -332,7 +306,7 @@ export default function Dashboard({ user }: DashboardProps) {
         <div className="w-[50%] flex-shrink-0 flex flex-col overflow-hidden">
 
           {/* Fixed: tab + action card */}
-          <div className="flex-shrink-0 px-3 pt-5 pb-3">
+          <div className="flex-shrink-0 px-3 pt-8 pb-3">
             <div className="card" style={{ boxShadow: 'var(--shadow-card)' }}>
               {/* Tabs row */}
               <div className="flex px-2" style={{ borderBottom: '2px solid var(--border-light)' }}>
@@ -353,7 +327,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
               {/* Action row */}
               {activeView === 'events' ? (
-                <div className="px-4 py-3 flex gap-2">
+                <div className="px-4 py-4 flex gap-2">
                   <button onClick={() => setShowCreateEvent(true)} className="btn btn-primary">
                     + Create Event
                   </button>
@@ -397,16 +371,22 @@ export default function Dashboard({ user }: DashboardProps) {
             {activeView === 'events' ? (
               <>
                 {/* Upcoming / Past toggle */}
-                <div className="inline-flex items-center gap-2">
+                <div
+                  className="inline-flex items-center rounded-full p-0.5 text-xs font-semibold cursor-pointer select-none"
+                  style={{ background: 'var(--bg)', border: '1.5px solid var(--border-light)' }}
+                  onClick={() => setEventsFilter(f => f === 'upcoming' ? 'past' : 'upcoming')}
+                >
                   {(['upcoming', 'past'] as const).map(f => (
-                    <button
+                    <span
                       key={f}
-                      onClick={() => setEventsFilter(f)}
-                      className={`btn capitalize ${eventsFilter === f ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{ padding: '4px 14px', fontSize: '0.8rem' }}
+                      className="px-3 py-1 rounded-full capitalize transition-all"
+                      style={eventsFilter === f
+                        ? { background: 'var(--accent)', color: '#fff' }
+                        : { color: 'var(--text-muted)' }
+                      }
                     >
                       {f}
-                    </button>
+                    </span>
                   ))}
                 </div>
 
@@ -503,14 +483,14 @@ export default function Dashboard({ user }: DashboardProps) {
 
         {/* Right: messaging panel */}
         {user && (
-          <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5 pb-4">
+          <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8 pb-4">
             <div className="card overflow-hidden h-[calc(100vh-84px)]" style={{ cursor: 'default' }}>
               <MessagePanel
                 currentUser={user}
                 openConversationId={openConversationId}
                 onConversationOpened={() => setOpenConversationId(null)}
-                onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
-                drafts={drafts}
+                onOpenChat={(id, name, userId) => { unhideConversation(id); setFloatingChat({ id, name, userId }); }}
+                drafts={chatDrafts}
                 className="h-full flex flex-col"
               />
             </div>
@@ -531,18 +511,6 @@ export default function Dashboard({ user }: DashboardProps) {
           userId={user.id}
           onClose={() => setShowJoinEvent(false)}
           onSuccess={handleJoinSuccess}
-        />
-      )}
-
-      {/* Floating LinkedIn-style chat window */}
-      {floatingChat && user && (
-        <FloatingChatWindow
-          conversationId={floatingChat.id}
-          otherUserName={floatingChat.name}
-          currentUser={user}
-          draft={drafts[floatingChat.id] || ''}
-          onDraftChange={handleDraftChange}
-          onClose={() => setFloatingChat(null)}
         />
       )}
     </div>

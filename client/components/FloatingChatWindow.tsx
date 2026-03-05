@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { getInitialsFromName } from '@/utils/name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -18,6 +19,7 @@ interface Message {
 interface FloatingChatWindowProps {
   conversationId: number;
   otherUserName: string;
+  otherUserId: string;
   currentUser: { id: string; name: string };
   draft?: string;
   onDraftChange?: (conversationId: number, text: string) => void;
@@ -27,6 +29,7 @@ interface FloatingChatWindowProps {
 export default function FloatingChatWindow({
   conversationId,
   otherUserName,
+  otherUserId,
   currentUser,
   draft = '',
   onDraftChange,
@@ -144,6 +147,7 @@ export default function FloatingChatWindow({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const router = useRouter();
   const initials = getInitialsFromName(otherUserName);
 
   return (
@@ -171,7 +175,13 @@ export default function FloatingChatWindow({
           >
             {initials}
           </div>
-          <span className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{otherUserName}</span>
+          <button
+            onClick={e => { e.stopPropagation(); router.push(`/profile/${otherUserId}`); }}
+            className="text-sm font-semibold truncate hover:underline text-left"
+            style={{ color: 'var(--text)' }}
+          >
+            {otherUserName}
+          </button>
         </div>
         <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
           <button

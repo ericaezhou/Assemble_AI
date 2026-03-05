@@ -78,7 +78,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
   const [currentStep, setCurrentStep] = useState<Step>('logistics');
   const [formData, setFormData] = useState<EventFormData>({
     name: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: '',
     startTime: '09:00',
     endDate: '',
     endTime: '17:00',
@@ -153,6 +153,10 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
         }
         break;
       case 'description':
+        if (!formData.description.trim()) {
+          setError('Event description is required');
+          return false;
+        }
         break;
       case 'prelaunch':
         break;
@@ -322,12 +326,6 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     }
   };
 
-  const formatDateForDisplay = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
   const formatTimeForDisplay = (timeString: string) => {
     if (!timeString) return '';
     const [hours, minutes] = timeString.split(':');
@@ -486,15 +484,15 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
       {/* Main Content - Split Layout */}
       <main className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: Live Preview (45%) */}
-        <div className="w-[45%] p-8 overflow-auto" style={{ background: 'var(--bg)', borderRight: '2px solid var(--border)' }}>
-          <div className="h-full flex flex-col">
+        <div className="w-[45%] p-8 overflow-hidden flex flex-col" style={{ background: 'var(--bg)', borderRight: '2px solid var(--border)' }}>
+          <div className="flex flex-col min-h-0 flex-1">
             <div className="mb-6">
               <span className="section-heading">
                 {currentStep === 'description' ? 'Full Event Page Preview' : 'Live Preview'}
               </span>
             </div>
 
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 min-h-0 flex items-center justify-center">
               {/* EventCard-style preview — Logistics and Pre-Launch steps */}
               {currentStep !== 'description' && (
                 <div className="w-full">
@@ -547,22 +545,18 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                             {getLocationDisplay()}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 pt-0.5">
+                        <div className="flex items-center gap-2 pt-0.5 flex-wrap">
                           <span className="tag tag-accent">Hosting</span>
                           {formData.locationType === 'virtual' && (
                             <span className="tag">Virtual</span>
                           )}
+                          <span className="tag flex items-center gap-1" style={{ color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Invite
+                          </span>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Invite code bar */}
-                    <div className="flex items-center justify-between px-6 py-3" style={{ background: 'var(--accent-light)', borderTop: '2px solid var(--border)' }}>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--border-light)' }}>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                        </svg>
-                        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Invite code assigned on creation</span>
                       </div>
                     </div>
                   </div>
@@ -572,60 +566,53 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
               {/* Full Event Page Preview - for Description step */}
               {currentStep === 'description' && (
                 <div className="card overflow-hidden flex flex-col w-full" style={{ height: '100%' }}>
-                  {/* Header accent bar */}
-                  <div className="h-14 flex-shrink-0" style={{ background: 'var(--accent)' }} />
+                  {/* Tab bar */}
+                  <div className="flex px-2 flex-shrink-0" style={{ borderBottom: '2px solid var(--border-light)' }}>
+                    {['About', 'Announcement', 'Participants (0)'].map((label, i) => (
+                      <button
+                        key={label}
+                        className="relative px-5 py-4 text-sm font-bold whitespace-nowrap"
+                        style={{ color: i === 0 ? 'var(--accent)' : 'var(--text-muted)' }}
+                      >
+                        {label}
+                        {i === 0 && (
+                          <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full" style={{ background: 'var(--accent)' }} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
 
                   {/* Content */}
-                  <div className="p-6 flex flex-col flex-1 overflow-hidden">
-                    {/* Title and host */}
-                    <div className="mb-4 flex-shrink-0">
-                      <h3 className="text-2xl font-bold leading-snug" style={{ color: formData.name ? 'var(--text)' : 'var(--border-light)' }}>
-                        {formData.name || 'Event Name'}
-                      </h3>
-                      <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Hosted by You</p>
-                    </div>
-
-                    {/* Time and Location row */}
-                    <div className="flex items-center gap-6 mb-5 py-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border-light)', borderBottom: '1px solid var(--border-light)' }}>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--accent)' }}>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="text-sm">
-                          <span style={{ color: formData.startDate ? 'var(--text)' : 'var(--border-light)' }}>
-                            {formData.startDate ? formatDateForDisplay(formData.startDate) : 'Date TBD'}
-                          </span>
-                          {formData.startTime && (
-                            <span className="ml-1" style={{ color: 'var(--text-muted)' }}>
-                              {formatTimeForDisplay(formData.startTime)}
-                              {formData.endTime && ` - ${formatTimeForDisplay(formData.endTime)}`}
-                            </span>
-                          )}
+                  <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                    <div>
+                      <h2 className="section-heading mb-3">About the Event</h2>
+                      {liveDescription ? (
+                        <div className="text-sm leading-relaxed break-words overflow-hidden" style={{ color: 'var(--text)' }}>
+                          {renderFormattedDescription(liveDescription)}
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--accent)' }}>
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-sm" style={{ color: (formData.location || formData.locationType === 'virtual') ? 'var(--text)' : 'var(--border-light)' }}>
-                          {getLocationDisplay()}
-                        </span>
-                      </div>
+                      ) : (
+                        <p className="italic text-sm" style={{ color: 'var(--text-muted)' }}>Your event description will appear here as you type...</p>
+                      )}
                     </div>
 
-                    {/* Description area */}
-                    <div className="flex-1 overflow-auto">
-                      <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text)' }}>About this event</h4>
-                      <div className="text-sm leading-relaxed" style={{ color: liveDescription ? 'var(--text-muted)' : 'var(--border-light)', fontStyle: liveDescription ? 'normal' : 'italic' }}>
-                        {liveDescription ? (
-                          renderFormattedDescription(liveDescription)
-                        ) : (
-                          'Your event description will appear here as you type...'
+                    {(formData.capacity || formData.priceType !== 'free') && (
+                      <div className="flex flex-wrap gap-3">
+                        {formData.capacity && (
+                          <div className="rounded-lg px-4 py-3 flex-1 min-w-[120px]" style={{ background: 'var(--bg)', border: '2px solid var(--border-light)' }}>
+                            <p className="section-heading mb-1">Capacity</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>0 / {formData.capacity} registered</p>
+                          </div>
+                        )}
+                        {formData.priceType !== 'free' && (
+                          <div className="rounded-lg px-4 py-3 flex-1 min-w-[120px]" style={{ background: 'var(--bg)', border: '2px solid var(--border-light)' }}>
+                            <p className="section-heading mb-1">Admission</p>
+                            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                              {formData.priceAmount ? `$${formData.priceAmount}` : 'Paid'}
+                            </p>
+                          </div>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -664,14 +651,14 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>Start</label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
                         <input
                           type="date"
                           name="startDate"
                           value={formData.startDate}
                           onChange={handleChange}
-                          className="input flex-1 text-sm"
-                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light' }}
+                          className="input text-sm"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light', width: '100%' }}
                           onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
                           onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         />
@@ -679,8 +666,8 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           name="startTime"
                           value={formData.startTime}
                           onChange={handleChange}
-                          className="input w-20 text-sm cursor-pointer"
-                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)' }}
+                          className="input text-sm cursor-pointer"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', width: 'auto' }}
                           onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
                           onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         >
@@ -694,14 +681,14 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                     </div>
                     <div>
                       <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>End</label>
-                      <div className="flex gap-2">
+                      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
                         <input
                           type="date"
                           name="endDate"
                           value={formData.endDate}
                           onChange={handleChange}
-                          className="input flex-1 text-sm"
-                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light' }}
+                          className="input text-sm"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', colorScheme: 'light', width: '100%' }}
                           onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
                           onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         />
@@ -709,8 +696,8 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           name="endTime"
                           value={formData.endTime}
                           onChange={handleChange}
-                          className="input w-20 text-sm cursor-pointer"
-                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)' }}
+                          className="input text-sm cursor-pointer"
+                          style={{ borderColor: 'var(--border-light)', color: 'var(--text)', width: 'auto' }}
                           onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
                           onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-light)')}
                         >
@@ -783,7 +770,6 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border-light)' }}>
                           <div>
                             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Hide exact address publicly</p>
-                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Show only city/area on the card — exact address visible to approved attendees</p>
                           </div>
                           <button
                             type="button"
@@ -824,7 +810,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                           onClick={() => setFormData((prev) => ({ ...prev, priceType: 'free' }))}
                           className="btn flex-1 text-sm transition-colors"
                           style={formData.priceType === 'free'
-                            ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                            ? { background: 'var(--accent-light)', color: 'var(--accent)', borderColor: 'var(--accent)' }
                             : { background: 'var(--surface)', color: 'var(--text-muted)', borderColor: 'var(--border-light)' }
                           }
                           onMouseEnter={e => { if (formData.priceType !== 'free') { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}}
@@ -891,7 +877,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
 
                   <div>
                     <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text)' }}>
-                      About this event <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional)</span>
+                      About this event
                     </label>
 
                     {/* Formatting Toolbar */}
@@ -944,7 +930,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                       contentEditable
                       onInput={syncDescription}
                       onBlur={handleDescriptionBlur}
-                      className="w-full min-h-[320px] max-h-[400px] overflow-y-auto px-4 py-3 text-sm leading-relaxed outline-none [&:empty]:before:content-['Tell_potential_attendees_what_makes_this_event_special...'] [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5"
+                      className="w-full min-h-[320px] max-h-[400px] overflow-y-auto px-4 py-3 text-sm leading-relaxed outline-none [&:empty]:before:content-['Tell_potential_attendees_what_makes_this_event_special...'] [&:empty]:before:text-[var(--text-muted)] [&_h3]:text-lg [&_h3]:font-bold [&_h3]:mt-3 [&_h3]:mb-1 [&_a]:underline [&_ul]:list-disc [&_ul]:ml-5 [&_ol]:list-decimal [&_ol]:ml-5"
                       style={{
                         border: '1px solid var(--border-light)',
                         borderTop: 'none',
@@ -955,7 +941,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                       suppressContentEditableWarning
                     />
                     <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Select text and click a formatting button to apply styles. What you see is what attendees will see.
+                      Select text and click a formatting button to apply styles. 
                     </p>
                   </div>
                 </div>
@@ -1134,57 +1120,55 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                   {error}
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Footer */}
-          <div className="flex-shrink-0 px-8 py-5" style={{ borderTop: '2px solid var(--border)' }}>
-            <div className="max-w-lg mx-auto flex items-center justify-between">
-              {currentStepIndex > 0 ? (
-                <button
-                  onClick={handleBack}
-                  className="btn btn-secondary flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                  Back
-                </button>
-              ) : (
-                <div />
-              )}
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between mt-6">
+                {currentStepIndex > 0 ? (
+                  <button
+                    onClick={handleBack}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back
+                  </button>
+                ) : (
+                  <div />
+                )}
 
-              {currentStep === 'prelaunch' ? (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="btn btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ padding: '10px 32px' }}
-                >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Event'
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={handleContinue}
-                  className="btn btn-primary flex items-center gap-2"
-                  style={{ padding: '10px 32px' }}
-                >
-                  Continue
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              )}
+                {currentStep === 'prelaunch' ? (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="btn btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ padding: '10px 32px' }}
+                  >
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Event'
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleContinue}
+                    className="btn btn-primary flex items-center gap-2"
+                    style={{ padding: '10px 32px' }}
+                  >
+                    Continue
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

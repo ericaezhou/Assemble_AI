@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useUserStore } from '@/store/userStore';
 import { usePublicSWR } from '@/hooks/useAuthSWR';
+import { getInitialsFromName } from '@/utils/name';
 
 interface Conversation {
   id: number;
@@ -16,7 +17,7 @@ interface MessagePanelProps {
   currentUser: { id: string; name: string };
   openConversationId?: number | null;
   onConversationOpened?: () => void;
-  onOpenChat?: (conversationId: number, otherUserName: string) => void;
+  onOpenChat?: (conversationId: number, otherUserName: string, otherUserId: string) => void;
   drafts?: Record<number, string>;
   className?: string;
 }
@@ -42,7 +43,7 @@ export default function MessagePanel({
     const open = async () => {
       const convos = await mutateConversations();
       const target = convos?.find((c: Conversation) => c.id === openConversationId);
-      if (target) onOpenChat?.(target.id, target.other_user_name);
+      if (target) onOpenChat?.(target.id, target.other_user_name, target.other_user_id);
       onConversationOpened?.();
     };
     open();
@@ -89,24 +90,34 @@ export default function MessagePanel({
                 onMouseLeave={() => setHoveredConvId(null)}
               >
                 <button
-                  onClick={() => onOpenChat?.(conv.id, conv.other_user_name)}
-                  className="w-full text-left px-4 py-3 pr-8 transition-colors"
+                  onClick={() => onOpenChat?.(conv.id, conv.other_user_name, conv.other_user_id)}
+                  className="w-full text-left px-3 py-3 pr-8 transition-colors flex items-center gap-2.5"
                   style={{ borderBottom: '1px solid var(--border-light)' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-light)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
-                  <div className="flex justify-between items-start mb-0.5">
-                    <span className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>{conv.other_user_name}</span>
-                    <span className="text-xs flex-shrink-0 ml-2" style={{ color: 'var(--text-muted)' }}>{formatLastTime(conv.last_message_time)}</span>
+                  {/* Avatar */}
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                    style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}
+                  >
+                    {getInitialsFromName(conv.other_user_name)}
                   </div>
-                  {drafts[conv.id] ? (
-                    <p className="text-xs truncate">
-                      <span className="font-medium" style={{ color: 'var(--accent)' }}>Draft: </span>
-                      <span style={{ color: 'var(--text-muted)' }}>{drafts[conv.id]}</span>
-                    </p>
-                  ) : conv.last_message ? (
-                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{conv.last_message}</p>
-                  ) : null}
+                  {/* Text */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline mb-0.5">
+                      <span className="font-semibold text-sm truncate" style={{ color: 'var(--text)' }}>{conv.other_user_name}</span>
+                      <span className="text-xs flex-shrink-0 ml-2" style={{ color: 'var(--text-muted)' }}>{formatLastTime(conv.last_message_time)}</span>
+                    </div>
+                    {drafts[conv.id] ? (
+                      <p className="text-xs truncate">
+                        <span className="font-medium" style={{ color: 'var(--accent)' }}>Draft: </span>
+                        <span style={{ color: 'var(--text-muted)' }}>{drafts[conv.id]}</span>
+                      </p>
+                    ) : conv.last_message ? (
+                      <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{conv.last_message}</p>
+                    ) : null}
+                  </div>
                 </button>
                 {hoveredConvId === conv.id && (
                   <button

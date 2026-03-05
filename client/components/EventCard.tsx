@@ -96,50 +96,29 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
           </div>
 
           {/* Badges */}
-          <div className="flex items-center gap-1.5 pt-0.5">
+          <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
             {isHost ? (
               <span className="tag tag-accent">Hosting</span>
             ) : (
               <span className="tag" style={{ background: '#f0fdf4', borderColor: '#059669', color: '#059669' }}>Attending</span>
             )}
-            {isVirtual && (
-              <span className="tag">Virtual</span>
-            )}
-            {isHybrid && (
-              <span className="tag">Hybrid</span>
-            )}
+            {isVirtual && <span className="tag">Virtual</span>}
+            {isHybrid && <span className="tag">Hybrid</span>}
+            <button
+              onClick={e => { e.stopPropagation(); onCopyId(event.id); }}
+              className="tag flex items-center gap-1 transition-colors"
+              style={{ color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = ''; }}
+              title={`Copy invite code: ${event.id}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Invite
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* Bottom: invite code bar */}
-      <div
-        className="flex items-center justify-between px-4 py-2"
-        style={{ background: 'var(--accent-light)', borderTop: '2px solid var(--border)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-1.5">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-muted)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-          <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>Invite code</span>
-          <code
-            className="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded"
-            style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
-          >
-            {event.id}
-          </code>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onCopyId(event.id); }}
-          className="text-[11px] font-semibold flex items-center gap-1 transition-colors"
-          style={{ color: 'var(--accent)' }}
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Copy
-        </button>
       </div>
     </div>
   );
