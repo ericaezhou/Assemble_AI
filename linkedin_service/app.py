@@ -4,9 +4,9 @@ import os
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 
-import linkedin
-
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+
+import linkedin
 
 app = Flask(__name__)
 
@@ -32,7 +32,7 @@ def scrape_profiles():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5200))
+    port = int(os.environ.get("LINKEDIN_PORT", "5200"))
     debug = bool(os.environ.get("DEBUG", True))
 
     app.run(host="0.0.0.0", port=port, debug=True)

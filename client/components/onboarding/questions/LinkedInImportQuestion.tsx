@@ -3,6 +3,7 @@ import { useState, useEffect, KeyboardEvent } from 'react';
 interface LinkedInImportQuestionProps {
   question: string;
   subtitle?: string;
+  initialSlug?: string;
   onSubmit: (slug: string) => void;
   onSkip: () => void;
 }
@@ -24,10 +25,11 @@ function extractLinkedInSlug(value: string): string {
 export default function LinkedInImportQuestion({
   question,
   subtitle,
+  initialSlug = '',
   onSubmit,
   onSkip,
 }: LinkedInImportQuestionProps) {
-  const [slug, setSlug] = useState('');
+  const [slug, setSlug] = useState(initialSlug);
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

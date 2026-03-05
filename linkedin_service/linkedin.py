@@ -8,6 +8,7 @@ $ export SCRAPFLY_KEY="your key from https://scrapfly.io/dashboard"
 
 import os
 import json
+import asyncio
 from typing import Dict, List
 from parsel import Selector
 from loguru import logger as log
@@ -45,15 +46,29 @@ def parse_profile(response: ScrapeApiResponse) -> Dict:
     return refined_data
 
 
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds between retries
+
+
 async def scrape_profile(urls: List[str]) -> List[Dict]:
-    """Scrape one or more LinkedIn profile URLs."""
-    to_scrape = [ScrapeConfig(url, **BASE_CONFIG) for url in urls]
+    """Scrape one or more LinkedIn profile URLs with retries on ASP failure."""
     data = []
-    async for response in SCRAPFLY.concurrent_scrape(to_scrape):
-        try:
-            profile_data = parse_profile(response)
+    for url in urls:
+        profile_data = None
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                config = ScrapeConfig(url, **BASE_CONFIG)
+                response = await SCRAPFLY.async_scrape(config)
+                profile_data = parse_profile(response)
+                break
+            except Exception as e:
+                error_msg = str(e)
+                if "ASP" in error_msg and attempt < MAX_RETRIES:
+                    log.warning(f"ASP failed for {url} (attempt {attempt}/{MAX_RETRIES}), retrying in {RETRY_DELAY}s...")
+                    await asyncio.sleep(RETRY_DELAY)
+                else:
+                    log.error(f"Failed to scrape {url} after {attempt} attempt(s): {e}")
+        if profile_data:
             data.append(profile_data)
-        except Exception as e:
-            log.error("An error occurred while scraping profile pages", e)
     log.success(f"scraped {len(data)} profiles from LinkedIn")
     return data

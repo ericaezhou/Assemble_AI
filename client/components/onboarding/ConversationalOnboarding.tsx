@@ -134,6 +134,9 @@ export default function ConversationalOnboarding({
   const [githubData, setGithubData] = useState<{ name?: string; bio?: string; company?: string; languages: string[]; topics: string[] } | null>(null);
   const [githubUsername, setGithubUsername] = useState('');
 
+  // LinkedIn import state
+  const [linkedinSlug, setLinkedinSlug] = useState('');
+
   // Email validation state
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const emailCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -257,6 +260,7 @@ export default function ConversationalOnboarding({
   };
 
   const handleLinkedInSubmit = (slug: string) => {
+    setLinkedinSlug(slug);
     setFormData((prev: any) => ({
       ...prev,
       linkedin: `https://www.linkedin.com/in/${slug}`,
@@ -476,10 +480,11 @@ export default function ConversationalOnboarding({
         }
       }
 
-      // Generate bio in background if we have GitHub or resume data (non-blocking)
+      // Generate bio in background if we have GitHub, resume, or LinkedIn data (non-blocking)
       const hasGithub = !!profileFields.github;
       const hasResumeData = !!_parsedData;
-      if (hasGithub || hasResumeData) {
+      const hasLinkedIn = !!profileFields.linkedin;
+      if (hasGithub || hasResumeData || hasLinkedIn) {
         const bioRequestBody: any = {};
         if (hasGithub) {
           bioRequestBody.githubUsername = profileFields.github;
@@ -567,6 +572,7 @@ export default function ConversationalOnboarding({
           <LinkedInImportQuestion
             question={q.question!}
             subtitle={q.subtitle}
+            initialSlug={linkedinSlug}
             onSubmit={handleLinkedInSubmit}
             onSkip={handleNext}
           />

@@ -19,6 +19,7 @@ const openai = new OpenAI({
 const app = express();
 const PORT = process.env.PORT || 5001;
 const MATCHING_SERVICE_URL = process.env.MATCHING_SERVICE_URL || 'http://localhost:5000';
+const LINKEDIN_SERVICE_URL = process.env.LINKEDIN_SERVICE_URL || 'http://localhost:5200';
 const TOP_K_MIN = 1;
 const TOP_K_MAX = 50;
 const MMR_LAMBDA_MIN_EXCLUSIVE = 0;
@@ -1911,8 +1912,8 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
     if (linkedinUrl && /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(linkedinUrl.trim())) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-        const linkedinRes = await fetch('http://localhost:5200/api/linkedin/scrape', {
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        const linkedinRes = await fetch(`${LINKEDIN_SERVICE_URL}/api/linkedin/scrape`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ urls: [linkedinUrl.trim()] }),
@@ -1991,6 +1992,11 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
 - Summary: ${safeLinkedIn.description || 'Not provided'}
 - Recent Posts: ${safeLinkedIn.posts || 'None'}
 `;
+    }
+
+    // If no usable data was gathered, skip bio generation entirely
+    if (!hasGithubData && !hasResumeData && !hasLinkedInData && !hasExistingBio) {
+      return res.json({ bio: null, skipped: true });
     }
 
     const userPrompt = hasExistingBio
