@@ -728,6 +728,134 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
   }
 });
 
+// Calendar events with date range filtering and participant status
+app.get('/api/researchers/:id/calendar-events', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'startDate and endDate query parameters are required (YYYY-MM-DD)' });
+  }
+
+  try {
+    const { data: participants, error: participantsError } = await supabase
+      .from('conference_participants')
+      .select('conference_id, status')
+      .eq('researcher_id', id)
+      .in('status', ['registered', 'pending']);
+
+    if (participantsError) {
+      return res.status(500).json({ error: participantsError.message });
+    }
+
+    if (!participants || participants.length === 0) {
+      return res.json([]);
+    }
+
+    const statusMap = {};
+    for (const p of participants) {
+      statusMap[p.conference_id] = p.status;
+    }
+    const conferenceIds = participants.map(p => p.conference_id);
+
+    const { data: conferences, error: conferencesError } = await supabase
+      .from('conferences')
+      .select('*, profiles!conferences_host_id_fkey(name)')
+      .in('id', conferenceIds)
+      .lte('start_date', endDate)
+      .gte('end_date', startDate)
+      .order('start_date', { ascending: true });
+
+    if (conferencesError) {
+      return res.status(500).json({ error: conferencesError.message });
+    }
+
+    const calendarEvents = (conferences || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      location_type: c.location_type || null,
+      virtual_link: c.virtual_link || null,
+      start_date: c.start_date,
+      start_time: c.start_time || null,
+      end_date: c.end_date,
+      end_time: c.end_time || null,
+      host_id: c.host_id,
+      host_name: c.profiles?.name || null,
+      cover_photo_url: c.cover_photo_url || null,
+      capacity: c.capacity || null,
+      description: c.description || null,
+      is_host: c.host_id === id,
+      participant_status: statusMap[c.id] || 'registered',
+    }));
+
+    res.json(calendarEvents);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cancel RSVP / leave a conference (non-host only)
+app.delete('/api/conferences/:id/leave', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
+
+  try {
+    const { data: conference, error: confError } = await supabase
+      .from('conferences')
+      .select('host_id')
+      .eq('id', id)
+      .single();
+
+    if (confError || !conference) {
+      return res.status(404).json({ error: 'Conference not found' });
+    }
+
+    if (conference.host_id === userId) {
+      return res.status(403).json({ error: 'Host cannot leave their own event. Use delete/cancel event instead.' });
+    }
+
+    const { error: deleteError } = await supabase
+      .from('conference_participants')
+      .delete()
+      .eq('conference_id', id)
+      .eq('researcher_id', userId);
+
+    if (deleteError) {
+      return res.status(500).json({ error: deleteError.message });
+    }
+
+    res.json({ success: true, message: 'Successfully left the event' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lightweight participant count for a conference
+app.get('/api/conferences/:id/participant-count', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: participants, error } = await supabase
+      .from('conference_participants')
+      .select('status')
+      .eq('conference_id', id);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const all = participants || [];
+    res.json({
+      total: all.length,
+      registered: all.filter(p => p.status === 'registered').length,
+      pending: all.filter(p => p.status === 'pending').length,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get conference by ID (Protected - auth only, allows viewing any conference)
 app.get('/api/conferences/:id', authenticateToken, async (req, res) => {
   const { id } = req.params;

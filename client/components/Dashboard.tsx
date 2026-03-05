@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import EventCard from './EventCard';
 import CreateEvent from './CreateEvent';
@@ -99,16 +100,23 @@ function formatEventDateLabel(dateString: string): { main: string; sub: string }
 
 export default function Dashboard({ user }: DashboardProps) {
   const { unhideConversation, setFloatingChat, chatDrafts } = useUserStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const eventFromUrl = searchParams.get('event');
   const [activeView, setActiveView] = useState<ActiveView>('events');
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(eventFromUrl);
   const [openConversationId, setOpenConversationId] = useState<number | null>(null);
   const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
   // Track the submitted preference to use as SWR key
   const [submittedPreference, setSubmittedPreference] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedEventId(eventFromUrl);
+  }, [eventFromUrl]);
 
   // SWR: events
   const { data: events = [], mutate: mutateEvents } = useAuthSWR<Event[]>(
@@ -188,10 +196,12 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const handleEventClick = (eventId: string) => {
     setSelectedEventId(eventId);
+    router.push(`/?event=${eventId}`, { scroll: false });
   };
 
   const handleBackToEvents = () => {
     setSelectedEventId(null);
+    router.replace('/', { scroll: false });
     mutateEvents();
   };
 

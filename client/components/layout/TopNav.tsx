@@ -49,6 +49,7 @@ export default function TopNav({ currentView }: TopNavProps) {
                 <div className="hidden sm:flex items-center gap-1">
                   {[
                     { href: '/',                    label: 'Home',     view: 'home' },
+                    { href: '/calendar',            label: 'Calendar', view: 'calendar' },
                     { href: `/profile/${user.id}`,  label: 'Profile',  view: 'profile' },
                     { href: '/messages',            label: 'Messages', view: 'messages' },
                   ].map(({ href, label, view }) => (
