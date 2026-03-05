@@ -3,6 +3,7 @@ export type QuestionType =
   | 'file-upload'
   | 'parsed-review'
   | 'github-import'
+  | 'linkedin-import'
   | 'text'
   | 'email'
   | 'verification'
@@ -52,11 +53,21 @@ export const onboardingQuestions: QuestionConfig[] = [
     shouldShow: (data) => data._parsedData != null,
   },
 
+  // LinkedIn import (optional, shows if no parsed data or if parsing didn't find a LinkedIn)
+  {
+    id: 'linkedin-import',
+    type: 'linkedin-import',
+    question: 'Got a LinkedIn?',
+    subtitle: "We'll use it to elevate your profile 🔥",
+    optional: true,
+    shouldShow: (data) => data._parsedData == null || !data.linkedin,
+  },
+
   // GitHub import (optional, shows if no parsed data or if parsing didn't find a GitHub)
   {
     id: 'github-import',
     type: 'github-import',
-    question: 'Got a GitHub?',
+    question: 'How about a GitHub?',
     subtitle: 'We can pull your skills and interests from your repos',
     optional: true,
     shouldShow: (data) => data._parsedData == null || !data.github,

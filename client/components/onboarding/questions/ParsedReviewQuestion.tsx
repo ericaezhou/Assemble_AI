@@ -38,7 +38,34 @@ function isValidGitHubUsername(username: string): boolean {
          /^[a-zA-Z0-9]$/.test(username); // Single char username
 }
 
+// Extract slug from various LinkedIn URL formats
+function extractLinkedInSlug(value: string): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+
+  // Try to extract from URL format (linkedin.com/in/username)
+  const urlMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)\/?$/i);
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+
+  // If it looks like a bare slug (alphanumeric, hyphens, underscores), use as-is
+  if (/^[a-zA-Z0-9_-]+$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
+// Validate LinkedIn profile slug format
+function isValidLinkedInSlug(slug: string): boolean {
+  if (!slug) return true; // Empty is valid (optional field)
+  // LinkedIn slugs: alphanumeric, hyphens, underscores, 3-100 chars
+  return /^[a-zA-Z0-9_-]{3,100}$/.test(slug);
+}
+
 type GitHubValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'not-found';
+type LinkedInValidationStatus = 'idle' | 'valid' | 'invalid';
 type EmailValidationStatus = 'idle' | 'checking' | 'available' | 'taken';
 
 interface FieldConfig {
@@ -85,12 +112,14 @@ export default function ParsedReviewQuestion({
   onAccept,
   onSkip,
 }: ParsedReviewQuestionProps) {
-  // Initialize with GitHub as just the username (extracted from any URL format)
+  // Initialize with GitHub/LinkedIn as just the username/slug (extracted from any URL format)
   const [editedData, setEditedData] = useState<ParsedData>(() => ({
     ...parsedData,
     github: parsedData.github ? extractGitHubUsername(parsedData.github) : undefined,
+    linkedin: parsedData.linkedin ? extractLinkedInSlug(parsedData.linkedin) : undefined,
   }));
   const [githubStatus, setGithubStatus] = useState<GitHubValidationStatus>('idle');
+  const [linkedinStatus, setLinkedinStatus] = useState<LinkedInValidationStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<EmailValidationStatus>('idle');
 
   // Validate email on mount and when it changes (with debounce)
@@ -164,6 +193,21 @@ export default function ParsedReviewQuestion({
 
     return () => clearTimeout(timeout);
   }, [editedData.github]);
+
+  // Validate LinkedIn slug format when it changes
+  useEffect(() => {
+    const slug = editedData.linkedin;
+    if (!slug) {
+      setLinkedinStatus('idle');
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setLinkedinStatus(isValidLinkedInSlug(slug) ? 'valid' : 'invalid');
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [editedData.linkedin]);
 
   // Show fields that have values, but always include email (required field)
   const fieldsWithValues = FIELD_CONFIGS.filter((f) =>
@@ -258,6 +302,24 @@ export default function ParsedReviewQuestion({
                       style={{ color: 'var(--text)' }}
                     />
                   </div>
+                ) : field.key === 'linkedin' ? (
+                  <div
+                    className="flex items-center w-full rounded-lg transition-all duration-200"
+                    style={{
+                      background: 'var(--surface)',
+                      border: `2px solid ${linkedinStatus === 'invalid' ? '#f59e0b' : 'var(--border-light)'}`,
+                    }}
+                  >
+                    <span className="pl-4 text-sm select-none" style={{ color: 'var(--text-muted)' }}>linkedin.com/in/</span>
+                    <input
+                      type="text"
+                      value={editedData.linkedin || ''}
+                      onChange={(e) => handleFieldChange('linkedin', e.target.value)}
+                      placeholder="johnny-tsunami-6767"
+                      className="flex-1 px-1 py-2.5 text-sm bg-transparent outline-none"
+                      style={{ color: 'var(--text)' }}
+                    />
+                  </div>
                 ) : (
                   <input
                     type="text"
@@ -292,6 +354,17 @@ export default function ParsedReviewQuestion({
                     <span>⚠</span> Invalid username format.
                   </p>
                 )}
+                {/* LinkedIn validation feedback */}
+                {field.key === 'linkedin' && linkedinStatus === 'valid' && (
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#16a34a' }}>
+                    <span>✓</span> Valid LinkedIn profile format
+                  </p>
+                )}
+                {field.key === 'linkedin' && linkedinStatus === 'invalid' && (
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
+                    <span>⚠</span> Invalid LinkedIn profile format.
+                  </p>
+                )}
                 {/* Email validation warnings */}
                 {field.key === 'email' && !editedData.email?.trim() && (
                   <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
@@ -313,14 +386,17 @@ export default function ParsedReviewQuestion({
       <div className="space-y-3 pt-4">
         <button
           onClick={() => {
-            // Construct full GitHub URL from username before passing up
+            // Construct full URLs from username/slug before passing up
             const finalData = {
               ...editedData,
               github: editedData.github ? `https://github.com/${editedData.github}` : undefined,
+              linkedin: editedData.linkedin && isValidLinkedInSlug(editedData.linkedin)
+                ? `https://www.linkedin.com/in/${editedData.linkedin}`
+                : undefined,
             };
             onAccept(finalData);
           }}
-          disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking'}
+          disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking' || linkedinStatus === 'invalid'}
           className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >

@@ -16,6 +16,7 @@ import VerificationQuestion from './questions/VerificationQuestion';
 import FileUploadQuestion from './questions/FileUploadQuestion';
 import ParsedReviewQuestion from './questions/ParsedReviewQuestion';
 import GitHubImportQuestion from './questions/GitHubImportQuestion';
+import LinkedInImportQuestion from './questions/LinkedInImportQuestion';
 import CompletionScreen from './questions/CompletionScreen';
 
 interface ConversationalOnboardingProps {
@@ -253,6 +254,14 @@ export default function ConversationalOnboarding({
       setGithubStatus('error');
       setErrors((prev) => ({ ...prev, 'github-import': err.message || 'Failed to fetch GitHub profile' }));
     }
+  };
+
+  const handleLinkedInSubmit = (slug: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      linkedin: `https://www.linkedin.com/in/${slug}`,
+    }));
+    handleNext();
   };
 
   const handleGitHubContinue = () => {
@@ -550,6 +559,16 @@ export default function ConversationalOnboarding({
               setFormData((prev: any) => ({ ...prev, _parsedData: null }));
               handleNext();
             }}
+          />
+        );
+
+      case 'linkedin-import':
+        return (
+          <LinkedInImportQuestion
+            question={q.question!}
+            subtitle={q.subtitle}
+            onSubmit={handleLinkedInSubmit}
+            onSkip={handleNext}
           />
         );
 
