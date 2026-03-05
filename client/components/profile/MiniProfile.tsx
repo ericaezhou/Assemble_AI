@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { getInitialsFromName } from '@/utils/name';
 import ChipList from './ChipList';
 import { UserProfile } from '@/store/userStore';
 
@@ -26,7 +27,7 @@ export default function MiniProfile({ user }: MiniProfileProps) {
   };
 
   const initials = user.name
-    ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+    ? getInitialsFromName(user.name)
     : '?';
 
   return (

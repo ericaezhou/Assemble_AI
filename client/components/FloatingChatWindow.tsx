@@ -144,7 +144,7 @@ export default function FloatingChatWindow({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const initials = otherUserName.charAt(0).toUpperCase();
+  const initials = getInitialsFromName(otherUserName);
 
   return (
     <div

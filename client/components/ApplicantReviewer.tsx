@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authenticatedFetch } from '@/utils/auth';
+import { getInitialsFromName } from '@/utils/name';
 
 interface Category {
   name: string;
@@ -79,10 +80,6 @@ function typeColour(name: string, categories: Category[]): string {
   return TYPE_COLOURS[(idx < 0 ? 0 : idx) % TYPE_COLOURS.length];
 }
 
-function getInitials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-}
-
 function tagline(a: Applicant): string {
   return [a.school || a.company, a.major || a.title, a.year].filter(Boolean).join(' · ');
 }
@@ -112,7 +109,7 @@ function ProfileDrawer({
             className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0"
             style={{ background: 'var(--accent-light)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
           >
-            {getInitials(applicant.name)}
+            {getInitialsFromName(applicant.name)}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-black" style={{ color: 'var(--text)' }}>{applicant.name}</h2>
@@ -709,7 +706,7 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                       className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
                       style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                     >
-                      {getInitials(applicant.name)}
+                      {getInitialsFromName(applicant.name)}
                     </div>
 
                     <div className="flex-1 min-w-0">
