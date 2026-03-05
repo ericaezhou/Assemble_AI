@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUserStore } from '@/store/userStore';
+import { getInitialsFromName } from '@/utils/name';
 import ThemeSettings from '@/components/settings/ThemeSettings';
 
 interface TopNavProps {
@@ -19,7 +20,7 @@ export default function TopNav({ currentView }: TopNavProps) {
   };
 
   const initials = user?.name
-    ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+    ? getInitialsFromName(user.name)
     : '?';
 
   return (

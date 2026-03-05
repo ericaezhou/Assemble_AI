@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { UserProfile } from '@/store/userStore';
+import { getInitialsFromName } from '@/utils/name';
 import ChipList from './ChipList';
 import ProfileEditForm from './ProfileEditForm';
 
@@ -9,15 +10,6 @@ interface FullProfileProps {
   user: UserProfile;
   isOwnProfile: boolean;
   onProfileUpdate: () => void;
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 function getHeadline(user: UserProfile): string {
@@ -112,7 +104,7 @@ export default function FullProfile({
                 outline: '2px solid var(--border)',
               }}
             >
-              {getInitials(user.name)}
+              {getInitialsFromName(user.name)}
             </div>
 
             {isOwnProfile && (
