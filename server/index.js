@@ -1682,7 +1682,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
 
     const { data: participants, error: participantsError } = await supabase
       .from('profiles')
-      .select('id, name')
+      .select('id, name, avatar_url')
       .in('id', Array.from(participantIds));
 
     if (participantsError) {
@@ -1712,6 +1712,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
           ...conv,
           other_user_id: otherUserId,
           other_user_name: otherUser?.name || null,
+          other_user_avatar: otherUser?.avatar_url || null,
           last_message: lastMessage?.content || null,
           last_message_time: lastMessage?.created_at || null
         };

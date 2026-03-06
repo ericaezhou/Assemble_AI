@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUserStore } from '@/store/userStore';
-import { getInitialsFromName } from '@/utils/name';
 import ThemeSettings from '@/components/settings/ThemeSettings';
 
 interface TopNavProps {
@@ -18,10 +17,6 @@ export default function TopNav({ currentView }: TopNavProps) {
     await logout();
     window.location.href = '/';
   };
-
-  const initials = user?.name
-    ? getInitialsFromName(user.name)
-    : '?';
 
   return (
     <>

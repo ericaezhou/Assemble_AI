@@ -124,7 +124,7 @@ export default function ProfilePage() {
                 currentUser={currentUser}
                 openConversationId={openConversationId}
                 onConversationOpened={() => setOpenConversationId(null)}
-                onOpenChat={(id, name, userId) => { unhideConversation(id); setFloatingChat({ id, name, userId }); }}
+                onOpenChat={(id, name, userId, avatarUrl) => { unhideConversation(id); setFloatingChat({ id, name, userId, avatarUrl }); }}
                 className="h-full flex flex-col"
               />
             </div>

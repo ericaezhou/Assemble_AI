@@ -13,6 +13,7 @@ export default function ChatOverlay() {
       conversationId={floatingChat.id}
       otherUserName={floatingChat.name}
       otherUserId={floatingChat.userId}
+      otherUserAvatarUrl={floatingChat.avatarUrl}
       currentUser={{ id: user.id, name: user.name }}
       draft={chatDrafts[floatingChat.id] ?? ''}
       onDraftChange={(convId, text) => setChatDraft(convId, text)}

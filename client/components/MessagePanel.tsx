@@ -9,6 +9,7 @@ interface Conversation {
   id: number;
   other_user_id: string;
   other_user_name: string;
+  other_user_avatar?: string;
   last_message: string;
   last_message_time: string;
 }
@@ -17,7 +18,7 @@ interface MessagePanelProps {
   currentUser: { id: string; name: string };
   openConversationId?: number | null;
   onConversationOpened?: () => void;
-  onOpenChat?: (conversationId: number, otherUserName: string, otherUserId: string) => void;
+  onOpenChat?: (conversationId: number, otherUserName: string, otherUserId: string, otherUserAvatar?: string) => void;
   drafts?: Record<number, string>;
   className?: string;
 }
@@ -43,7 +44,7 @@ export default function MessagePanel({
     const open = async () => {
       const convos = await mutateConversations();
       const target = convos?.find((c: Conversation) => c.id === openConversationId);
-      if (target) onOpenChat?.(target.id, target.other_user_name, target.other_user_id);
+      if (target) onOpenChat?.(target.id, target.other_user_name, target.other_user_id, target.other_user_avatar);
       onConversationOpened?.();
     };
     open();
@@ -90,7 +91,7 @@ export default function MessagePanel({
                 onMouseLeave={() => setHoveredConvId(null)}
               >
                 <button
-                  onClick={() => onOpenChat?.(conv.id, conv.other_user_name, conv.other_user_id)}
+                  onClick={() => onOpenChat?.(conv.id, conv.other_user_name, conv.other_user_id, conv.other_user_avatar)}
                   className="w-full text-left px-3 py-3 pr-8 transition-colors flex items-center gap-2.5"
                   style={{ borderBottom: '1px solid var(--border-light)' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-light)')}
@@ -98,10 +99,12 @@ export default function MessagePanel({
                 >
                   {/* Avatar */}
                   <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 overflow-hidden"
                     style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}
                   >
-                    {getInitialsFromName(conv.other_user_name)}
+                    {conv.other_user_avatar ? (
+                      <img src={conv.other_user_avatar} alt={conv.other_user_name} className="w-full h-full object-cover" />
+                    ) : getInitialsFromName(conv.other_user_name)}
                   </div>
                   {/* Text */}
                   <div className="flex-1 min-w-0">

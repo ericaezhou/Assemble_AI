@@ -413,10 +413,12 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           style={{ background: 'var(--accent-light)' }}
                         >
                           <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 overflow-hidden"
                             style={{ background: 'var(--surface)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitialsFromName(person.name)}
+                            {person.avatar_url ? (
+                              <img src={person.avatar_url} alt={person.name} className="w-full h-full object-cover" />
+                            ) : getInitialsFromName(person.name)}
                           </div>
                           <div>
                             <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{person.name}</p>
@@ -487,10 +489,12 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg)')}
                         >
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 overflow-hidden"
                             style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitialsFromName(participant.name)}
+                            {participant.avatar_url ? (
+                              <img src={participant.avatar_url} alt={participant.name} className="w-full h-full object-cover" />
+                            ) : getInitialsFromName(participant.name)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">

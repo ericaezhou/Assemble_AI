@@ -45,6 +45,7 @@ interface Applicant {
   status: string;
   rsvp_responses?: string[];
   host_notes?: string;
+  avatar_url?: string;
   ai_score?: number;
   ai_review?: AIReview;
   final_decision?: string;
@@ -106,10 +107,12 @@ function ProfileDrawer({
         {/* Header */}
         <div className="flex items-start gap-4 p-6" style={{ borderBottom: '2px solid var(--border-light)' }}>
           <div
-            className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0"
+            className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0 overflow-hidden"
             style={{ background: 'var(--accent-light)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
           >
-            {getInitialsFromName(applicant.name)}
+            {applicant.avatar_url ? (
+              <img src={applicant.avatar_url} alt={applicant.name} className="w-full h-full object-cover" />
+            ) : getInitialsFromName(applicant.name)}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-black" style={{ color: 'var(--text)' }}>{applicant.name}</h2>
@@ -703,10 +706,12 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 overflow-hidden"
                       style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                     >
-                      {getInitialsFromName(applicant.name)}
+                      {applicant.avatar_url ? (
+                        <img src={applicant.avatar_url} alt={applicant.name} className="w-full h-full object-cover" />
+                      ) : getInitialsFromName(applicant.name)}
                     </div>
 
                     <div className="flex-1 min-w-0">

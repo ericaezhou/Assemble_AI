@@ -33,6 +33,7 @@ export interface FloatingChatState {
   id: number;
   name: string;
   userId: string;
+  avatarUrl?: string;
 }
 
 interface UserState {

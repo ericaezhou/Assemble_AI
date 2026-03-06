@@ -286,7 +286,7 @@ export default function Dashboard({ user }: DashboardProps) {
                   currentUser={user}
                   openConversationId={openConversationId}
                   onConversationOpened={() => setOpenConversationId(null)}
-                  onOpenChat={(id, name, userId) => { unhideConversation(id); setFloatingChat({ id, name, userId }); }}
+                  onOpenChat={(id, name, userId, avatarUrl) => { unhideConversation(id); setFloatingChat({ id, name, userId, avatarUrl }); }}
                   drafts={chatDrafts}
                   className="h-full flex flex-col"
                 />
@@ -499,7 +499,7 @@ export default function Dashboard({ user }: DashboardProps) {
                 currentUser={user}
                 openConversationId={openConversationId}
                 onConversationOpened={() => setOpenConversationId(null)}
-                onOpenChat={(id, name, userId) => { unhideConversation(id); setFloatingChat({ id, name, userId }); }}
+                onOpenChat={(id, name, userId, avatarUrl) => { unhideConversation(id); setFloatingChat({ id, name, userId, avatarUrl }); }}
                 drafts={chatDrafts}
                 className="h-full flex flex-col"
               />

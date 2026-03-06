@@ -20,6 +20,7 @@ interface FloatingChatWindowProps {
   conversationId: number;
   otherUserName: string;
   otherUserId: string;
+  otherUserAvatarUrl?: string;
   currentUser: { id: string; name: string };
   draft?: string;
   onDraftChange?: (conversationId: number, text: string) => void;
@@ -30,6 +31,7 @@ export default function FloatingChatWindow({
   conversationId,
   otherUserName,
   otherUserId,
+  otherUserAvatarUrl,
   currentUser,
   draft = '',
   onDraftChange,
@@ -148,7 +150,6 @@ export default function FloatingChatWindow({
   };
 
   const router = useRouter();
-  const initials = getInitialsFromName(otherUserName);
 
   return (
     <div
@@ -170,10 +171,12 @@ export default function FloatingChatWindow({
       >
         <div className="flex items-center gap-2 min-w-0">
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 overflow-hidden"
             style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}
           >
-            {initials}
+            {otherUserAvatarUrl ? (
+              <img src={otherUserAvatarUrl} alt={otherUserName} className="w-full h-full object-cover" />
+            ) : getInitialsFromName(otherUserName)}
           </div>
           <button
             onClick={e => { e.stopPropagation(); router.push(`/profile/${otherUserId}`); }}
