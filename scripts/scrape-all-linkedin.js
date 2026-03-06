@@ -5,15 +5,13 @@
  *
  * Usage:
  *   node scripts/scrape-all-linkedin.js
- *
- * Requires the LinkedIn service to be running (npm run dev).
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const { createClient } = require('@supabase/supabase-js');
+const { scrapeProfiles } = require('../server/lib/linkedin');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-const LINKEDIN_SERVICE_URL = process.env.LINKEDIN_SERVICE_URL || 'http://localhost:5200';
 
 function sanitizeForLLM(text, maxLength = 100) {
   if (!text || typeof text !== 'string') return '';
@@ -73,20 +71,7 @@ async function scrapeUser(userId, linkedinUrl) {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      const res = await fetch(`${LINKEDIN_SERVICE_URL}/api/linkedin/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [fullUrl] }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!res.ok) throw new Error(`Service returned ${res.status}`);
-
-      const { profiles } = await res.json();
+      const profiles = await scrapeProfiles([fullUrl]);
       if (!profiles || profiles.length === 0) throw new Error('No profile data returned');
 
       const extracted = extractLinkedInFields(profiles[0]);
@@ -178,5 +163,5 @@ async function scrapeUser(userId, linkedinUrl) {
     else failed++;
   }
 
-  console.log(`\nDone! Succeeded: ${succeeded}, Failed: ${failed}, Skipped: ${alreadyScraped.size}`);
+  console.log(`\nDone! Succeeded: ${succeeded}, Failed: ${failed}, Skipped: ${scrapedUserIds.size}`);
 })();

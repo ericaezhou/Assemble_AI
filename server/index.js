@@ -19,7 +19,7 @@ const openai = new OpenAI({
 const app = express();
 const PORT = process.env.PORT || 5001;
 const MATCHING_SERVICE_URL = process.env.MATCHING_SERVICE_URL || 'http://localhost:5000';
-const LINKEDIN_SERVICE_URL = process.env.LINKEDIN_SERVICE_URL || 'http://localhost:5200';
+const { scrapeProfiles } = require('./lib/linkedin');
 const TOP_K_MIN = 1;
 const TOP_K_MAX = 50;
 const MMR_LAMBDA_MIN_EXCLUSIVE = 0;
@@ -1996,39 +1996,27 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
       if (!safeLinkedIn.name && !safeLinkedIn.description && !safeLinkedIn.headline) {
         if (/^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(fullLinkedinUrl)) {
           try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 30000);
-            const linkedinRes = await fetch(`${LINKEDIN_SERVICE_URL}/api/linkedin/scrape`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ urls: [fullLinkedinUrl] }),
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
+            const profiles = await scrapeProfiles([fullLinkedinUrl]);
+            if (profiles && profiles.length > 0) {
+              const extracted = extractLinkedInFields(profiles[0]);
+              safeLinkedIn.name = extracted.name;
+              safeLinkedIn.description = extracted.description;
+              safeLinkedIn.headline = extracted.headline;
+              safeLinkedIn.company = extracted.company;
+              safeLinkedIn.posts = extracted.posts.slice(0, 3).join('; ');
 
-            if (linkedinRes.ok) {
-              const { profiles } = await linkedinRes.json();
-              if (profiles && profiles.length > 0) {
-                const extracted = extractLinkedInFields(profiles[0]);
-                safeLinkedIn.name = extracted.name;
-                safeLinkedIn.description = extracted.description;
-                safeLinkedIn.headline = extracted.headline;
-                safeLinkedIn.company = extracted.company;
-                safeLinkedIn.posts = extracted.posts.slice(0, 3).join('; ');
-
-                // Store in cache for next time
-                await supabase
-                  .from('linkedin_profiles')
-                  .upsert({
-                    user_id: id,
-                    linkedin_url: fullLinkedinUrl,
-                    ...extracted,
-                    raw_data: profiles[0],
-                    status: 'success',
-                    scraped_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  }, { onConflict: 'user_id' });
-              }
+              // Store in cache for next time
+              await supabase
+                .from('linkedin_profiles')
+                .upsert({
+                  user_id: id,
+                  linkedin_url: fullLinkedinUrl,
+                  ...extracted,
+                  raw_data: profiles[0],
+                  status: 'success',
+                  scraped_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id' });
             }
           } catch (err) {
             console.warn('LinkedIn scraping failed (non-blocking):', err.message);
@@ -2229,22 +2217,7 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
-
-        const linkedinRes = await fetch(`${LINKEDIN_SERVICE_URL}/api/linkedin/scrape`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [fullUrl] }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-
-        if (!linkedinRes.ok) {
-          throw new Error(`LinkedIn service returned ${linkedinRes.status}`);
-        }
-
-        const { profiles } = await linkedinRes.json();
+        const profiles = await scrapeProfiles([fullUrl]);
         if (!profiles || profiles.length === 0) {
           throw new Error('No profile data returned');
         }
