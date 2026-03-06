@@ -25,6 +25,7 @@ export interface UserProfile {
   github?: string;
   linkedin?: string;
   expected_grad_date?: string;
+  avatar_url?: string;
   created_at?: string;
 }
 

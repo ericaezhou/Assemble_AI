@@ -204,7 +204,7 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
     name, occupation, school, major, year, company, title, degree,
     work_experience_years, research_area, other_description,
     interest_areas, current_skills, hobbies,
-    bio, publications, github, linkedin, expected_grad_date
+    bio, publications, github, linkedin, expected_grad_date, avatar_url
   } = req.body;
 
   // Build dynamic update object based on provided fields
@@ -229,6 +229,7 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   if (github !== undefined) updates.github = github;
   if (linkedin !== undefined) updates.linkedin = linkedin;
   if (expected_grad_date !== undefined) updates.expected_grad_date = expected_grad_date;
+  if (avatar_url !== undefined) updates.avatar_url = avatar_url;
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
@@ -2137,6 +2138,19 @@ Output only the bio text, nothing else.`;
 // Parsing service proxy routes
 const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
 
+// Upload avatar (no auth required — user may not have signed up yet)
+app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+  const ext = req.file.originalname.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
+  if (error) return res.status(500).json({ error: error.message });
+  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filename);
+  res.json({ url: publicUrl });
+});
+
 // Upload event cover photo
 app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
@@ -2144,7 +2158,7 @@ app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), a
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const { error } = await supabase.storage
     .from('event-covers')
-    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
   if (error) return res.status(500).json({ error: error.message });
   const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(filename);
   res.json({ url: publicUrl });
@@ -2210,6 +2224,15 @@ app.post('/api/parsing/claim', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Ensure avatars storage bucket exists
+  const { data: buckets } = await supabase.storage.listBuckets();
+  const exists = buckets?.some((b) => b.name === 'avatars');
+  if (!exists) {
+    const { error } = await supabase.storage.createBucket('avatars', { public: true });
+    if (error) console.error('[storage] Failed to create avatars bucket:', error.message);
+    else console.log('[storage] Created avatars bucket');
+  }
 });

@@ -3,6 +3,7 @@ export type QuestionType =
   | 'file-upload'
   | 'parsed-review'
   | 'github-import'
+  | 'avatar-upload'
   | 'text'
   | 'email'
   | 'verification'
@@ -73,6 +74,16 @@ export const onboardingQuestions: QuestionConfig[] = [
       if (!value || value.trim().length === 0) return 'Please enter your name';
       return null;
     },
+  },
+
+  // Avatar upload (optional)
+  {
+    id: 'avatar-upload',
+    type: 'avatar-upload',
+    question: 'Add a profile photo',
+    subtitle: 'Help people recognize you. You can always change this later.',
+    field: 'avatar_url',
+    optional: true,
   },
 
   // Email

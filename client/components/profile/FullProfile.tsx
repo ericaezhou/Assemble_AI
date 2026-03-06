@@ -96,7 +96,7 @@ export default function FullProfile({
         <div className="px-8 pb-8 -mt-10">
           <div className="flex items-end justify-between mb-5">
             <div
-              className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-black border-4 select-none"
+              className="w-20 h-20 rounded-full border-4 overflow-hidden flex items-center justify-center text-2xl font-black select-none flex-shrink-0"
               style={{
                 background: 'var(--accent-light)',
                 borderColor: 'var(--surface)',
@@ -104,7 +104,11 @@ export default function FullProfile({
                 outline: '2px solid var(--border)',
               }}
             >
-              {getInitialsFromName(user.name)}
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                getInitialsFromName(user.name)
+              )}
             </div>
 
             {isOwnProfile && (
