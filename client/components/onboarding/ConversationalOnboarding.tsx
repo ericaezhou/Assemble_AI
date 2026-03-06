@@ -481,6 +481,7 @@ export default function ConversationalOnboarding({
       }
 
       // Generate bio in background if we have GitHub, resume, or LinkedIn data (non-blocking)
+      // Bio generation handles LinkedIn scraping + caching internally
       const hasGithub = !!profileFields.github;
       const hasResumeData = !!_parsedData;
       const hasLinkedIn = !!profileFields.linkedin;

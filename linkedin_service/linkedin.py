@@ -19,11 +19,9 @@ SCRAPFLY = ScrapflyClient(key=os.environ["SCRAPFLY_KEY"])
 BASE_CONFIG = {
     "asp": True,
     "country": "US",
-    "headers": {
-        "Accept-Language": "en-US,en;q=0.5"
-    },
     "render_js": True,
     "proxy_pool": "public_residential_pool",
+    "debug": True,
 }
 
 
@@ -39,9 +37,10 @@ def refine_profile(data: Dict) -> Dict:
 
 def parse_profile(response: ScrapeApiResponse) -> Dict:
     selector = response.selector
-    data = json.loads(
-        selector.xpath("//script[@type='application/ld+json']/text()").get()
-    )
+    raw = selector.xpath("//script[@type='application/ld+json']/text()").get()
+    if not raw:
+        raise ValueError("No JSON-LD data found — LinkedIn may have returned a login wall")
+    data = json.loads(raw)
     refined_data = refine_profile(data)
     return refined_data
 
@@ -63,8 +62,8 @@ async def scrape_profile(urls: List[str]) -> List[Dict]:
                 break
             except Exception as e:
                 error_msg = str(e)
-                if "ASP" in error_msg and attempt < MAX_RETRIES:
-                    log.warning(f"ASP failed for {url} (attempt {attempt}/{MAX_RETRIES}), retrying in {RETRY_DELAY}s...")
+                if attempt < MAX_RETRIES:
+                    log.warning(f"Scrape failed for {url} (attempt {attempt}/{MAX_RETRIES}): {error_msg}. Retrying in {RETRY_DELAY}s...")
                     await asyncio.sleep(RETRY_DELAY)
                 else:
                     log.error(f"Failed to scrape {url} after {attempt} attempt(s): {e}")
