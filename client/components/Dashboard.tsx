@@ -10,6 +10,7 @@ import EventDetail from './EventDetail';
 import MessagePanel from './MessagePanel';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
+import EventCoverFallback from './EventCoverFallback';
 import { useAuthSWR } from '@/hooks/useAuthSWR';
 import { UserProfile, useUserStore } from '@/store/userStore';
 
@@ -264,16 +265,13 @@ export default function Dashboard({ user }: DashboardProps) {
             </button>
             {(() => {
               const coverUrl = events.find(e => e.id === selectedEventId)?.cover_photo_url;
-              return coverUrl ? (
+              const eventName = events.find(e => e.id === selectedEventId)?.name || '';
+              return (
                 <div className="card overflow-hidden aspect-[3/4]" style={{ border: 'none' }}>
-                  <img src={coverUrl} alt="Event cover" className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="card overflow-hidden aspect-[3/4] flex flex-col items-center justify-center gap-3" style={{ border: 'none', color: 'var(--border-light)' }}>
-                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Cover photo</span>
+                  {coverUrl
+                    ? <img src={coverUrl} alt="Event cover" className="w-full h-full object-cover" />
+                    : <EventCoverFallback eventName={eventName} />
+                  }
                 </div>
               );
             })()}

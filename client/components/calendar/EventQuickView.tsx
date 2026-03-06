@@ -9,6 +9,7 @@ import { authenticatedFetch } from '@/utils/auth';
 import { getGoogleCalendarUrl, downloadICS } from './calendarUtils';
 import { getEventCategory, EVENT_CATEGORY_COLORS } from '@/types/calendar';
 import type { ParticipantCount } from '@/types/calendar';
+import EventCoverFallback from '@/components/EventCoverFallback';
 
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -137,23 +138,12 @@ export default function EventQuickView() {
   const content = (
     <div className="flex flex-col">
       {/* Cover image */}
-      {selectedEvent.cover_photo_url ? (
-        <div className="h-32 overflow-hidden rounded-t-lg flex-shrink-0">
-          <img src={selectedEvent.cover_photo_url} alt="" className="w-full h-full object-cover" />
-        </div>
-      ) : (
-        <div
-          className="h-20 rounded-t-lg flex items-center justify-center"
-          style={{ background: colors.bg }}
-        >
-          <svg width="28" height="28" fill="none" stroke={colors.border} strokeWidth="1.5" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-          </svg>
-        </div>
-      )}
+      <div className="h-32 overflow-hidden rounded-t-lg flex-shrink-0">
+        {selectedEvent.cover_photo_url
+          ? <img src={selectedEvent.cover_photo_url} alt="" className="w-full h-full object-cover" />
+          : <EventCoverFallback eventName={selectedEvent.name} />
+        }
+      </div>
 
       <div className="p-4 space-y-3">
         {/* Title + status */}

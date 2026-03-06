@@ -5,6 +5,7 @@ import { authenticatedFetch } from '@/utils/auth';
 import { getInitialsFromName } from '@/utils/name';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 import ApplicantReviewer from './ApplicantReviewer';
+import EventCoverFallback from './EventCoverFallback';
 
 interface Event {
   id: string;

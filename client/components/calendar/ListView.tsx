@@ -4,6 +4,7 @@ import { format, parseISO, eachDayOfInterval } from 'date-fns';
 import { useCalendar } from './CalendarProvider';
 import { getEventCategory, EVENT_CATEGORY_COLORS } from '@/types/calendar';
 import type { CalendarEvent } from '@/types/calendar';
+import EventCoverFallback from '@/components/EventCoverFallback';
 
 function groupByDate(events: CalendarEvent[]): { dateLabel: string; dateKey: string; events: CalendarEvent[] }[] {
   const dayMap = new Map<string, CalendarEvent[]>();
@@ -113,11 +114,12 @@ function ListEventCard({
       style={{ borderLeft: `3px solid ${colors.border}` }}
     >
       {/* Cover thumbnail */}
-      {event.cover_photo_url && (
-        <div className="w-20 flex-shrink-0 overflow-hidden">
-          <img src={event.cover_photo_url} alt="" className="w-full h-full object-cover" />
-        </div>
-      )}
+      <div className="w-20 flex-shrink-0 overflow-hidden">
+        {event.cover_photo_url
+          ? <img src={event.cover_photo_url} alt="" className="w-full h-full object-cover" />
+          : <EventCoverFallback eventName={event.name} />
+        }
+      </div>
 
       <div className="flex-1 min-w-0 px-4 py-3 space-y-1">
         <div className="flex items-center gap-2">
