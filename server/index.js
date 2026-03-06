@@ -1700,6 +1700,11 @@ function sanitizeForLLM(text, maxLength = 100) {
     .slice(0, maxLength);
 }
 
+// Normalize LinkedIn URL for dedup (strips protocol, www, trailing slash)
+function normalizeLinkedInUrl(url) {
+  return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').toLowerCase();
+}
+
 // Extract structured fields from raw LinkedIn profile data
 function extractLinkedInFields(rawProfile) {
   const liProfile = rawProfile.profile || {};
@@ -1956,13 +1961,26 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
         ? linkedinUrl.trim()
         : `https://www.linkedin.com/in/${linkedinUrl.trim()}`;
 
-      // 1. Check linkedin_profiles cache
-      const { data: cached } = await supabase
+      // 1. Check linkedin_profiles cache (by user_id, then by URL)
+      let cached = null;
+      const { data: byUser } = await supabase
         .from('linkedin_profiles')
         .select('name, headline, description, company, posts')
         .eq('user_id', id)
         .eq('status', 'success')
         .maybeSingle();
+
+      if (byUser) {
+        cached = byUser;
+      } else {
+        const { data: allSuccessful } = await supabase
+          .from('linkedin_profiles')
+          .select('name, headline, description, company, posts, linkedin_url')
+          .eq('status', 'success');
+
+        const normalizedTarget = normalizeLinkedInUrl(fullLinkedinUrl);
+        cached = (allSuccessful || []).find(r => normalizeLinkedInUrl(r.linkedin_url) === normalizedTarget) || null;
+      }
 
       if (cached) {
         safeLinkedIn = {
@@ -2166,12 +2184,27 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
 
     // Check for cached data (skip if force refresh requested)
     if (!force) {
-      const { data: cached } = await supabase
+      // Check by user_id first, then by normalized URL (catches duplicate accounts)
+      let cached = null;
+      const { data: byUser } = await supabase
         .from('linkedin_profiles')
         .select('*')
         .eq('user_id', id)
         .eq('status', 'success')
-        .single();
+        .maybeSingle();
+
+      if (byUser) {
+        cached = byUser;
+      } else {
+        // Check if this LinkedIn URL was already scraped for another user
+        const { data: allSuccessful } = await supabase
+          .from('linkedin_profiles')
+          .select('*')
+          .eq('status', 'success');
+
+        const normalizedTarget = normalizeLinkedInUrl(fullUrl);
+        cached = (allSuccessful || []).find(r => normalizeLinkedInUrl(r.linkedin_url) === normalizedTarget) || null;
+      }
 
       if (cached) {
         return res.json({ cached: true, data: cached });
