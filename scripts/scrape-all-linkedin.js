@@ -64,6 +64,11 @@ async function scrapeUser(userId, linkedinUrl) {
     ? linkedinUrl
     : `https://www.linkedin.com/in/${linkedinUrl}`;
 
+  if (!/^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(fullUrl)) {
+    console.warn(`  Skipping — invalid LinkedIn URL: ${fullUrl}`);
+    return false;
+  }
+
   console.log(`  Scraping ${fullUrl}...`);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
