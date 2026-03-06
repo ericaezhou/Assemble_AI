@@ -46,6 +46,7 @@ export default function TopNav({ currentView }: TopNavProps) {
                     { href: '/',                    label: 'Home',     view: 'home' },
                     { href: '/calendar',            label: 'Calendar', view: 'calendar' },
                     { href: `/profile/${user.id}`,  label: 'Profile',  view: 'profile' },
+                    { href: '/friends',             label: 'Friends',  view: 'friends' },
                     { href: '/messages',            label: 'Messages', view: 'messages' },
                   ].map(({ href, label, view }) => (
                     <Link

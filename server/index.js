@@ -204,7 +204,8 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
     name, occupation, school, major, year, company, title, degree,
     work_experience_years, research_area, other_description,
     interest_areas, current_skills, hobbies,
-    bio, publications, github, linkedin, expected_grad_date, avatar_url
+    bio, publications, github, linkedin, expected_grad_date, avatar_url,
+    tagline, instagram, twitter
   } = req.body;
 
   // Build dynamic update object based on provided fields
@@ -230,6 +231,9 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   if (linkedin !== undefined) updates.linkedin = linkedin;
   if (expected_grad_date !== undefined) updates.expected_grad_date = expected_grad_date;
   if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+  if (tagline !== undefined) updates.tagline = tagline;
+  if (instagram !== undefined) updates.instagram = instagram;
+  if (twitter !== undefined) updates.twitter = twitter;
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
@@ -2220,6 +2224,170 @@ app.post('/api/parsing/claim', async (req, res) => {
     });
     const data = await response.json();
     res.status(response.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Friends API ──────────────────────────────────────────────────────────────
+
+// GET /api/friends — current user's accepted friends + pending incoming requests
+app.get('/api/friends', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  try {
+    const { data: accepted, error: e1 } = await supabase
+      .from('friendships')
+      .select(`
+        id, requester_id, addressee_id, created_at,
+        requester:profiles!requester_id(id, name, avatar_url, tagline, occupation, school, major, company, title),
+        addressee:profiles!addressee_id(id, name, avatar_url, tagline, occupation, school, major, company, title)
+      `)
+      .eq('status', 'accepted')
+      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+    if (e1) return res.status(500).json({ error: e1.message });
+
+    const { data: incoming, error: e2 } = await supabase
+      .from('friendships')
+      .select(`
+        id, requester_id, created_at,
+        requester:profiles!requester_id(id, name, avatar_url, tagline, occupation, school, major, company, title)
+      `)
+      .eq('addressee_id', userId)
+      .eq('status', 'pending');
+
+    if (e2) return res.status(500).json({ error: e2.message });
+
+    const friends = (accepted || []).map(f => ({
+      friendshipId: f.id,
+      friend: f.requester_id === userId ? f.addressee : f.requester,
+      since: f.created_at,
+    }));
+
+    const requests = (incoming || []).map(r => ({
+      friendshipId: r.id,
+      from: r.requester,
+      createdAt: r.created_at,
+    }));
+
+    res.json({ friends, requests });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/friends/status/:otherUserId — friendship status with another user
+app.get('/api/friends/status/:otherUserId', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { otherUserId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select('id, status, requester_id, addressee_id')
+      .or(`and(requester_id.eq.${userId},addressee_id.eq.${otherUserId}),and(requester_id.eq.${otherUserId},addressee_id.eq.${userId})`)
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (!data) return res.json({ status: 'none' });
+
+    if (data.status === 'accepted') {
+      return res.json({ status: 'friends', friendshipId: data.id });
+    }
+    if (data.status === 'pending') {
+      if (data.requester_id === userId) {
+        return res.json({ status: 'pending_sent', friendshipId: data.id });
+      } else {
+        return res.json({ status: 'pending_received', friendshipId: data.id });
+      }
+    }
+    return res.json({ status: 'none' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/friends/request — send a friend request
+app.post('/api/friends/request', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { addresseeId } = req.body;
+  if (!addresseeId || addresseeId === userId) {
+    return res.status(400).json({ error: 'Invalid addressee' });
+  }
+  try {
+    const { data: existing } = await supabase
+      .from('friendships')
+      .select('id, status')
+      .or(`and(requester_id.eq.${userId},addressee_id.eq.${addresseeId}),and(requester_id.eq.${addresseeId},addressee_id.eq.${userId})`)
+      .maybeSingle();
+
+    if (existing) return res.status(409).json({ error: 'Friendship already exists' });
+
+    const { data, error } = await supabase
+      .from('friendships')
+      .insert({ requester_id: userId, addressee_id: addresseeId, status: 'pending' })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/friends/:id/respond — accept or reject a pending request
+app.put('/api/friends/:id/respond', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+  const { action } = req.body;
+  if (!['accept', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'Action must be accept or reject' });
+  }
+  try {
+    const { data: friendship, error: fe } = await supabase
+      .from('friendships')
+      .select('id, addressee_id, status')
+      .eq('id', id)
+      .single();
+
+    if (fe || !friendship) return res.status(404).json({ error: 'Friendship not found' });
+    if (friendship.addressee_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (friendship.status !== 'pending') return res.status(400).json({ error: 'Already responded' });
+
+    const { data, error } = await supabase
+      .from('friendships')
+      .update({ status: action === 'accept' ? 'accepted' : 'rejected' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/friends/:id — unfriend or cancel request
+app.delete('/api/friends/:id', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+  try {
+    const { data: friendship, error: fe } = await supabase
+      .from('friendships')
+      .select('id, requester_id, addressee_id')
+      .eq('id', id)
+      .single();
+
+    if (fe || !friendship) return res.status(404).json({ error: 'Friendship not found' });
+    if (friendship.requester_id !== userId && friendship.addressee_id !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { error } = await supabase.from('friendships').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

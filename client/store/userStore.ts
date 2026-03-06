@@ -26,6 +26,9 @@ export interface UserProfile {
   linkedin?: string;
   expected_grad_date?: string;
   avatar_url?: string;
+  tagline?: string;
+  instagram?: string;
+  twitter?: string;
   created_at?: string;
 }
 

@@ -35,9 +35,13 @@ export default function ProfileEditForm({
   const [selectedHobbies, setSelectedHobbies] = useState<string[]>(
     user.hobbies || []
   );
+  const [name, setName] = useState(user.name || '');
+  const [tagline, setTagline] = useState(user.tagline || '');
   const [bio, setBio] = useState(user.bio || '');
   const [github, setGithub] = useState(user.github || '');
   const [linkedin, setLinkedin] = useState(user.linkedin || '');
+  const [instagram, setInstagram] = useState(user.instagram || '');
+  const [twitter, setTwitter] = useState(user.twitter || '');
   const [publicationsText, setPublicationsText] = useState(
     (user.publications || []).join('\n')
   );
@@ -96,17 +100,26 @@ export default function ProfileEditForm({
 
     const updates: Partial<UserProfile> = {};
 
-    if (section === 'interests' || section === 'header') {
+    if (section === 'interests') {
       updates.interest_areas = selectedInterests;
     }
-    if (section === 'skills' || section === 'header') {
+    if (section === 'skills') {
       updates.current_skills = selectedSkills;
     }
-    if (section === 'hobbies' || section === 'header') {
+    if (section === 'hobbies') {
       updates.hobbies = selectedHobbies;
     }
-    if (section === 'header' && avatarUrl !== (user.avatar_url || '')) {
-      updates.avatar_url = avatarUrl;
+    if (section === 'header') {
+      updates.name = name;
+      updates.tagline = tagline;
+      updates.bio = bio;
+      updates.github = github;
+      updates.linkedin = linkedin;
+      updates.instagram = instagram;
+      updates.twitter = twitter;
+      if (avatarUrl !== (user.avatar_url || '')) {
+        updates.avatar_url = avatarUrl;
+      }
     }
     if (section === 'about') {
       updates.bio = bio;
@@ -236,7 +249,7 @@ export default function ProfileEditForm({
         );
       case 'header':
         return (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {/* Avatar upload */}
             <div className="flex flex-col items-center gap-3">
               <button
@@ -282,9 +295,60 @@ export default function ProfileEditForm({
               </p>
               {avatarError && <p className="text-xs" style={{ color: '#ef4444' }}>{avatarError}</p>}
             </div>
-            {renderChipSelector(INTEREST_AREAS, selectedInterests, setSelectedInterests, 'Interests')}
-            {renderChipSelector(SKILLS, selectedSkills, setSelectedSkills, 'Skills')}
-            {renderChipSelector(HOBBIES, selectedHobbies, setSelectedHobbies, 'Hobbies')}
+
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="Your name"
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>Tagline</label>
+                <input
+                  type="text"
+                  value={tagline}
+                  onChange={e => setTagline(e.target.value)}
+                  placeholder="A short one-liner about you"
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1" style={{ color: 'var(--text)' }}>About</label>
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  rows={3}
+                  placeholder="Tell people a bit about yourself..."
+                  className="input w-full resize-none"
+                />
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }} className="space-y-3">
+              <p className="text-sm font-black" style={{ color: 'var(--text)' }}>Social Links</p>
+              {[
+                { label: 'GitHub', value: github, set: setGithub, placeholder: 'username or full URL' },
+                { label: 'LinkedIn', value: linkedin, set: setLinkedin, placeholder: 'username or full URL' },
+                { label: 'Instagram', value: instagram, set: setInstagram, placeholder: 'username or full URL' },
+                { label: 'X / Twitter', value: twitter, set: setTwitter, placeholder: 'username or full URL' },
+              ].map(({ label, value, set, placeholder }) => (
+                <div key={label}>
+                  <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{label}</label>
+                  <input
+                    type="text"
+                    value={value}
+                    onChange={e => set(e.target.value)}
+                    placeholder={placeholder}
+                    className="input w-full"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         );
       default:
