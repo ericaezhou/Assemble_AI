@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import Cropper from 'react-easy-crop';
-import type { Area } from 'react-easy-crop/types';
+import type { Area } from 'react-easy-crop';
 
 interface AvatarCropModalProps {
   imageSrc: string;
