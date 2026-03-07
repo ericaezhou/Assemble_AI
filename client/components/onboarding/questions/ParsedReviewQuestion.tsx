@@ -306,8 +306,9 @@ export default function ParsedReviewQuestion({
                   <div
                     className="flex items-center w-full rounded-lg transition-all duration-200"
                     style={{
-                      background: 'var(--surface)',
+                      background: parsedData.linkedin ? 'var(--bg)' : 'var(--surface)',
                       border: `2px solid ${linkedinStatus === 'invalid' ? '#f59e0b' : 'var(--border-light)'}`,
+                      opacity: parsedData.linkedin ? 0.6 : 1,
                     }}
                   >
                     <span className="pl-4 text-sm select-none" style={{ color: 'var(--text-muted)' }}>linkedin.com/in/</span>
@@ -316,8 +317,9 @@ export default function ParsedReviewQuestion({
                       value={editedData.linkedin || ''}
                       onChange={(e) => handleFieldChange('linkedin', e.target.value)}
                       placeholder="johnny-tsunami-6767"
+                      readOnly={!!parsedData.linkedin}
                       className="flex-1 px-1 py-2.5 text-sm bg-transparent outline-none"
-                      style={{ color: 'var(--text)' }}
+                      style={{ color: 'var(--text-muted)', cursor: parsedData.linkedin ? 'default' : undefined }}
                     />
                   </div>
                 ) : (
@@ -354,13 +356,13 @@ export default function ParsedReviewQuestion({
                     <span>⚠</span> Invalid username format.
                   </p>
                 )}
-                {/* LinkedIn validation feedback */}
-                {field.key === 'linkedin' && linkedinStatus === 'valid' && (
+                {/* LinkedIn validation feedback (only when user-editable) */}
+                {field.key === 'linkedin' && !parsedData.linkedin && linkedinStatus === 'valid' && (
                   <p className="text-xs flex items-center gap-1" style={{ color: '#16a34a' }}>
                     <span>✓</span> Valid LinkedIn profile format
                   </p>
                 )}
-                {field.key === 'linkedin' && linkedinStatus === 'invalid' && (
+                {field.key === 'linkedin' && !parsedData.linkedin && linkedinStatus === 'invalid' && (
                   <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> Invalid LinkedIn profile format.
                   </p>
