@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCalendar } from './CalendarProvider';
-import { useUserStore } from '@/store/userStore';
 import { useAuthSWR } from '@/hooks/useAuthSWR';
 import { authenticatedFetch } from '@/utils/auth';
 import { getGoogleCalendarUrl, downloadICS } from './calendarUtils';
@@ -25,7 +24,6 @@ function useMediaQuery(query: string): boolean {
 
 export default function EventQuickView() {
   const { selectedEvent, quickViewOpen, quickViewAnchor, closeQuickView, refreshEvents } = useCalendar();
-  const { user } = useUserStore();
   const router = useRouter();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -175,12 +173,15 @@ export default function EventQuickView() {
             </svg>
             <span>{locationDisplay}</span>
           </div>
-          {selectedEvent.host_name && !isHost && (
-            <div className="flex items-start gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-              <svg className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
+          {selectedEvent.host_name && (
+            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+              {selectedEvent.host_avatar_url ? (
+                <img src={selectedEvent.host_avatar_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+                  {selectedEvent.host_name[0]?.toUpperCase()}
+                </div>
+              )}
               <span>Hosted by <strong style={{ color: 'var(--text)' }}>{selectedEvent.host_name}</strong></span>
             </div>
           )}

@@ -629,7 +629,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
 // Join conference (Protected)
 app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { researcher_id } = req.body;
+  const { researcher_id, rsvp_responses } = req.body;
 
   // Authorize: user can only join conferences as themselves
   if (req.userId !== researcher_id) {
@@ -667,7 +667,8 @@ app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
       .insert({
         conference_id: id,
         researcher_id,
-        status: initialStatus
+        status: initialStatus,
+        ...(rsvp_responses && rsvp_responses.length > 0 ? { rsvp_responses } : {}),
       });
 
     if (joinError) {
@@ -707,10 +708,10 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
 
     const conferenceIds = participants.map(p => p.conference_id);
 
-    // Get conference details with host name
+    // Get conference details with host name and avatar
     const { data: conferences, error: conferencesError } = await supabase
       .from('conferences')
-      .select('*, profiles!conferences_host_id_fkey(name)')
+      .select('*, profiles!conferences_host_id_fkey(name, avatar_url)')
       .in('id', conferenceIds)
       .order('start_date', { ascending: true });
 
@@ -718,11 +719,12 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
       return res.status(500).json({ error: conferencesError.message });
     }
 
-    // Add is_host and host_name fields
+    // Add is_host, host_name, and host_avatar_url fields
     const conferencesWithHost = (conferences || []).map(c => ({
       ...c,
       is_host: c.host_id === id ? 1 : 0,
       host_name: c.profiles?.name || null,
+      host_avatar_url: c.profiles?.avatar_url || null,
       cover_photo_url: c.cover_photo_url || null,
       profiles: undefined,
     }));
@@ -765,7 +767,7 @@ app.get('/api/researchers/:id/calendar-events', authenticateToken, async (req, r
 
     const { data: conferences, error: conferencesError } = await supabase
       .from('conferences')
-      .select('*, profiles!conferences_host_id_fkey(name)')
+      .select('*, profiles!conferences_host_id_fkey(name, avatar_url)')
       .in('id', conferenceIds)
       .lte('start_date', endDate)
       .gte('end_date', startDate)
@@ -787,6 +789,7 @@ app.get('/api/researchers/:id/calendar-events', authenticateToken, async (req, r
       end_time: c.end_time || null,
       host_id: c.host_id,
       host_name: c.profiles?.name || null,
+      host_avatar_url: c.profiles?.avatar_url || null,
       cover_photo_url: c.cover_photo_url || null,
       capacity: c.capacity || null,
       description: c.description || null,

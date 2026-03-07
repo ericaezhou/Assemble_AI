@@ -1,6 +1,7 @@
 'use client';
 
 import EventCoverFallback from './EventCoverFallback';
+import { useUserStore } from '@/store/userStore';
 
 interface Event {
   id: string;
@@ -13,6 +14,7 @@ interface Event {
   end_time?: string;
   is_host: number;
   host_name?: string;
+  host_avatar_url?: string;
   cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
@@ -25,6 +27,7 @@ interface EventCardProps {
 }
 
 export default function EventCard({ event, onCopyId, onClick }: EventCardProps) {
+  const { user } = useUserStore();
   const isHost = event.is_host === 1;
   const isVirtual = event.location_type === 'virtual';
   const isHybrid = event.location_type === 'hybrid';
@@ -35,7 +38,8 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
     ? `${event.location} + Virtual`
     : event.location || 'Location TBD';
 
-  const hostLabel = isHost ? 'You' : event.host_name || null;
+  const hostName = isHost ? (user?.name || 'You') : (event.host_name || null);
+  const hostAvatar = isHost ? user?.avatar_url : event.host_avatar_url;
 
   return (
     <div
@@ -68,10 +72,19 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
           </h3>
 
           {/* Host */}
-          {hostLabel && (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              By <span className="font-semibold" style={{ color: 'var(--text)' }}>{hostLabel}</span>
-            </p>
+          {hostName && (
+            <div className="flex items-center gap-1.5">
+              {hostAvatar ? (
+                <img src={hostAvatar} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+                  {hostName[0]?.toUpperCase()}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                By <span className="font-semibold" style={{ color: 'var(--text)' }}>{hostName}</span>
+              </p>
+            </div>
           )}
 
           {/* Location */}

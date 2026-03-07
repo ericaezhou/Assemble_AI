@@ -14,6 +14,7 @@ export interface CalendarEvent {
   end_time?: string;
   host_id: string;
   host_name: string;
+  host_avatar_url?: string;
   cover_photo_url?: string;
   capacity?: number;
   description?: string;

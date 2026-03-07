@@ -23,6 +23,7 @@ interface Event {
   price_type?: string;
   capacity?: number;
   require_approval?: boolean;
+  rsvp_questions?: string[];
 }
 
 interface EventDetailProps {
@@ -189,9 +190,10 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
 
   const closeWrapped = () => { setWrappedTarget(null); setWrappedPage(0); };
 
-  // Top 3 recommended (sorted by similarity_score, excluding self)
+  // Top 3 recommended — only from confirmed participants, excluding self
+  const participantIds = new Set(participants.map(p => p.id));
   const topRecommended = [...eventRecommendations]
-    .filter(p => p.id !== userId && typeof p.similarity_score === 'number')
+    .filter(p => p.id !== userId && typeof p.similarity_score === 'number' && participantIds.has(p.id))
     .sort((a, b) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0))
     .slice(0, 3);
 

@@ -179,11 +179,21 @@ function ProfileDrawer({
           )}
           {applicant.rsvp_responses && applicant.rsvp_responses.length > 0 && (
             <div>
-              <p className="section-heading mb-1.5">RSVP Answers</p>
-              <div className="space-y-1.5">
-                {applicant.rsvp_responses.map((ans, i) => (
-                  <p key={i} className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border-light)' }}>{ans}</p>
-                ))}
+              <p className="section-heading mb-1.5">Application Answers</p>
+              <div className="space-y-2">
+                {applicant.rsvp_responses.map((ans, i) => {
+                  const colonIdx = ans.indexOf(': ');
+                  const question = colonIdx !== -1 ? ans.slice(0, colonIdx) : null;
+                  const answer = colonIdx !== -1 ? ans.slice(colonIdx + 2) : ans;
+                  return (
+                    <div key={i} className="rounded-lg px-3 py-2.5" style={{ background: 'var(--bg)', border: '1px solid var(--border-light)' }}>
+                      {question && (
+                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{question}</p>
+                      )}
+                      <p className="text-xs" style={{ color: 'var(--text)' }}>{answer}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
