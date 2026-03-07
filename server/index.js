@@ -1888,7 +1888,7 @@ app.post('/api/auth/check-email', async (req, res) => {
   }
 
   // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
@@ -1972,6 +1972,141 @@ app.get('/api/github/profile/:username', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// LinkedIn preview for onboarding (public API, no auth needed)
+app.post('/api/onboarding/linkedin-preview', async (req, res) => {
+  const { linkedin_url } = req.body || {};
+
+  if (!linkedin_url || typeof linkedin_url !== 'string') {
+    return res.status(400).json({ error: 'Missing field: linkedin_url' });
+  }
+
+  // Normalize URL
+  const trimmed = linkedin_url.trim();
+  const fullUrl = trimmed.startsWith('http')
+    ? trimmed
+    : `https://www.linkedin.com/in/${trimmed}`;
+
+  if (!/^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+\/?$/.test(fullUrl)) {
+    return res.status(400).json({ error: 'Invalid LinkedIn URL format' });
+  }
+
+  try {
+    // Check cache first — look for a successful Crustdata scrape of this URL
+    const normalizedTarget = normalizeLinkedInUrl(fullUrl);
+    const { data: cachedRows } = await supabase
+      .from('linkedin_profiles')
+      .select('raw_data, linkedin_url')
+      .eq('status', 'success')
+      .eq('source', 'crustdata')
+      .not('raw_data', 'is', null);
+
+    const cached = (cachedRows || []).find(
+      (r) => normalizeLinkedInUrl(r.linkedin_url || '') === normalizedTarget
+    );
+
+    let raw;
+    let extracted;
+
+    if (cached && cached.raw_data) {
+      console.log(`[linkedin-preview] Cache hit for ${normalizedTarget}`);
+      raw = cached.raw_data;
+      extracted = extractLinkedInFields(raw);
+    } else {
+      console.log(`[linkedin-preview] Cache miss — calling Crustdata for ${normalizedTarget}`);
+      const profiles = await scrapeProfiles([fullUrl]);
+
+      if (!profiles || profiles.length === 0) {
+        return res.status(404).json({ error: 'Profile not found on LinkedIn' });
+      }
+
+      raw = profiles[0];
+      extracted = extractLinkedInFields(raw);
+    }
+
+    // Map to ParsedData shape used by onboarding
+    const allEmployers = [
+      ...(raw.current_employers || []),
+      ...(raw.past_employers || []),
+    ];
+    allEmployers.sort((a, b) => new Date(b.end_date || '9999') - new Date(a.end_date || '9999'));
+
+    // Infer occupation from Crustdata data
+    const headline = (raw.headline || '').toLowerCase();
+    const allSchools = raw.all_schools || [];
+    const hasCurrentSchool = allSchools.length > 0 && !allEmployers.some(e => !e.end_date);
+    let occupation = null;
+    if (/student|undergrad/i.test(headline) || hasCurrentSchool) {
+      occupation = 'Student';
+    } else if (/research|professor|postdoc|phd.?candidate|academic/i.test(headline)) {
+      occupation = 'Researcher';
+    } else if (allEmployers.length > 0) {
+      occupation = 'Professional';
+    }
+
+    // Calculate work experience years
+    const earliestYear = allEmployers.reduce((min, e) => {
+      const dateStr = e.start_date;
+      if (!dateStr) return min;
+      const year = new Date(dateStr).getFullYear();
+      return year && year < min ? year : min;
+    }, new Date().getFullYear());
+    const workExpYears = earliestYear < new Date().getFullYear()
+      ? String(new Date().getFullYear() - earliestYear)
+      : null;
+
+    // Extract education details from education_background
+    const eduBackground = (raw.education_background || [])
+      .filter(e => !/high\s*school/i.test(e.degree_name || ''))
+      .sort((a, b) => new Date(b.end_date || '9999') - new Date(a.end_date || '9999'));
+    const latestEdu = eduBackground[0] || null;
+
+    // Collect all degree names (most recent first) for users with multiple degrees
+    const allDegrees = eduBackground
+      .map(e => e.degree_name)
+      .filter(Boolean);
+
+    // Infer academic year from the most recent (current) degree
+    // latestEdu is the single most recent education entry, not the joined degree string
+    let year = null;
+    if (latestEdu) {
+      const latestDegreeName = (latestEdu.degree_name || '').toLowerCase();
+      if (/master|phd|doctor|mba|m\.s|m\.a/i.test(latestDegreeName)) {
+        year = 'Graduate';
+      } else if (/bachelor|b\.s|b\.a/i.test(latestDegreeName) && latestEdu.end_date) {
+        const gradYear = new Date(latestEdu.end_date).getFullYear();
+        const currentYear = new Date().getFullYear();
+        const yearsUntilGrad = gradYear - currentYear;
+        if (yearsUntilGrad <= 0) year = 'Senior';
+        else if (yearsUntilGrad === 1) year = 'Junior';
+        else if (yearsUntilGrad === 2) year = 'Sophomore';
+        else year = 'Freshman';
+      }
+    }
+
+    const parsed_data = {
+      name: extracted.name || null,
+      bio: extracted.description || null,
+      company: extracted.company || null,
+      title: extracted.title || null,
+      school: latestEdu?.institute_name || allSchools[0] || null,
+      major: latestEdu?.field_of_study || null,
+      degree: allDegrees.length > 0 ? allDegrees.join(', ') : null,
+      year: year,
+      expected_grad_date: latestEdu?.end_date
+        ? new Date(latestEdu.end_date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        : null,
+      linkedin: fullUrl,
+      occupation: occupation,
+      work_experience_years: workExpYears,
+    };
+
+    res.json({ parsed_data });
+  } catch (err) {
+    console.error('linkedin-preview error:', err.message);
+    res.status(502).json({ error: `LinkedIn enrichment failed: ${err.message}` });
   }
 });
 
