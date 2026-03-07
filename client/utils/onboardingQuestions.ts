@@ -3,7 +3,7 @@ export type QuestionType =
   | 'file-upload'
   | 'parsed-review'
   | 'github-import'
-  | 'linkedin-import'
+  | 'avatar-upload'
   | 'text'
   | 'email'
   | 'verification'
@@ -53,16 +53,6 @@ export const onboardingQuestions: QuestionConfig[] = [
     shouldShow: (data) => data._parsedData != null,
   },
 
-  // LinkedIn import (optional, shows if no parsed data or if parsing didn't find a LinkedIn)
-  {
-    id: 'linkedin-import',
-    type: 'linkedin-import',
-    question: 'Got a LinkedIn?',
-    subtitle: "We'll use it to elevate your profile 🔥",
-    optional: true,
-    shouldShow: (data) => data._parsedData == null || !data.linkedin,
-  },
-
   // GitHub import (optional, shows if no parsed data or if parsing didn't find a GitHub)
   {
     id: 'github-import',
@@ -84,6 +74,16 @@ export const onboardingQuestions: QuestionConfig[] = [
       if (!value || value.trim().length === 0) return 'Please enter your name';
       return null;
     },
+  },
+
+  // Avatar upload (optional)
+  {
+    id: 'avatar-upload',
+    type: 'avatar-upload',
+    question: 'Add a profile photo',
+    subtitle: 'Help people recognize you. You can always change this later.',
+    field: 'avatar_url',
+    optional: true,
   },
 
   // Email

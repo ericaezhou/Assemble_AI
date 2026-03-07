@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useUserStore } from '@/store/userStore';
-import { getInitialsFromName } from '@/utils/name';
 import ThemeSettings from '@/components/settings/ThemeSettings';
 
 interface TopNavProps {
@@ -19,14 +18,10 @@ export default function TopNav({ currentView }: TopNavProps) {
     window.location.href = '/';
   };
 
-  const initials = user?.name
-    ? getInitialsFromName(user.name)
-    : '?';
-
   return (
     <>
       <nav
-        style={{ background: 'var(--bg)', borderBottom: '2px solid var(--border)' }}
+        style={{ background: 'var(--surface)', borderBottom: '2px solid var(--border)' }}
         className="sticky top-0 z-50"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -49,7 +44,9 @@ export default function TopNav({ currentView }: TopNavProps) {
                 <div className="hidden sm:flex items-center gap-1">
                   {[
                     { href: '/',                    label: 'Home',     view: 'home' },
+                    { href: '/calendar',            label: 'Calendar', view: 'calendar' },
                     { href: `/profile/${user.id}`,  label: 'Profile',  view: 'profile' },
+                    { href: '/friends',             label: 'Friends',  view: 'friends' },
                     { href: '/messages',            label: 'Messages', view: 'messages' },
                   ].map(({ href, label, view }) => (
                     <Link

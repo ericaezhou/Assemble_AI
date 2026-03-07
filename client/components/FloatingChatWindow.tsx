@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { getInitialsFromName } from '@/utils/name';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
@@ -18,6 +19,8 @@ interface Message {
 interface FloatingChatWindowProps {
   conversationId: number;
   otherUserName: string;
+  otherUserId: string;
+  otherUserAvatarUrl?: string;
   currentUser: { id: string; name: string };
   draft?: string;
   onDraftChange?: (conversationId: number, text: string) => void;
@@ -27,6 +30,8 @@ interface FloatingChatWindowProps {
 export default function FloatingChatWindow({
   conversationId,
   otherUserName,
+  otherUserId,
+  otherUserAvatarUrl,
   currentUser,
   draft = '',
   onDraftChange,
@@ -144,7 +149,7 @@ export default function FloatingChatWindow({
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const initials = getInitialsFromName(otherUserName);
+  const router = useRouter();
 
   return (
     <div
@@ -166,12 +171,20 @@ export default function FloatingChatWindow({
       >
         <div className="flex items-center gap-2 min-w-0">
           <div
-            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 overflow-hidden"
             style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: '1.5px solid var(--accent)' }}
           >
-            {initials}
+            {otherUserAvatarUrl ? (
+              <img src={otherUserAvatarUrl} alt={otherUserName} className="w-full h-full object-cover" />
+            ) : getInitialsFromName(otherUserName)}
           </div>
-          <span className="text-sm font-semibold truncate" style={{ color: 'var(--text)' }}>{otherUserName}</span>
+          <button
+            onClick={e => { e.stopPropagation(); router.push(`/profile/${otherUserId}`); }}
+            className="text-sm font-semibold truncate hover:underline text-left"
+            style={{ color: 'var(--text)' }}
+          >
+            {otherUserName}
+          </button>
         </div>
         <div className="flex items-center gap-0.5 ml-2 flex-shrink-0">
           <button

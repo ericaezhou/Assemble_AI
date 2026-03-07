@@ -1,15 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import ResearcherRecommendations from './ResearcherRecommendations';
 import EventCard from './EventCard';
 import CreateEvent from './CreateEvent';
 import JoinEvent from './JoinEvent';
 import EventDetail from './EventDetail';
 import MessagePanel from './MessagePanel';
-import FloatingChatWindow from './FloatingChatWindow';
 import MiniProfile from './profile/MiniProfile';
 import TopNav from './layout/TopNav';
+import EventCoverFallback from './EventCoverFallback';
 import { useAuthSWR } from '@/hooks/useAuthSWR';
 import { UserProfile, useUserStore } from '@/store/userStore';
 
@@ -99,31 +100,27 @@ function formatEventDateLabel(dateString: string): { main: string; sub: string }
 
 
 export default function Dashboard({ user }: DashboardProps) {
-  const { unhideConversation } = useUserStore();
+  const { unhideConversation, setFloatingChat, chatDrafts } = useUserStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const eventFromUrl = searchParams.get('event');
   const [activeView, setActiveView] = useState<ActiveView>('events');
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showJoinEvent, setShowJoinEvent] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(eventFromUrl);
   const [openConversationId, setOpenConversationId] = useState<number | null>(null);
-  const [floatingChat, setFloatingChat] = useState<{ id: number; name: string } | null>(null);
-  const [drafts, setDrafts] = useState<Record<number, string>>(() => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const stored = localStorage.getItem('assemble-message-drafts');
-      return stored ? JSON.parse(stored) : {};
-    } catch { return {}; }
-  });
-  useEffect(() => {
-    localStorage.setItem('assemble-message-drafts', JSON.stringify(drafts));
-  }, [drafts]);
-  const handleDraftChange = (conversationId: number, text: string) => {
-    setDrafts(prev => ({ ...prev, [conversationId]: text }));
-  };
   const [naturalLanguagePreference, setNaturalLanguagePreference] = useState('');
   const [eventsFilter, setEventsFilter] = useState<'upcoming' | 'past'>('upcoming');
+  const [peopleSearchMode, setPeopleSearchMode] = useState<'ai' | 'keyword'>('ai');
+  const [keywordQuery, setKeywordQuery] = useState('');
+  const [submittedKeyword, setSubmittedKeyword] = useState<string | null>(null);
   // Track the submitted preference to use as SWR key
   const [submittedPreference, setSubmittedPreference] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedEventId(eventFromUrl);
+  }, [eventFromUrl]);
 
   // SWR: events
   const { data: events = [], mutate: mutateEvents } = useAuthSWR<Event[]>(
@@ -145,6 +142,14 @@ export default function Dashboard({ user }: DashboardProps) {
     data: recommendations = [],
     isValidating: isRefreshingRecommendations,
   } = useAuthSWR<Researcher[]>(recommendationsKey);
+
+  // SWR: keyword search results
+  const { data: keywordResults = [], isValidating: isKeywordSearching } = useAuthSWR<Researcher[]>(
+    submittedKeyword !== null && submittedKeyword.trim()
+      ? `/api/researchers/search/${encodeURIComponent(submittedKeyword.trim())}`
+      : null
+  );
+  const displayedKeywordResults = keywordResults.filter(r => r.id !== user?.id);
 
   // Auto-load recommendations when Researchers tab is first opened
   useEffect(() => {
@@ -203,10 +208,12 @@ export default function Dashboard({ user }: DashboardProps) {
 
   const handleEventClick = (eventId: string) => {
     setSelectedEventId(eventId);
+    router.push(`/?event=${eventId}`, { scroll: false });
   };
 
   const handleBackToEvents = () => {
     setSelectedEventId(null);
+    router.replace('/', { scroll: false });
     mutateEvents();
   };
 
@@ -245,7 +252,7 @@ export default function Dashboard({ user }: DashboardProps) {
           <div className="hidden lg:block w-[8%] flex-shrink-0" />
 
           {/* Left 15%: back button + cover image */}
-          <div className="hidden lg:flex w-[20%] flex-shrink-0 px-4 pt-5 pb-4 flex-col gap-3">
+          <div className="hidden lg:flex w-[20%] flex-shrink-0 px-4 pt-8 pb-4 flex-col gap-3">
             <button
               onClick={handleBackToEvents}
               className="btn-ghost flex items-center gap-1.5 text-sm font-semibold self-start"
@@ -258,16 +265,13 @@ export default function Dashboard({ user }: DashboardProps) {
             </button>
             {(() => {
               const coverUrl = events.find(e => e.id === selectedEventId)?.cover_photo_url;
-              return coverUrl ? (
-                <div className="card overflow-hidden aspect-[3/4]">
-                  <img src={coverUrl} alt="Event cover" className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="card overflow-hidden aspect-[3/4] flex flex-col items-center justify-center gap-3" style={{ color: 'var(--border-light)' }}>
-                  <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Cover photo</span>
+              const eventName = events.find(e => e.id === selectedEventId)?.name || '';
+              return (
+                <div className="card overflow-hidden aspect-[3/4]" style={{ border: 'none' }}>
+                  {coverUrl
+                    ? <img src={coverUrl} alt="Event cover" className="w-full h-full object-cover" />
+                    : <EventCoverFallback eventName={eventName} />
+                  }
                 </div>
               );
             })()}
@@ -285,31 +289,20 @@ export default function Dashboard({ user }: DashboardProps) {
 
           {/* Right 20%: message panel (same as normal view) */}
           {user && (
-            <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5 pb-4">
+            <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8 pb-4">
               <div className="card overflow-hidden h-[calc(100vh-84px)]" style={{ cursor: 'default' }}>
                 <MessagePanel
                   currentUser={user}
                   openConversationId={openConversationId}
                   onConversationOpened={() => setOpenConversationId(null)}
-                  onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
-                  drafts={drafts}
+                  onOpenChat={(id, name, userId, avatarUrl) => { unhideConversation(id); setFloatingChat({ id, name, userId, avatarUrl }); }}
+                  drafts={chatDrafts}
                   className="h-full flex flex-col"
                 />
               </div>
             </div>
           )}
         </div>
-
-        {floatingChat && (
-          <FloatingChatWindow
-            conversationId={floatingChat.id}
-            otherUserName={floatingChat.name}
-            currentUser={user}
-            draft={drafts[floatingChat.id] || ''}
-            onDraftChange={handleDraftChange}
-            onClose={() => setFloatingChat(null)}
-          />
-        )}
       </div>
     );
   }
@@ -324,7 +317,7 @@ export default function Dashboard({ user }: DashboardProps) {
         <div className="hidden lg:block w-[8%] flex-shrink-0" />
 
         {/* Left: profile card */}
-        <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5">
+        <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8">
           {user && <MiniProfile user={user} />}
         </div>
 
@@ -332,7 +325,7 @@ export default function Dashboard({ user }: DashboardProps) {
         <div className="w-[50%] flex-shrink-0 flex flex-col overflow-hidden">
 
           {/* Fixed: tab + action card */}
-          <div className="flex-shrink-0 px-3 pt-5 pb-3">
+          <div className="flex-shrink-0 px-3 pt-8 pb-3">
             <div className="card" style={{ boxShadow: 'var(--shadow-card)' }}>
               {/* Tabs row */}
               <div className="flex px-2" style={{ borderBottom: '2px solid var(--border-light)' }}>
@@ -353,7 +346,7 @@ export default function Dashboard({ user }: DashboardProps) {
 
               {/* Action row */}
               {activeView === 'events' ? (
-                <div className="px-4 py-3 flex gap-2">
+                <div className="px-4 py-4 flex gap-2">
                   <button onClick={() => setShowCreateEvent(true)} className="btn btn-primary">
                     + Create Event
                   </button>
@@ -362,26 +355,76 @@ export default function Dashboard({ user }: DashboardProps) {
                   </button>
                 </div>
               ) : (
-                <div className="px-4 py-3 flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Who's on your mind today?"
-                    value={naturalLanguagePreference}
-                    onChange={(e) => setNaturalLanguagePreference(e.target.value)}
-                    className="input flex-1"
-                    style={{ borderRadius: '6px' }}
-                  />
-                  <button
-                    onClick={() => handleRefreshRecommendations(naturalLanguagePreference)}
-                    disabled={isRefreshingRecommendations}
-                    className="btn btn-primary"
-                    style={{ opacity: isRefreshingRecommendations ? 0.6 : 1 }}
+                <div className="px-4 py-3 space-y-2">
+                  {/* Mode toggle */}
+                  <div
+                    className="inline-flex items-center rounded-full p-0.5 text-xs font-semibold cursor-pointer select-none"
+                    style={{ background: 'var(--bg)', border: '1.5px solid var(--border-light)' }}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    {isRefreshingRecommendations ? 'Finding...' : 'Find'}
-                  </button>
+                    {(['ai', 'keyword'] as const).map(mode => (
+                      <span
+                        key={mode}
+                        onClick={() => setPeopleSearchMode(mode)}
+                        className="px-3 py-1 rounded-full capitalize transition-all"
+                        style={peopleSearchMode === mode
+                          ? { background: 'var(--accent)', color: '#fff' }
+                          : { color: 'var(--text-muted)', cursor: 'pointer' }
+                        }
+                      >
+                        {mode === 'ai' ? 'AI Match' : 'Keyword'}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Search input row */}
+                  {peopleSearchMode === 'ai' ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Who's on your mind today?"
+                        value={naturalLanguagePreference}
+                        onChange={(e) => setNaturalLanguagePreference(e.target.value)}
+                        className="input flex-1"
+                        style={{ borderRadius: '6px', borderColor: 'var(--border-light)' }}
+                      />
+                      <button
+                        onClick={() => handleRefreshRecommendations(naturalLanguagePreference)}
+                        disabled={isRefreshingRecommendations}
+                        className="btn btn-primary"
+                        style={{ opacity: isRefreshingRecommendations ? 0.6 : 1 }}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {isRefreshingRecommendations ? 'Finding...' : 'Find'}
+                      </button>
+                    </div>
+                  ) : (
+                    <form
+                      onSubmit={e => { e.preventDefault(); setSubmittedKeyword(keywordQuery); }}
+                      className="flex gap-2"
+                    >
+                      <input
+                        type="text"
+                        placeholder="Search by name or school..."
+                        value={keywordQuery}
+                        onChange={e => setKeywordQuery(e.target.value)}
+                        className="input flex-1"
+                        style={{ borderRadius: '6px', borderColor: 'var(--border-light)' }}
+                      />
+                      <button
+                        type="submit"
+                        disabled={isKeywordSearching}
+                        className="btn btn-primary"
+                        style={{ opacity: isKeywordSearching ? 0.6 : 1 }}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        {isKeywordSearching ? 'Searching...' : 'Search'}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </div>
@@ -397,16 +440,22 @@ export default function Dashboard({ user }: DashboardProps) {
             {activeView === 'events' ? (
               <>
                 {/* Upcoming / Past toggle */}
-                <div className="inline-flex items-center gap-2">
+                <div
+                  className="inline-flex items-center rounded-full p-0.5 text-xs font-semibold cursor-pointer select-none"
+                  style={{ background: 'var(--bg)', border: '1.5px solid var(--border-light)' }}
+                  onClick={() => setEventsFilter(f => f === 'upcoming' ? 'past' : 'upcoming')}
+                >
                   {(['upcoming', 'past'] as const).map(f => (
-                    <button
+                    <span
                       key={f}
-                      onClick={() => setEventsFilter(f)}
-                      className={`btn capitalize ${eventsFilter === f ? 'btn-primary' : 'btn-ghost'}`}
-                      style={{ padding: '4px 14px', fontSize: '0.8rem' }}
+                      className="px-3 py-1 rounded-full capitalize transition-all"
+                      style={eventsFilter === f
+                        ? { background: 'var(--accent)', color: '#fff' }
+                        : { color: 'var(--text-muted)' }
+                      }
                     >
                       {f}
-                    </button>
+                    </span>
                   ))}
                 </div>
 
@@ -490,6 +539,13 @@ export default function Dashboard({ user }: DashboardProps) {
                   )
                 )}
               </>
+            ) : peopleSearchMode === 'keyword' ? (
+              <ResearcherRecommendations
+                researchers={displayedKeywordResults}
+                currentUserId={user?.id || ''}
+                onConnect={handleConnect}
+                hasRequestedRecommendations={submittedKeyword !== null && submittedKeyword.trim().length > 0}
+              />
             ) : (
               <ResearcherRecommendations
                 researchers={recommendations}
@@ -503,14 +559,14 @@ export default function Dashboard({ user }: DashboardProps) {
 
         {/* Right: messaging panel */}
         {user && (
-          <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-5 pb-4">
+          <div className="hidden lg:block w-[20%] flex-shrink-0 px-4 pt-8 pb-4">
             <div className="card overflow-hidden h-[calc(100vh-84px)]" style={{ cursor: 'default' }}>
               <MessagePanel
                 currentUser={user}
                 openConversationId={openConversationId}
                 onConversationOpened={() => setOpenConversationId(null)}
-                onOpenChat={(id, name) => { unhideConversation(id); setFloatingChat({ id, name }); }}
-                drafts={drafts}
+                onOpenChat={(id, name, userId, avatarUrl) => { unhideConversation(id); setFloatingChat({ id, name, userId, avatarUrl }); }}
+                drafts={chatDrafts}
                 className="h-full flex flex-col"
               />
             </div>
@@ -531,18 +587,6 @@ export default function Dashboard({ user }: DashboardProps) {
           userId={user.id}
           onClose={() => setShowJoinEvent(false)}
           onSuccess={handleJoinSuccess}
-        />
-      )}
-
-      {/* Floating LinkedIn-style chat window */}
-      {floatingChat && user && (
-        <FloatingChatWindow
-          conversationId={floatingChat.id}
-          otherUserName={floatingChat.name}
-          currentUser={user}
-          draft={drafts[floatingChat.id] || ''}
-          onDraftChange={handleDraftChange}
-          onClose={() => setFloatingChat(null)}
         />
       )}
     </div>

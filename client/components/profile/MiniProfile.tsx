@@ -36,10 +36,12 @@ export default function MiniProfile({ user }: MiniProfileProps) {
       <div className="p-5" style={{ background: 'var(--accent)', borderBottom: '2px solid var(--border)' }}>
         <div className="flex items-center gap-3">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black border-2 flex-shrink-0"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black border-2 flex-shrink-0 overflow-hidden"
             style={{ background: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.4)', color: '#fff' }}
           >
-            {initials}
+            {user.avatar_url ? (
+              <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover" />
+            ) : initials}
           </div>
           <div className="min-w-0">
             <h3 className="font-black text-base leading-tight" style={{ color: '#fff' }}>{user.name}</h3>

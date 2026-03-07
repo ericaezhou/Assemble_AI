@@ -1,5 +1,8 @@
 'use client';
 
+import EventCoverFallback from './EventCoverFallback';
+import { useUserStore } from '@/store/userStore';
+
 interface Event {
   id: string;
   name: string;
@@ -11,6 +14,7 @@ interface Event {
   end_time?: string;
   is_host: number;
   host_name?: string;
+  host_avatar_url?: string;
   cover_photo_url?: string;
   price_type?: string;
   capacity?: number;
@@ -23,6 +27,7 @@ interface EventCardProps {
 }
 
 export default function EventCard({ event, onCopyId, onClick }: EventCardProps) {
+  const { user } = useUserStore();
   const isHost = event.is_host === 1;
   const isVirtual = event.location_type === 'virtual';
   const isHybrid = event.location_type === 'hybrid';
@@ -33,7 +38,8 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
     ? `${event.location} + Virtual`
     : event.location || 'Location TBD';
 
-  const hostLabel = isHost ? 'You' : event.host_name || null;
+  const hostName = isHost ? (user?.name || 'You') : (event.host_name || null);
+  const hostAvatar = isHost ? user?.avatar_url : event.host_avatar_url;
 
   return (
     <div
@@ -47,15 +53,7 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
           {event.cover_photo_url ? (
             <img src={event.cover_photo_url} alt="Event cover" className="w-full h-full object-cover" />
           ) : (
-            <div
-              className="w-full h-full flex flex-col items-center justify-center gap-1.5"
-              style={{ background: 'var(--accent-light)', color: 'var(--text-muted)' }}
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-[9px] text-center leading-tight px-1">Cover</span>
-            </div>
+            <EventCoverFallback eventName={event.name} />
           )}
         </div>
 
@@ -74,10 +72,19 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
           </h3>
 
           {/* Host */}
-          {hostLabel && (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              By <span className="font-semibold" style={{ color: 'var(--text)' }}>{hostLabel}</span>
-            </p>
+          {hostName && (
+            <div className="flex items-center gap-1.5">
+              {hostAvatar ? (
+                <img src={hostAvatar} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white" style={{ background: 'var(--accent)' }}>
+                  {hostName[0]?.toUpperCase()}
+                </div>
+              )}
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                By <span className="font-semibold" style={{ color: 'var(--text)' }}>{hostName}</span>
+              </p>
+            </div>
           )}
 
           {/* Location */}
@@ -96,50 +103,29 @@ export default function EventCard({ event, onCopyId, onClick }: EventCardProps) 
           </div>
 
           {/* Badges */}
-          <div className="flex items-center gap-1.5 pt-0.5">
+          <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
             {isHost ? (
               <span className="tag tag-accent">Hosting</span>
             ) : (
               <span className="tag" style={{ background: '#f0fdf4', borderColor: '#059669', color: '#059669' }}>Attending</span>
             )}
-            {isVirtual && (
-              <span className="tag">Virtual</span>
-            )}
-            {isHybrid && (
-              <span className="tag">Hybrid</span>
-            )}
+            {isVirtual && <span className="tag">Virtual</span>}
+            {isHybrid && <span className="tag">Hybrid</span>}
+            <button
+              onClick={e => { e.stopPropagation(); onCopyId(event.id); }}
+              className="tag flex items-center gap-1 transition-colors"
+              style={{ color: 'var(--text-muted)', borderColor: 'var(--border-light)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--accent)'; e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border-light)'; e.currentTarget.style.background = ''; }}
+              title={`Copy invite code: ${event.id}`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Invite
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* Bottom: invite code bar */}
-      <div
-        className="flex items-center justify-between px-4 py-2"
-        style={{ background: 'var(--accent-light)', borderTop: '2px solid var(--border)' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-1.5">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-muted)' }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-          <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>Invite code</span>
-          <code
-            className="text-[11px] font-mono font-semibold px-1.5 py-0.5 rounded"
-            style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', color: 'var(--text)' }}
-          >
-            {event.id}
-          </code>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onCopyId(event.id); }}
-          className="text-[11px] font-semibold flex items-center gap-1 transition-colors"
-          style={{ color: 'var(--accent)' }}
-        >
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Copy
-        </button>
       </div>
     </div>
   );

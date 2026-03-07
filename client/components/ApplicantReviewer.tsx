@@ -45,6 +45,7 @@ interface Applicant {
   status: string;
   rsvp_responses?: string[];
   host_notes?: string;
+  avatar_url?: string;
   ai_score?: number;
   ai_review?: AIReview;
   final_decision?: string;
@@ -106,10 +107,12 @@ function ProfileDrawer({
         {/* Header */}
         <div className="flex items-start gap-4 p-6" style={{ borderBottom: '2px solid var(--border-light)' }}>
           <div
-            className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0"
+            className="w-14 h-14 rounded-lg flex items-center justify-center text-lg font-black flex-shrink-0 overflow-hidden"
             style={{ background: 'var(--accent-light)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
           >
-            {getInitialsFromName(applicant.name)}
+            {applicant.avatar_url ? (
+              <img src={applicant.avatar_url} alt={applicant.name} className="w-full h-full object-cover" />
+            ) : getInitialsFromName(applicant.name)}
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-black" style={{ color: 'var(--text)' }}>{applicant.name}</h2>
@@ -176,11 +179,21 @@ function ProfileDrawer({
           )}
           {applicant.rsvp_responses && applicant.rsvp_responses.length > 0 && (
             <div>
-              <p className="section-heading mb-1.5">RSVP Answers</p>
-              <div className="space-y-1.5">
-                {applicant.rsvp_responses.map((ans, i) => (
-                  <p key={i} className="text-xs rounded-lg px-3 py-2" style={{ background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border-light)' }}>{ans}</p>
-                ))}
+              <p className="section-heading mb-1.5">Application Answers</p>
+              <div className="space-y-2">
+                {applicant.rsvp_responses.map((ans, i) => {
+                  const colonIdx = ans.indexOf(': ');
+                  const question = colonIdx !== -1 ? ans.slice(0, colonIdx) : null;
+                  const answer = colonIdx !== -1 ? ans.slice(colonIdx + 2) : ans;
+                  return (
+                    <div key={i} className="rounded-lg px-3 py-2.5" style={{ background: 'var(--bg)', border: '1px solid var(--border-light)' }}>
+                      {question && (
+                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{question}</p>
+                      )}
+                      <p className="text-xs" style={{ color: 'var(--text)' }}>{answer}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -236,7 +249,7 @@ function ProfileDrawer({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantReviewerProps) {
-  const [phase, setPhase]                   = useState<ReviewPhase>('setup');
+  const [phase, setPhase]                   = useState<ReviewPhase>('review');
   const [applicants, setApplicants]         = useState<Applicant[]>([]);
   const [reviewCriteria, setReviewCriteria] = useState<ReviewCriteria>({ prompt: '', categories: [], special_requests: '' });
   const [promptInput, setPromptInput]       = useState('');
@@ -514,9 +527,14 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                   />
                   <div className="flex items-center flex-shrink-0">
                     <input
-                      type="number" min={0} max={100} value={cat.target_pct}
-                      onChange={e => handleSliderChange(i, Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                      className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      type="text"
+                      inputMode="numeric"
+                      value={cat.target_pct === 0 ? '' : cat.target_pct}
+                      onChange={e => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        handleSliderChange(i, raw === '' ? 0 : Math.min(100, parseInt(raw)));
+                      }}
+                      className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none"
                       style={{ color: 'var(--accent)' }}
                     />
                     <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>%</span>
@@ -703,10 +721,12 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                 >
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 overflow-hidden"
                       style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                     >
-                      {getInitialsFromName(applicant.name)}
+                      {applicant.avatar_url ? (
+                        <img src={applicant.avatar_url} alt={applicant.name} className="w-full h-full object-cover" />
+                      ) : getInitialsFromName(applicant.name)}
                     </div>
 
                     <div className="flex-1 min-w-0">

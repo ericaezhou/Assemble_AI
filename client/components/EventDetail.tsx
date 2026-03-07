@@ -5,6 +5,7 @@ import { authenticatedFetch } from '@/utils/auth';
 import { getInitialsFromName } from '@/utils/name';
 import { Participant, getInstitution, getInterestsString } from '@/types/profile';
 import ApplicantReviewer from './ApplicantReviewer';
+import EventCoverFallback from './EventCoverFallback';
 
 interface Event {
   id: string;
@@ -22,6 +23,7 @@ interface Event {
   price_type?: string;
   capacity?: number;
   require_approval?: boolean;
+  rsvp_questions?: string[];
 }
 
 interface EventDetailProps {
@@ -188,9 +190,10 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
 
   const closeWrapped = () => { setWrappedTarget(null); setWrappedPage(0); };
 
-  // Top 3 recommended (sorted by similarity_score, excluding self)
+  // Top 3 recommended — only from confirmed participants, excluding self
+  const participantIds = new Set(participants.map(p => p.id));
   const topRecommended = [...eventRecommendations]
-    .filter(p => p.id !== userId && typeof p.similarity_score === 'number')
+    .filter(p => p.id !== userId && typeof p.similarity_score === 'number' && participantIds.has(p.id))
     .sort((a, b) => (b.similarity_score ?? 0) - (a.similarity_score ?? 0))
     .slice(0, 3);
 
@@ -264,7 +267,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
           <div className="flex items-center gap-4">
             <div
               className="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--bg)', border: '2px solid var(--border-light)', color: 'var(--text-muted)' }}
+              style={{ color: 'var(--accent)' }}
             >
               {event.location_type === 'virtual' ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -345,7 +348,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
               {event.location_type !== 'virtual' && event.location && (
                 <div>
                   <h2 className="section-heading mb-3">Location</h2>
-                  <div className="rounded-lg overflow-hidden" style={{ border: '2px solid var(--border)' }}>
+                  <div className="rounded-lg overflow-hidden">
                     <iframe
                       title="Event location"
                       src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location)}&output=embed`}
@@ -355,7 +358,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                       loading="lazy"
                       referrerPolicy="no-referrer-when-downgrade"
                     />
-                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--bg)', borderTop: '2px solid var(--border-light)' }}>
+                    <div className="flex items-center justify-between px-4 py-2.5" style={{ background: 'var(--bg)' }}>
                       <span className="text-sm" style={{ color: 'var(--text)' }}>{event.location}</span>
                       <a
                         href={`https://maps.google.com/?q=${encodeURIComponent(event.location)}`}
@@ -413,10 +416,12 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           style={{ background: 'var(--accent-light)' }}
                         >
                           <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0"
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 overflow-hidden"
                             style={{ background: 'var(--surface)', border: '2px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitialsFromName(person.name)}
+                            {person.avatar_url ? (
+                              <img src={person.avatar_url} alt={person.name} className="w-full h-full object-cover" />
+                            ) : getInitialsFromName(person.name)}
                           </div>
                           <div>
                             <p className="text-sm font-bold leading-tight" style={{ color: 'var(--text)' }}>{person.name}</p>
@@ -465,6 +470,7 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="input mb-4"
+                  style={{ borderColor: 'var(--border-light)' }}
                 />
 
                 {loading ? (
@@ -486,10 +492,12 @@ export default function EventDetail({ eventId, userId, onConnect }: EventDetailP
                           onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg)')}
                         >
                           <div
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0"
+                            className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 overflow-hidden"
                             style={{ background: 'var(--accent-light)', border: '1.5px solid var(--accent)', color: 'var(--accent)' }}
                           >
-                            {getInitialsFromName(participant.name)}
+                            {participant.avatar_url ? (
+                              <img src={participant.avatar_url} alt={participant.name} className="w-full h-full object-cover" />
+                            ) : getInitialsFromName(participant.name)}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">

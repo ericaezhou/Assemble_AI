@@ -34,6 +34,7 @@ export async function signUp(
     github?: string;
     linkedin?: string;
     expected_grad_date?: string;
+    avatar_url?: string;
   }
 ) {
   const { data, error } = await supabase.auth.signUp({
@@ -95,6 +96,7 @@ export async function signUp(
       github: profileData.github,
       linkedin: profileData.linkedin,
       expected_grad_date: profileData.expected_grad_date,
+      avatar_url: profileData.avatar_url,
     })
     .eq('id', data.user.id);
 

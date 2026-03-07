@@ -16,8 +16,8 @@ import VerificationQuestion from './questions/VerificationQuestion';
 import FileUploadQuestion from './questions/FileUploadQuestion';
 import ParsedReviewQuestion from './questions/ParsedReviewQuestion';
 import GitHubImportQuestion from './questions/GitHubImportQuestion';
-import LinkedInImportQuestion from './questions/LinkedInImportQuestion';
 import CompletionScreen from './questions/CompletionScreen';
+import AvatarUploadQuestion from './questions/AvatarUploadQuestion';
 
 interface ConversationalOnboardingProps {
   onComplete: (userId: string) => void;
@@ -112,8 +112,10 @@ export default function ConversationalOnboarding({
     hobbies: [],
     github: '',
     bio: '',
+    avatar_url: '',
     _parsedData: null,
   });
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(false);
 
@@ -300,6 +302,26 @@ export default function ConversationalOnboarding({
     handleNext();
   };
 
+  const handleAvatarUpload = async (blob: Blob) => {
+    setAvatarUploading(true);
+    setErrors((prev) => ({ ...prev, 'avatar-upload': null }));
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('avatar', blob, 'avatar.jpg');
+      const res = await fetch(`${API_BASE_URL}/api/upload/avatar`, {
+        method: 'POST',
+        body: formDataUpload,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const { url } = await res.json();
+      setFormData((prev: any) => ({ ...prev, avatar_url: url }));
+    } catch (err: any) {
+      setErrors((prev) => ({ ...prev, 'avatar-upload': err.message || 'Upload failed' }));
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const buildParsedUpdates = (data: ParsedData) => {
     const updates: any = {};
     if (data.name) updates.name = data.name;
@@ -431,6 +453,7 @@ export default function ConversationalOnboarding({
         confirmPassword,
         verificationCode,
         _parsedData,
+        avatarUploading: _avatarUploading,
         ...profileFields
       } = formData;
 
@@ -458,6 +481,7 @@ export default function ConversationalOnboarding({
           github: profileFields.github,
           linkedin: profileFields.linkedin,
           expected_grad_date: profileFields.expected_grad_date,
+          avatar_url: profileFields.avatar_url || undefined,
         }
       );
 
@@ -568,14 +592,18 @@ export default function ConversationalOnboarding({
           />
         );
 
-      case 'linkedin-import':
+      case 'avatar-upload':
         return (
-          <LinkedInImportQuestion
+          <AvatarUploadQuestion
             question={q.question!}
             subtitle={q.subtitle}
-            initialSlug={linkedinSlug}
-            onSubmit={handleLinkedInSubmit}
+            currentUrl={formData.avatar_url || ''}
+            onUpload={handleAvatarUpload}
             onSkip={handleNext}
+            onContinue={handleNext}
+            uploading={avatarUploading}
+            error={errors['avatar-upload']}
+            name={formData.name}
           />
         );
 

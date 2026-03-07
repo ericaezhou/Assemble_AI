@@ -205,7 +205,8 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
     name, occupation, school, major, year, company, title, degree,
     work_experience_years, research_area, other_description,
     interest_areas, current_skills, hobbies,
-    bio, publications, github, linkedin, expected_grad_date
+    bio, publications, github, linkedin, expected_grad_date, avatar_url,
+    tagline, instagram, twitter
   } = req.body;
 
   // Build dynamic update object based on provided fields
@@ -230,6 +231,10 @@ app.put('/api/researchers/:id', authenticateToken, authorizeUser, async (req, re
   if (github !== undefined) updates.github = github;
   if (linkedin !== undefined) updates.linkedin = linkedin;
   if (expected_grad_date !== undefined) updates.expected_grad_date = expected_grad_date;
+  if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+  if (tagline !== undefined) updates.tagline = tagline;
+  if (instagram !== undefined) updates.instagram = instagram;
+  if (twitter !== undefined) updates.twitter = twitter;
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No fields to update' });
@@ -625,7 +630,7 @@ app.post('/api/conferences', authenticateToken, async (req, res) => {
 // Join conference (Protected)
 app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { researcher_id } = req.body;
+  const { researcher_id, rsvp_responses } = req.body;
 
   // Authorize: user can only join conferences as themselves
   if (req.userId !== researcher_id) {
@@ -663,7 +668,8 @@ app.post('/api/conferences/:id/join', authenticateToken, async (req, res) => {
       .insert({
         conference_id: id,
         researcher_id,
-        status: initialStatus
+        status: initialStatus,
+        ...(rsvp_responses && rsvp_responses.length > 0 ? { rsvp_responses } : {}),
       });
 
     if (joinError) {
@@ -703,10 +709,10 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
 
     const conferenceIds = participants.map(p => p.conference_id);
 
-    // Get conference details with host name
+    // Get conference details with host name and avatar
     const { data: conferences, error: conferencesError } = await supabase
       .from('conferences')
-      .select('*, profiles!conferences_host_id_fkey(name)')
+      .select('*, profiles!conferences_host_id_fkey(name, avatar_url)')
       .in('id', conferenceIds)
       .order('start_date', { ascending: true });
 
@@ -714,16 +720,146 @@ app.get('/api/researchers/:id/conferences', authenticateToken, async (req, res) 
       return res.status(500).json({ error: conferencesError.message });
     }
 
-    // Add is_host and host_name fields
+    // Add is_host, host_name, and host_avatar_url fields
     const conferencesWithHost = (conferences || []).map(c => ({
       ...c,
       is_host: c.host_id === id ? 1 : 0,
       host_name: c.profiles?.name || null,
+      host_avatar_url: c.profiles?.avatar_url || null,
       cover_photo_url: c.cover_photo_url || null,
       profiles: undefined,
     }));
 
     res.json(conferencesWithHost);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Calendar events with date range filtering and participant status
+app.get('/api/researchers/:id/calendar-events', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { startDate, endDate } = req.query;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'startDate and endDate query parameters are required (YYYY-MM-DD)' });
+  }
+
+  try {
+    const { data: participants, error: participantsError } = await supabase
+      .from('conference_participants')
+      .select('conference_id, status')
+      .eq('researcher_id', id)
+      .in('status', ['registered', 'pending']);
+
+    if (participantsError) {
+      return res.status(500).json({ error: participantsError.message });
+    }
+
+    if (!participants || participants.length === 0) {
+      return res.json([]);
+    }
+
+    const statusMap = {};
+    for (const p of participants) {
+      statusMap[p.conference_id] = p.status;
+    }
+    const conferenceIds = participants.map(p => p.conference_id);
+
+    const { data: conferences, error: conferencesError } = await supabase
+      .from('conferences')
+      .select('*, profiles!conferences_host_id_fkey(name, avatar_url)')
+      .in('id', conferenceIds)
+      .lte('start_date', endDate)
+      .gte('end_date', startDate)
+      .order('start_date', { ascending: true });
+
+    if (conferencesError) {
+      return res.status(500).json({ error: conferencesError.message });
+    }
+
+    const calendarEvents = (conferences || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      location: c.location,
+      location_type: c.location_type || null,
+      virtual_link: c.virtual_link || null,
+      start_date: c.start_date,
+      start_time: c.start_time || null,
+      end_date: c.end_date,
+      end_time: c.end_time || null,
+      host_id: c.host_id,
+      host_name: c.profiles?.name || null,
+      host_avatar_url: c.profiles?.avatar_url || null,
+      cover_photo_url: c.cover_photo_url || null,
+      capacity: c.capacity || null,
+      description: c.description || null,
+      is_host: c.host_id === id,
+      participant_status: statusMap[c.id] || 'registered',
+    }));
+
+    res.json(calendarEvents);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cancel RSVP / leave a conference (non-host only)
+app.delete('/api/conferences/:id/leave', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
+
+  try {
+    const { data: conference, error: confError } = await supabase
+      .from('conferences')
+      .select('host_id')
+      .eq('id', id)
+      .single();
+
+    if (confError || !conference) {
+      return res.status(404).json({ error: 'Conference not found' });
+    }
+
+    if (conference.host_id === userId) {
+      return res.status(403).json({ error: 'Host cannot leave their own event. Use delete/cancel event instead.' });
+    }
+
+    const { error: deleteError } = await supabase
+      .from('conference_participants')
+      .delete()
+      .eq('conference_id', id)
+      .eq('researcher_id', userId);
+
+    if (deleteError) {
+      return res.status(500).json({ error: deleteError.message });
+    }
+
+    res.json({ success: true, message: 'Successfully left the event' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lightweight participant count for a conference
+app.get('/api/conferences/:id/participant-count', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: participants, error } = await supabase
+      .from('conference_participants')
+      .select('status')
+      .eq('conference_id', id);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    const all = participants || [];
+    res.json({
+      total: all.length,
+      registered: all.filter(p => p.status === 'registered').length,
+      pending: all.filter(p => p.status === 'pending').length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1554,7 +1690,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
 
     const { data: participants, error: participantsError } = await supabase
       .from('profiles')
-      .select('id, name')
+      .select('id, name, avatar_url')
       .in('id', Array.from(participantIds));
 
     if (participantsError) {
@@ -1584,6 +1720,7 @@ app.get('/api/conversations/user/:userId', async (req, res) => {
           ...conv,
           other_user_id: otherUserId,
           other_user_name: otherUser?.name || null,
+          other_user_avatar: otherUser?.avatar_url || null,
           last_message: lastMessage?.content || null,
           last_message_time: lastMessage?.created_at || null
         };
@@ -2316,6 +2453,19 @@ app.post('/api/admin/backfill-linkedin', authenticateToken, async (req, res) => 
 // Parsing service proxy routes
 const PARSING_SERVICE_URL = process.env.PARSING_SERVICE_URL || 'http://localhost:5100';
 
+// Upload avatar (no auth required — user may not have signed up yet)
+app.post('/api/upload/avatar', upload.single('avatar'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+  const ext = req.file.originalname.split('.').pop() || 'jpg';
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
+  if (error) return res.status(500).json({ error: error.message });
+  const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filename);
+  res.json({ url: publicUrl });
+});
+
 // Upload event cover photo
 app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' });
@@ -2323,7 +2473,7 @@ app.post('/api/upload/event-cover', authenticateToken, upload.single('cover'), a
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
   const { error } = await supabase.storage
     .from('event-covers')
-    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+    .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
   if (error) return res.status(500).json({ error: error.message });
   const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(filename);
   res.json({ url: publicUrl });
@@ -2389,6 +2539,179 @@ app.post('/api/parsing/claim', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// ── Friends API ──────────────────────────────────────────────────────────────
+
+// GET /api/friends — current user's accepted friends + pending incoming requests
+app.get('/api/friends', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  try {
+    const { data: accepted, error: e1 } = await supabase
+      .from('friendships')
+      .select(`
+        id, requester_id, addressee_id, created_at,
+        requester:profiles!requester_id(id, name, avatar_url, tagline, occupation, school, major, company, title),
+        addressee:profiles!addressee_id(id, name, avatar_url, tagline, occupation, school, major, company, title)
+      `)
+      .eq('status', 'accepted')
+      .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+    if (e1) return res.status(500).json({ error: e1.message });
+
+    const { data: incoming, error: e2 } = await supabase
+      .from('friendships')
+      .select(`
+        id, requester_id, created_at,
+        requester:profiles!requester_id(id, name, avatar_url, tagline, occupation, school, major, company, title)
+      `)
+      .eq('addressee_id', userId)
+      .eq('status', 'pending');
+
+    if (e2) return res.status(500).json({ error: e2.message });
+
+    const friends = (accepted || []).map(f => ({
+      friendshipId: f.id,
+      friend: f.requester_id === userId ? f.addressee : f.requester,
+      since: f.created_at,
+    }));
+
+    const requests = (incoming || []).map(r => ({
+      friendshipId: r.id,
+      from: r.requester,
+      createdAt: r.created_at,
+    }));
+
+    res.json({ friends, requests });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/friends/status/:otherUserId — friendship status with another user
+app.get('/api/friends/status/:otherUserId', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { otherUserId } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select('id, status, requester_id, addressee_id')
+      .or(`and(requester_id.eq.${userId},addressee_id.eq.${otherUserId}),and(requester_id.eq.${otherUserId},addressee_id.eq.${userId})`)
+      .maybeSingle();
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    if (!data) return res.json({ status: 'none' });
+
+    if (data.status === 'accepted') {
+      return res.json({ status: 'friends', friendshipId: data.id });
+    }
+    if (data.status === 'pending') {
+      if (data.requester_id === userId) {
+        return res.json({ status: 'pending_sent', friendshipId: data.id });
+      } else {
+        return res.json({ status: 'pending_received', friendshipId: data.id });
+      }
+    }
+    return res.json({ status: 'none' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/friends/request — send a friend request
+app.post('/api/friends/request', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { addresseeId } = req.body;
+  if (!addresseeId || addresseeId === userId) {
+    return res.status(400).json({ error: 'Invalid addressee' });
+  }
+  try {
+    const { data: existing } = await supabase
+      .from('friendships')
+      .select('id, status')
+      .or(`and(requester_id.eq.${userId},addressee_id.eq.${addresseeId}),and(requester_id.eq.${addresseeId},addressee_id.eq.${userId})`)
+      .maybeSingle();
+
+    if (existing) return res.status(409).json({ error: 'Friendship already exists' });
+
+    const { data, error } = await supabase
+      .from('friendships')
+      .insert({ requester_id: userId, addressee_id: addresseeId, status: 'pending' })
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/friends/:id/respond — accept or reject a pending request
+app.put('/api/friends/:id/respond', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+  const { action } = req.body;
+  if (!['accept', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'Action must be accept or reject' });
+  }
+  try {
+    const { data: friendship, error: fe } = await supabase
+      .from('friendships')
+      .select('id, addressee_id, status')
+      .eq('id', id)
+      .single();
+
+    if (fe || !friendship) return res.status(404).json({ error: 'Friendship not found' });
+    if (friendship.addressee_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (friendship.status !== 'pending') return res.status(400).json({ error: 'Already responded' });
+
+    const { data, error } = await supabase
+      .from('friendships')
+      .update({ status: action === 'accept' ? 'accepted' : 'rejected' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/friends/:id — unfriend or cancel request
+app.delete('/api/friends/:id', authenticateToken, async (req, res) => {
+  const userId = req.userId;
+  const { id } = req.params;
+  try {
+    const { data: friendship, error: fe } = await supabase
+      .from('friendships')
+      .select('id, requester_id, addressee_id')
+      .eq('id', id)
+      .single();
+
+    if (fe || !friendship) return res.status(404).json({ error: 'Friendship not found' });
+    if (friendship.requester_id !== userId && friendship.addressee_id !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { error } = await supabase.from('friendships').delete().eq('id', id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+
+  // Ensure avatars storage bucket exists
+  const { data: buckets } = await supabase.storage.listBuckets();
+  const exists = buckets?.some((b) => b.name === 'avatars');
+  if (!exists) {
+    const { error } = await supabase.storage.createBucket('avatars', { public: true });
+    if (error) console.error('[storage] Failed to create avatars bucket:', error.message);
+    else console.log('[storage] Created avatars bucket');
+  }
 });

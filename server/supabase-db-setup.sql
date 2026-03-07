@@ -9,6 +9,7 @@ create table if not exists public.profiles (
   occupation text not null,
 
   -- optional basics
+  avatar_url text,
   github text,
   linkedin text,
 
