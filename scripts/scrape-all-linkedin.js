@@ -19,43 +19,15 @@ function sanitizeForLLM(text, maxLength = 100) {
 }
 
 function extractLinkedInFields(rawProfile) {
-  const liProfile = rawProfile.profile || {};
-  const liPosts = rawProfile.posts || [];
-
-  const headline = Array.isArray(liProfile.jobTitle)
-    ? liProfile.jobTitle[0]
-    : liProfile.jobTitle;
-
-  let firstOrg = liProfile.worksFor;
-  while (Array.isArray(firstOrg)) firstOrg = firstOrg[0];
-  const company = firstOrg?.name;
-
-  let description = liProfile.description || liProfile.disambiguatingDescription || '';
-  if (!description) {
-    let workEntries = liProfile.worksFor;
-    while (Array.isArray(workEntries) && Array.isArray(workEntries[0])) workEntries = workEntries[0];
-    if (Array.isArray(workEntries)) {
-      const firstDesc = workEntries.find(w => w?.member?.description)?.member?.description;
-      if (firstDesc) description = firstDesc;
-    }
-  }
-
-  const posts = liPosts.slice(0, 5)
-    .map(p => sanitizeForLLM(p.articleBody || p.headline || p.name, 100))
-    .filter(Boolean);
-
   return {
-    name: sanitizeForLLM(liProfile.name, 50),
-    headline: sanitizeForLLM(headline, 100),
-    description: sanitizeForLLM(description, 200),
-    company: sanitizeForLLM(company, 100),
-    title: sanitizeForLLM(headline, 100),
-    posts,
+    name: sanitizeForLLM(rawProfile.name, 50),
+    headline: sanitizeForLLM(rawProfile.headline, 100),
+    description: sanitizeForLLM(rawProfile.summary, 200),
+    company: sanitizeForLLM(rawProfile.current_company, 100),
+    title: sanitizeForLLM(rawProfile.current_title, 100),
+    posts: [],
   };
 }
-
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 10000;
 
 async function scrapeUser(userId, linkedinUrl) {
   const fullUrl = linkedinUrl.startsWith('http')
@@ -69,50 +41,59 @@ async function scrapeUser(userId, linkedinUrl) {
 
   console.log(`  Scraping ${fullUrl}...`);
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const profiles = await scrapeProfiles([fullUrl]);
-      if (!profiles || profiles.length === 0) throw new Error('No profile data returned');
+  try {
+    const profiles = await scrapeProfiles([fullUrl]);
 
-      const extracted = extractLinkedInFields(profiles[0]);
-
+    if (!profiles || profiles.length === 0) {
+      // Profile not found in Crustdata — mark so we don't retry
       await supabase
         .from('linkedin_profiles')
         .upsert({
           user_id: userId,
           linkedin_url: fullUrl,
-          ...extracted,
-          raw_data: profiles[0],
-          status: 'success',
-          error_message: null,
-          scraped_at: new Date().toISOString(),
+          source: 'crustdata',
+          status: 'not_found',
+          error_message: 'Profile not found in Crustdata',
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
-      console.log(`  Success! Name: ${extracted.name}, Headline: ${extracted.headline}`);
-      return true;
-    } catch (err) {
-      console.warn(`  Attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}`);
-      if (attempt < MAX_RETRIES) {
-        console.log(`  Retrying in ${RETRY_DELAY / 1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      }
+      console.warn(`  Not found in Crustdata`);
+      return false;
     }
+
+    const extracted = extractLinkedInFields(profiles[0]);
+
+    await supabase
+      .from('linkedin_profiles')
+      .upsert({
+        user_id: userId,
+        linkedin_url: fullUrl,
+        ...extracted,
+        raw_data: profiles[0],
+        source: 'crustdata',
+        status: 'success',
+        error_message: null,
+        scraped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+    console.log(`  Success! Name: ${extracted.name}, Headline: ${extracted.headline}`);
+    return true;
+  } catch (err) {
+    await supabase
+      .from('linkedin_profiles')
+      .upsert({
+        user_id: userId,
+        linkedin_url: fullUrl,
+        source: 'crustdata',
+        status: 'failed',
+        error_message: err.message,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+
+    console.error(`  Failed: ${err.message}`);
+    return false;
   }
-
-  // All retries failed
-  await supabase
-    .from('linkedin_profiles')
-    .upsert({
-      user_id: userId,
-      linkedin_url: fullUrl,
-      status: 'failed',
-      error_message: `Failed after ${MAX_RETRIES} attempts`,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-
-  console.error(`  Failed after ${MAX_RETRIES} attempts`);
-  return false;
 }
 
 (async () => {
@@ -125,11 +106,11 @@ async function scrapeUser(userId, linkedinUrl) {
 
   if (error) { console.error('Query error:', error.message); process.exit(1); }
 
-  // Get already-scraped user IDs and LinkedIn URLs
+  // Get already-scraped or not-found user IDs and LinkedIn URLs
   const { data: existing } = await supabase
     .from('linkedin_profiles')
-    .select('user_id, linkedin_url')
-    .eq('status', 'success');
+    .select('user_id, linkedin_url, status')
+    .in('status', ['success', 'not_found']);
 
   const scrapedUserIds = new Set((existing || []).map(r => r.user_id));
   const scrapedUrls = new Set((existing || []).map(r => r.linkedin_url));
@@ -155,12 +136,24 @@ async function scrapeUser(userId, linkedinUrl) {
 
   let succeeded = 0;
   let failed = 0;
+  const scrapedThisRun = new Set();
 
   for (const user of toScrape) {
+    const fullUrl = user.linkedin.trim().startsWith('http')
+      ? user.linkedin.trim()
+      : `https://www.linkedin.com/in/${user.linkedin.trim()}`;
+    const normalized = normalizeLinkedInUrl(fullUrl);
+
+    if (scrapedThisRun.has(normalized)) {
+      console.log(`\nSkipping ${user.name} — LinkedIn URL already scraped earlier in this run`);
+      continue;
+    }
+
     console.log(`\n--- ${user.name || 'Unknown'} (${user.id}) ---`);
     const ok = await scrapeUser(user.id, user.linkedin.trim());
     if (ok) succeeded++;
     else failed++;
+    scrapedThisRun.add(normalized);
   }
 
   console.log(`\nDone! Succeeded: ${succeeded}, Failed: ${failed}, Skipped: ${scrapedUserIds.size}`);

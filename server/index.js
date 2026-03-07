@@ -1705,45 +1705,15 @@ function normalizeLinkedInUrl(url) {
   return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').toLowerCase();
 }
 
-// Extract structured fields from raw LinkedIn profile data
+// Extract structured fields from Crustdata profile data
 function extractLinkedInFields(rawProfile) {
-  const liProfile = rawProfile.profile || {};
-  const liPosts = rawProfile.posts || [];
-
-  // jobTitle can be a string or array of strings
-  const headline = Array.isArray(liProfile.jobTitle)
-    ? liProfile.jobTitle[0]
-    : liProfile.jobTitle;
-
-  // worksFor can be nested arrays: [[{org1}, {org2}]] or [{org1}] or {org}
-  let firstOrg = liProfile.worksFor;
-  while (Array.isArray(firstOrg)) firstOrg = firstOrg[0];
-  const company = firstOrg?.name;
-
-  // description may be empty — fall back to disambiguatingDescription or first work description
-  let description = liProfile.description || liProfile.disambiguatingDescription || '';
-  if (!description) {
-    // Try to extract from first work experience
-    let workEntries = liProfile.worksFor;
-    while (Array.isArray(workEntries) && Array.isArray(workEntries[0])) workEntries = workEntries[0];
-    if (Array.isArray(workEntries)) {
-      const firstDesc = workEntries.find(w => w?.member?.description)?.member?.description;
-      if (firstDesc) description = firstDesc;
-    }
-  }
-
-  // Extract post text
-  const posts = liPosts.slice(0, 5)
-    .map(p => sanitizeForLLM(p.articleBody || p.headline || p.name, 100))
-    .filter(Boolean);
-
   return {
-    name: sanitizeForLLM(liProfile.name, 50),
-    headline: sanitizeForLLM(headline, 100),
-    description: sanitizeForLLM(description, 200),
-    company: sanitizeForLLM(company, 100),
-    title: sanitizeForLLM(headline, 100),
-    posts,
+    name: sanitizeForLLM(rawProfile.name, 50),
+    headline: sanitizeForLLM(rawProfile.headline, 100),
+    description: sanitizeForLLM(rawProfile.summary, 200),
+    company: sanitizeForLLM(rawProfile.current_company, 100),
+    title: sanitizeForLLM(rawProfile.current_title, 100),
+    posts: [],
   };
 }
 
@@ -2013,6 +1983,7 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
                   linkedin_url: fullLinkedinUrl,
                   ...extracted,
                   raw_data: profiles[0],
+                  source: 'crustdata',
                   status: 'success',
                   scraped_at: new Date().toISOString(),
                   updated_at: new Date().toISOString(),
@@ -2205,6 +2176,7 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
       .upsert({
         user_id: id,
         linkedin_url: fullUrl,
+        source: 'crustdata',
         status: 'pending',
         error_message: null,
         updated_at: new Date().toISOString(),
@@ -2230,6 +2202,7 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
           linkedin_url: fullUrl,
           ...extracted,
           raw_data: profiles[0],
+          source: 'crustdata',
           status: 'success',
           error_message: null,
           scraped_at: new Date().toISOString(),
@@ -2256,6 +2229,7 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
       .upsert({
         user_id: id,
         linkedin_url: fullUrl,
+        source: 'crustdata',
         status: 'failed',
         error_message: lastError?.message || 'Unknown error',
         updated_at: new Date().toISOString(),

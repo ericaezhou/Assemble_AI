@@ -10,38 +10,13 @@ function sanitizeForLLM(text, maxLength = 100) {
 }
 
 function extractLinkedInFields(rawProfile) {
-  const liProfile = rawProfile.profile || {};
-  const liPosts = rawProfile.posts || [];
-
-  const headline = Array.isArray(liProfile.jobTitle)
-    ? liProfile.jobTitle[0]
-    : liProfile.jobTitle;
-
-  let firstOrg = liProfile.worksFor;
-  while (Array.isArray(firstOrg)) firstOrg = firstOrg[0];
-  const company = firstOrg?.name;
-
-  let description = liProfile.description || liProfile.disambiguatingDescription || '';
-  if (!description) {
-    let workEntries = liProfile.worksFor;
-    while (Array.isArray(workEntries) && Array.isArray(workEntries[0])) workEntries = workEntries[0];
-    if (Array.isArray(workEntries)) {
-      const firstDesc = workEntries.find(w => w?.member?.description)?.member?.description;
-      if (firstDesc) description = firstDesc;
-    }
-  }
-
-  const posts = liPosts.slice(0, 5)
-    .map(p => sanitizeForLLM(p.articleBody || p.headline || p.name, 100))
-    .filter(Boolean);
-
   return {
-    name: sanitizeForLLM(liProfile.name, 50),
-    headline: sanitizeForLLM(headline, 100),
-    description: sanitizeForLLM(description, 200),
-    company: sanitizeForLLM(company, 100),
-    title: sanitizeForLLM(headline, 100),
-    posts,
+    name: sanitizeForLLM(rawProfile.name, 50),
+    headline: sanitizeForLLM(rawProfile.headline, 100),
+    description: sanitizeForLLM(rawProfile.summary, 200),
+    company: sanitizeForLLM(rawProfile.current_company, 100),
+    title: sanitizeForLLM(rawProfile.current_title, 100),
+    posts: [],
   };
 }
 
