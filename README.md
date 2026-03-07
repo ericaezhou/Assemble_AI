@@ -40,6 +40,7 @@ npm install
 ```
 
 `npm install` now runs a `postinstall` step that also installs:
+
 - `client` npm dependencies
 - `parsing_service` Python dependencies in `parsing_service/.venv`
 - `matching_service` Python dependencies in `matching_service/.venv`
@@ -121,7 +122,7 @@ Authentication (signup/login) happens client-side via Supabase Auth.
 
 ### Profiles
 
-- `POST /api/profiles/:id/generate-bio` - Generate a bio using LLM from GitHub and/or resume data
+- `POST /api/profiles/:id/generate-bio` - Generate a bio using LLM from GitHub, LinkedIn, and/or resume data
 
 ### Conferences
 
@@ -136,6 +137,17 @@ Authentication (signup/login) happens client-side via Supabase Auth.
 - `GET /api/conversations/user/:userId` - Get all conversations for a user
 - `GET /api/conversations/:id/messages` - Get all messages in a conversation
 - `POST /api/messages` - Send a message in a conversation
+
+### LinkedIn
+
+- `POST /api/profiles/:id/scrape-linkedin` - Scrape and cache a user's LinkedIn profile via Crustdata. Checks cache first; pass `{ "force": true }` to re-scrape
+- `POST /api/admin/backfill-linkedin` - Re-extract structured fields (name, headline, company, title, experiences) from cached `raw_data` for all successful Crustdata profiles
+
+**Scripts:**
+
+- `node scripts/scrape-all-linkedin.js` - Bulk scrape LinkedIn profiles for all users who have a LinkedIn URL but no cached data. Skips already-scraped and not-found profiles
+- `node scripts/backfill-linkedin.js` - Re-extract structured fields from existing `raw_data` in the `linkedin_profiles` table (Crustdata source only)
+- `node scripts/generate-bio.js [user_id]` - Generate a bio for a specific user (or all users without a bio if no ID provided) using LinkedIn, GitHub, and resume data
 
 ### GitHub
 
@@ -159,6 +171,7 @@ The status endpoint is currently available directly on the parsing service:
 ## How Recommendations Work
 
 Recommendations are served by the matching pipeline:
+
 - Frontend requests `GET /api/researchers/:id/recommendations`
 - Main backend proxies to `matching_service` (`POST /api/u2u/matches`)
 - Matching service computes similarity with MMR options and returns ranked matches
@@ -167,6 +180,7 @@ Recommendations are served by the matching pipeline:
   - `match_reason` (shown in UI as "Why matched")
 
 Default parameters currently used by the app refresh flow:
+
 - `top_k=3`
 - `min_score=0`
 - `apply_mmr=true`
