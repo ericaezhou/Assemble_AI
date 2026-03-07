@@ -378,6 +378,6 @@ def rebuild_embedding():
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("MATCHING_PORT", "5000"))
+    port = int(os.getenv("PORT", "5200"))
     debug = os.getenv("DEBUG", "1") == "1"
     app.run(host=host, port=port, debug=debug)
