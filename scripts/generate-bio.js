@@ -57,7 +57,7 @@ async function generateBioForUser(userId) {
   let safeLinkedIn = {};
   const { data: linkedinCache } = await supabase
     .from('linkedin_profiles')
-    .select('name, headline, description, company, posts')
+    .select('name, headline, description, company, title, experiences, posts')
     .eq('user_id', userId)
     .eq('status', 'success')
     .maybeSingle();
@@ -68,6 +68,8 @@ async function generateBioForUser(userId) {
       headline: linkedinCache.headline,
       description: linkedinCache.description,
       company: linkedinCache.company,
+      title: linkedinCache.title,
+      experiences: linkedinCache.experiences || [],
       posts: (linkedinCache.posts || []).slice(0, 3).join('; '),
     };
     console.log('  Using cached LinkedIn data');
@@ -167,10 +169,14 @@ async function generateBioForUser(userId) {
   }
 
   if (hasLinkedInData) {
+    const experienceSummary = (safeLinkedIn.experiences || []).slice(0, 5)
+      .map(e => `${e.title} at ${e.company}`).join('; ');
+
     dataSection += `LinkedIn Data:
 - Headline: ${safeLinkedIn.headline || 'Not specified'}
-- Company: ${safeLinkedIn.company || 'Not specified'}
+- Current Role: ${safeLinkedIn.title || 'Not specified'} at ${safeLinkedIn.company || 'Not specified'}
 - Summary: ${safeLinkedIn.description || 'Not provided'}
+- Work Experience: ${experienceSummary || 'None'}
 - Recent Posts: ${safeLinkedIn.posts || 'None'}
 `;
   }

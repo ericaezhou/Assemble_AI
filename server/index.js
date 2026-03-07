@@ -1960,7 +1960,7 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
       let cached = null;
       const { data: byUser } = await supabase
         .from('linkedin_profiles')
-        .select('name, headline, description, company, posts')
+        .select('name, headline, description, company, title, experiences, posts')
         .eq('user_id', id)
         .eq('status', 'success')
         .maybeSingle();
@@ -1970,7 +1970,7 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
       } else {
         const { data: allSuccessful } = await supabase
           .from('linkedin_profiles')
-          .select('name, headline, description, company, posts, linkedin_url')
+          .select('name, headline, description, company, title, experiences, posts, linkedin_url')
           .eq('status', 'success');
 
         const normalizedTarget = normalizeLinkedInUrl(fullLinkedinUrl);
@@ -1983,6 +1983,8 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
           headline: cached.headline,
           description: cached.description,
           company: cached.company,
+          title: cached.title,
+          experiences: cached.experiences || [],
           posts: (cached.posts || []).slice(0, 3).join('; '),
         };
       }
@@ -1998,6 +2000,8 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
               safeLinkedIn.description = extracted.description;
               safeLinkedIn.headline = extracted.headline;
               safeLinkedIn.company = extracted.company;
+              safeLinkedIn.title = extracted.title;
+              safeLinkedIn.experiences = extracted.experiences || [];
               safeLinkedIn.posts = extracted.posts.slice(0, 3).join('; ');
 
               // Store in cache for next time
@@ -2067,10 +2071,14 @@ app.post('/api/profiles/:id/generate-bio', authenticateToken, authorizeUser, asy
     }
 
     if (hasLinkedInData) {
+      const experienceSummary = (safeLinkedIn.experiences || []).slice(0, 5)
+        .map(e => `${e.title} at ${e.company}`).join('; ');
+
       dataSection += `LinkedIn Data:
 - Headline: ${safeLinkedIn.headline || 'Not specified'}
-- Company: ${safeLinkedIn.company || 'Not specified'}
+- Current Role: ${safeLinkedIn.title || 'Not specified'} at ${safeLinkedIn.company || 'Not specified'}
 - Summary: ${safeLinkedIn.description || 'Not provided'}
+- Work Experience: ${experienceSummary || 'None'}
 - Recent Posts: ${safeLinkedIn.posts || 'None'}
 `;
     }
