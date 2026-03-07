@@ -2338,72 +2338,57 @@ app.post('/api/profiles/:id/scrape-linkedin', authenticateToken, authorizeUser, 
       }
     }
 
-    // Upsert a pending row
-    await supabase
-      .from('linkedin_profiles')
-      .upsert({
-        user_id: id,
-        linkedin_url: fullUrl,
-        source: 'crustdata',
-        status: 'pending',
-        error_message: null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+    try {
+      const profiles = await scrapeProfiles([fullUrl]);
 
-    // Retry loop — up to 5 attempts
-    const MAX_ATTEMPTS = 5;
-    const ATTEMPT_DELAY = 10000; // 10s between attempts
-    let lastError = null;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const profiles = await scrapeProfiles([fullUrl]);
-        if (!profiles || profiles.length === 0) {
-          throw new Error('No profile data returned');
-        }
-
-        const extracted = extractLinkedInFields(profiles[0]);
-
-        // Sanitize and store
-        const row = {
-          user_id: id,
-          linkedin_url: fullUrl,
-          ...extracted,
-          raw_data: profiles[0],
-          source: 'crustdata',
-          status: 'success',
-          error_message: null,
-          scraped_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-
+      if (!profiles || profiles.length === 0) {
         await supabase
           .from('linkedin_profiles')
-          .upsert(row, { onConflict: 'user_id' });
+          .upsert({
+            user_id: id,
+            linkedin_url: fullUrl,
+            source: 'crustdata',
+            status: 'not_found',
+            error_message: 'Profile not found in Crustdata',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
 
-        return res.json({ cached: false, data: row });
-      } catch (err) {
-        lastError = err;
-        console.warn(`LinkedIn scrape attempt ${attempt}/${MAX_ATTEMPTS} failed: ${err.message}`);
-        if (attempt < MAX_ATTEMPTS) {
-          await new Promise(resolve => setTimeout(resolve, ATTEMPT_DELAY));
-        }
+        return res.status(404).json({ error: 'Profile not found in Crustdata' });
       }
-    }
 
-    // All attempts failed
-    await supabase
-      .from('linkedin_profiles')
-      .upsert({
+      const extracted = extractLinkedInFields(profiles[0]);
+
+      const row = {
         user_id: id,
         linkedin_url: fullUrl,
+        ...extracted,
+        raw_data: profiles[0],
         source: 'crustdata',
-        status: 'failed',
-        error_message: lastError?.message || 'Unknown error',
+        status: 'success',
+        error_message: null,
+        scraped_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
+      };
 
-    res.status(502).json({ error: `LinkedIn scrape failed after ${MAX_ATTEMPTS} attempts: ${lastError?.message}` });
+      await supabase
+        .from('linkedin_profiles')
+        .upsert(row, { onConflict: 'user_id' });
+
+      return res.json({ cached: false, data: row });
+    } catch (err) {
+      await supabase
+        .from('linkedin_profiles')
+        .upsert({
+          user_id: id,
+          linkedin_url: fullUrl,
+          source: 'crustdata',
+          status: 'failed',
+          error_message: err.message,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      res.status(502).json({ error: `LinkedIn enrichment failed: ${err.message}` });
+    }
   } catch (err) {
     console.error('scrape-linkedin error:', err.message);
     res.status(500).json({ error: err.message });
