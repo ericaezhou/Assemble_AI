@@ -1707,12 +1707,37 @@ function normalizeLinkedInUrl(url) {
 
 // Extract structured fields from Crustdata profile data
 function extractLinkedInFields(rawProfile) {
+  // Get most recent employer (sort by end_date descending)
+  const allEmployers = [
+    ...(rawProfile.current_employers || []),
+    ...(rawProfile.past_employers || []),
+  ];
+  allEmployers.sort((a, b) => new Date(b.end_date || '9999') - new Date(a.end_date || '9999'));
+  const latest = allEmployers[0];
+
+  // Build description from summary, or fall back to headline + school
+  let description = rawProfile.summary || '';
+  if (!description && rawProfile.headline) {
+    const school = (rawProfile.all_schools || [])[0];
+    description = school ? `${rawProfile.headline}. ${school}` : rawProfile.headline;
+  }
+
+  // Extract all experiences
+  const experiences = allEmployers.map(emp => ({
+    company: sanitizeForLLM(emp.employer_name, 100),
+    title: sanitizeForLLM(emp.employee_title, 100),
+    description: sanitizeForLLM(emp.employee_description, 500),
+    start_date: emp.start_date || null,
+    end_date: emp.end_date || null,
+  }));
+
   return {
     name: sanitizeForLLM(rawProfile.name, 50),
     headline: sanitizeForLLM(rawProfile.headline, 100),
-    description: sanitizeForLLM(rawProfile.summary, 200),
-    company: sanitizeForLLM(rawProfile.current_company, 100),
-    title: sanitizeForLLM(rawProfile.current_title, 100),
+    description: sanitizeForLLM(description, 200),
+    company: sanitizeForLLM(latest?.employer_name, 100),
+    title: sanitizeForLLM(latest?.employee_title, 100),
+    experiences,
     posts: [],
   };
 }

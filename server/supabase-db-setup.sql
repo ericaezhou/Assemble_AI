@@ -434,3 +434,5 @@ ALTER TABLE public.linkedin_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Service role can manage linkedin_profiles" ON public.linkedin_profiles;
 CREATE POLICY "Service role can manage linkedin_profiles" ON public.linkedin_profiles
   FOR ALL USING (auth.role() = 'service_role');
+
+ALTER TABLE linkedin_profiles ADD COLUMN experiences jsonb DEFAULT '[]';
