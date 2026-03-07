@@ -1,5 +1,7 @@
 export type QuestionType =
   | 'welcome'
+  | 'onboarding-path'
+  | 'linkedin-import'
   | 'file-upload'
   | 'parsed-review'
   | 'github-import'
@@ -34,16 +36,36 @@ export const onboardingQuestions: QuestionConfig[] = [
     type: 'welcome',
   },
 
-  // Resume/LinkedIn upload (optional)
+  // Onboarding path chooser
   {
-    id: 'resume-upload',
-    type: 'file-upload',
-    question: 'Speed up your signup',
-    subtitle: 'Upload your resume or LinkedIn screenshot to auto-fill your profile',
+    id: 'onboarding-path',
+    type: 'onboarding-path',
+    question: 'How would you like to get started?',
+    subtitle: 'We can auto-fill your profile to save you time',
     optional: true,
   },
 
-  // Parsed data review (only shows if parsing succeeded)
+  // LinkedIn import (only for LinkedIn path)
+  {
+    id: 'linkedin-import',
+    type: 'linkedin-import',
+    question: 'Import from LinkedIn',
+    subtitle: 'Enter your LinkedIn profile URL and we\'ll do the rest',
+    optional: true,
+    shouldShow: (data) => data._onboardingPath === 'linkedin',
+  },
+
+  // Resume upload (only for resume path)
+  {
+    id: 'resume-upload',
+    type: 'file-upload',
+    question: 'Upload your resume',
+    subtitle: 'We\'ll extract your details to auto-fill your profile',
+    optional: true,
+    shouldShow: (data) => data._onboardingPath === 'resume',
+  },
+
+  // Parsed data review (shows for LinkedIn or resume paths when data was parsed)
   {
     id: 'parsed-review',
     type: 'parsed-review',
@@ -53,14 +75,14 @@ export const onboardingQuestions: QuestionConfig[] = [
     shouldShow: (data) => data._parsedData != null,
   },
 
-  // GitHub import (optional, shows if no parsed data or if parsing didn't find a GitHub)
+  // GitHub import (only for manual path)
   {
     id: 'github-import',
     type: 'github-import',
     question: 'How about a GitHub?',
     subtitle: 'We can pull your skills and interests from your repos',
     optional: true,
-    shouldShow: (data) => data._parsedData == null || !data.github,
+    shouldShow: (data) => data._onboardingPath === 'manual',
   },
 
   // Name
@@ -95,7 +117,7 @@ export const onboardingQuestions: QuestionConfig[] = [
     field: 'email',
     validation: (value) => {
       if (!value) return 'Please enter your email';
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
       if (!emailRegex.test(value)) return 'Please enter a valid email';
       return null;
     },

@@ -8,6 +8,10 @@ interface FileUploadQuestionProps {
   onContinue?: () => void;
   uploadStatus: 'idle' | 'uploading' | 'parsing' | 'done' | 'error';
   error?: string | null;
+  attempts?: number;
+  maxAttempts?: number;
+  exhaustedPaths?: string[];
+  onFallback?: (toPath: 'linkedin' | 'manual') => void;
 }
 
 const ACCEPTED_TYPES = [
@@ -24,11 +28,18 @@ export default function FileUploadQuestion({
   onContinue,
   uploadStatus,
   error,
+  attempts = 0,
+  maxAttempts = 3,
+  exhaustedPaths = [],
+  onFallback,
 }: FileUploadQuestionProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const exhausted = attempts >= maxAttempts && uploadStatus === 'error';
+  const linkedinExhausted = exhaustedPaths.includes('linkedin');
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -89,15 +100,70 @@ export default function FileUploadQuestion({
     return { borderColor: 'var(--border-light)', background: 'var(--surface)' };
   };
 
+  // Show fallback options when retries are exhausted
+  if (exhausted && onFallback) {
+    return (
+      <div className="text-center space-y-10">
+        <div className="space-y-3">
+          <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
+            Upload your resume
+          </h2>
+        </div>
+
+        <div className="space-y-6 max-w-md mx-auto">
+          <div className="p-6 rounded-lg" style={{ background: 'var(--surface)', border: '1px solid var(--border-light)' }}>
+            <p className="text-base mb-1" style={{ color: 'var(--text)' }}>
+              We weren&apos;t able to parse your resume.
+            </p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              No worries — you can try another way to get started.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {!linkedinExhausted && (
+              <button
+                onClick={() => onFallback('linkedin')}
+                className="btn w-full"
+                style={{
+                  padding: '14px 24px',
+                  fontSize: '1rem',
+                  background: 'var(--accent)',
+                  color: 'white',
+                  border: 'none',
+                }}
+              >
+                Import from LinkedIn instead
+              </button>
+            )}
+            <button
+              onClick={() => onFallback('manual')}
+              className="btn w-full"
+              style={{
+                padding: '14px 24px',
+                fontSize: '1rem',
+                background: 'var(--surface)',
+                color: 'var(--text)',
+                border: '1px solid var(--border-light)',
+              }}
+            >
+              Fill in manually
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="text-center space-y-10">
       {/* Question */}
       <div className="space-y-3">
         <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
-          Speed up your signup
+          Upload your resume
         </h2>
         <p className="text-lg" style={{ color: 'var(--text-muted)' }}>
-          Upload your resume or LinkedIn screenshot to auto-fill your profile
+          We&apos;ll extract your details to auto-fill your profile
         </p>
       </div>
 
@@ -180,7 +246,10 @@ export default function FileUploadQuestion({
               </svg>
             </div>
             <p className="text-base" style={{ color: '#ef4444' }}>{error || 'Something went wrong'}</p>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Click to try again, or skip below</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+              Click to try again
+              {maxAttempts - attempts > 0 && ` (${maxAttempts - attempts} ${maxAttempts - attempts === 1 ? 'attempt' : 'attempts'} remaining)`}
+            </p>
           </div>
         )}
 

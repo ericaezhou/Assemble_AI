@@ -66,7 +66,7 @@ function isValidLinkedInSlug(slug: string): boolean {
 
 type GitHubValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid' | 'not-found';
 type LinkedInValidationStatus = 'idle' | 'valid' | 'invalid';
-type EmailValidationStatus = 'idle' | 'checking' | 'available' | 'taken';
+type EmailValidationStatus = 'idle' | 'invalid' | 'checking' | 'available' | 'taken';
 
 interface FieldConfig {
   key: keyof ParsedData;
@@ -91,8 +91,8 @@ const FIELD_CONFIGS: FieldConfig[] = [
   { key: 'interest_areas', label: 'Interests', group: 'Skills & Interests' },
   { key: 'current_skills', label: 'Skills', group: 'Skills & Interests' },
   { key: 'hobbies', label: 'Hobbies', group: 'Skills & Interests' },
-  { key: 'github', label: 'GitHub', group: 'Links' },
   { key: 'linkedin', label: 'LinkedIn', group: 'Links' },
+  { key: 'github', label: 'GitHub (optional)', group: 'Links' },
 ];
 
 function hasValue(value: unknown): boolean {
@@ -130,10 +130,10 @@ export default function ParsedReviewQuestion({
       return;
     }
 
-    // Basic format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Format validation — require a 2–10 char alphabetic TLD (e.g. .com, .edu, .co.uk)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
     if (!emailRegex.test(email)) {
-      setEmailStatus('idle');
+      setEmailStatus('invalid');
       return;
     }
 
@@ -209,9 +209,9 @@ export default function ParsedReviewQuestion({
     return () => clearTimeout(timeout);
   }, [editedData.linkedin]);
 
-  // Show fields that have values, but always include email (required field)
+  // Show fields that have values, but always include email (required) and github (optional)
   const fieldsWithValues = FIELD_CONFIGS.filter((f) =>
-    f.key === 'email' || hasValue(parsedData[f.key])
+    f.key === 'email' || f.key === 'github' || hasValue(parsedData[f.key])
   );
 
   // Group fields
@@ -326,7 +326,7 @@ export default function ParsedReviewQuestion({
                     value={displayValue(editedData[field.key])}
                     onChange={(e) => handleFieldChange(field.key, e.target.value)}
                     className="input w-full text-sm"
-                    style={field.key === 'email' && (emailStatus === 'taken' || !editedData.email?.trim())
+                    style={field.key === 'email' && (emailStatus === 'taken' || emailStatus === 'invalid' || !editedData.email?.trim())
                       ? { borderColor: '#f59e0b' }
                       : {}
                     }
@@ -371,6 +371,11 @@ export default function ParsedReviewQuestion({
                     <span>⚠</span> Email is required.
                   </p>
                 )}
+                {field.key === 'email' && emailStatus === 'invalid' && (
+                  <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
+                    <span>⚠</span> Please enter a valid email address.
+                  </p>
+                )}
                 {field.key === 'email' && emailStatus === 'taken' && (
                   <p className="text-xs flex items-center gap-1" style={{ color: '#d97706' }}>
                     <span>⚠</span> This email is already registered. Try signing in instead.
@@ -396,7 +401,7 @@ export default function ParsedReviewQuestion({
             };
             onAccept(finalData);
           }}
-          disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking' || linkedinStatus === 'invalid'}
+          disabled={!editedData.email?.trim() || emailStatus === 'taken' || emailStatus === 'checking' || emailStatus === 'invalid' || linkedinStatus === 'invalid'}
           className="btn btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ padding: '16px 32px', fontSize: '1.125rem' }}
         >

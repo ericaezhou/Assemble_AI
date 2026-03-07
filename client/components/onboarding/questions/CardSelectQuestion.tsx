@@ -10,6 +10,7 @@ interface CardSelectQuestionProps {
   value: string;
   onChange: (value: string) => void;
   onContinue: () => void;
+  suggestion?: string | null;
 }
 
 export default function CardSelectQuestion({
@@ -18,6 +19,7 @@ export default function CardSelectQuestion({
   value,
   onChange,
   onContinue,
+  suggestion,
 }: CardSelectQuestionProps) {
   const handleSelect = (selectedValue: string) => {
     onChange(selectedValue);
@@ -30,9 +32,16 @@ export default function CardSelectQuestion({
   return (
     <div className="text-center space-y-12">
       {/* Question */}
-      <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
-        {question}
-      </h2>
+      <div className="space-y-3">
+        <h2 className="text-3xl md:text-4xl font-black" style={{ color: 'var(--text)' }}>
+          {question}
+        </h2>
+        {suggestion && (
+          <p className="text-base" style={{ color: 'var(--text-muted)' }}>
+            We think <strong style={{ color: 'var(--accent)' }}>{suggestion}</strong> might be you
+          </p>
+        )}
+      </div>
 
       {/* Cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">

@@ -18,6 +18,8 @@ import ParsedReviewQuestion from './questions/ParsedReviewQuestion';
 import GitHubImportQuestion from './questions/GitHubImportQuestion';
 import CompletionScreen from './questions/CompletionScreen';
 import AvatarUploadQuestion from './questions/AvatarUploadQuestion';
+import OnboardingPathQuestion from './questions/OnboardingPathQuestion';
+import LinkedInImportQuestion from './questions/LinkedInImportQuestion';
 
 interface ConversationalOnboardingProps {
   onComplete: (userId: string) => void;
@@ -114,6 +116,8 @@ export default function ConversationalOnboarding({
     bio: '',
     avatar_url: '',
     _parsedData: null,
+    _onboardingPath: null,
+    _exhaustedPaths: [] as string[],
   });
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -136,8 +140,12 @@ export default function ConversationalOnboarding({
   const [githubData, setGithubData] = useState<{ name?: string; bio?: string; company?: string; languages: string[]; topics: string[] } | null>(null);
   const [githubUsername, setGithubUsername] = useState('');
 
-  // LinkedIn import state
-  const [linkedinSlug, setLinkedinSlug] = useState('');
+  // LinkedIn scraping state
+  const [linkedinScrapeStatus, setLinkedinScrapeStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [linkedinError, setLinkedinError] = useState<string | null>(null);
+
+  // Resume upload retry tracking
+  const [resumeUploadAttempts, setResumeUploadAttempts] = useState(0);
 
   // Email validation state
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -157,8 +165,8 @@ export default function ConversationalOnboarding({
       return;
     }
 
-    // Basic format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Format validation — require a 2–10 char alphabetic TLD
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,10}$/;
     if (!emailRegex.test(email)) {
       setEmailStatus('idle');
       return;
@@ -214,6 +222,7 @@ export default function ConversationalOnboarding({
 
   const handleFileUpload = async (file: File) => {
     setUploadStatus('uploading');
+    setResumeUploadAttempts((prev) => prev + 1);
     try {
       const { job_id } = await uploadForParsing(file);
       setParsingJobId(job_id);
@@ -261,13 +270,62 @@ export default function ConversationalOnboarding({
     }
   };
 
-  const handleLinkedInSubmit = (slug: string) => {
-    setLinkedinSlug(slug);
-    setFormData((prev: any) => ({
-      ...prev,
-      linkedin: `https://www.linkedin.com/in/${slug}`,
-    }));
+  const handlePathSelect = (path: 'linkedin' | 'resume' | 'manual') => {
+    setFormData((prev: any) => ({ ...prev, _onboardingPath: path }));
     handleNext();
+  };
+
+  const handleLinkedInScrape = async (url: string) => {
+    setLinkedinScrapeStatus('loading');
+    setLinkedinError(null);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/onboarding/linkedin-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedin_url: url }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to import LinkedIn profile');
+      }
+
+      setLinkedinScrapeStatus('done');
+      setParsedData(data.parsed_data);
+      setFormData((prev: any) => ({
+        ...prev,
+        _parsedData: data.parsed_data,
+        linkedin: url,
+      }));
+      handleNext();
+    } catch (err: any) {
+      setLinkedinScrapeStatus('error');
+      setLinkedinError(err.message || 'Failed to import LinkedIn profile');
+    }
+  };
+
+  const handlePathFallback = (fromPath: string, toPath: 'resume' | 'manual' | 'linkedin') => {
+    setFormData((prev: any) => {
+      const exhausted = [...(prev._exhaustedPaths || [])];
+      if (!exhausted.includes(fromPath)) exhausted.push(fromPath);
+      return { ...prev, _onboardingPath: toPath, _exhaustedPaths: exhausted };
+    });
+
+    // Navigate to the target step by finding its index in visible questions
+    // We need to defer this since formData update is async
+    setTimeout(() => {
+      setFormData((prev: any) => {
+        const newVisible = getVisibleQuestions(prev);
+        const targetId = toPath === 'resume' ? 'resume-upload'
+          : toPath === 'linkedin' ? 'linkedin-import'
+          : 'github-import';
+        const idx = newVisible.findIndex((q) => q.id === targetId);
+        if (idx >= 0) setCurrentIndex(idx);
+        return prev;
+      });
+    }, 0);
   };
 
   const handleGitHubContinue = () => {
@@ -453,6 +511,8 @@ export default function ConversationalOnboarding({
         confirmPassword,
         verificationCode,
         _parsedData,
+        _onboardingPath,
+        _exhaustedPaths,
         avatarUploading: _avatarUploading,
         ...profileFields
       } = formData;
@@ -555,6 +615,28 @@ export default function ConversationalOnboarding({
       case 'welcome':
         return <WelcomeScreen onContinue={handleNext} />;
 
+      case 'onboarding-path':
+        return (
+          <OnboardingPathQuestion
+            question={q.question!}
+            subtitle={q.subtitle}
+            onSelect={handlePathSelect}
+          />
+        );
+
+      case 'linkedin-import':
+        return (
+          <LinkedInImportQuestion
+            question={q.question!}
+            subtitle={q.subtitle}
+            onScrape={handleLinkedInScrape}
+            onFallback={(toPath) => handlePathFallback('linkedin', toPath)}
+            scrapeStatus={linkedinScrapeStatus}
+            error={linkedinError}
+            exhaustedPaths={formData._exhaustedPaths || []}
+          />
+        );
+
       case 'file-upload':
         return (
           <FileUploadQuestion
@@ -563,6 +645,10 @@ export default function ConversationalOnboarding({
             onContinue={handleNext}
             uploadStatus={uploadStatus}
             error={errors['resume-upload']}
+            attempts={resumeUploadAttempts}
+            maxAttempts={3}
+            exhaustedPaths={formData._exhaustedPaths || []}
+            onFallback={(toPath: 'linkedin' | 'manual') => handlePathFallback('resume', toPath)}
           />
         );
 
@@ -656,13 +742,19 @@ export default function ConversationalOnboarding({
         );
 
       case 'card-select':
+        // Show a suggestion hint if parsed data pre-filled this field
+        const cardValue = formData[q.field!] || '';
+        const cardSuggestion = formData._parsedData && cardValue
+          ? q.options!.find((o: any) => o.value === cardValue)?.label || null
+          : null;
         return (
           <CardSelectQuestion
             question={q.question!}
             options={q.options!}
-            value={formData[q.field!] || ''}
+            value={cardValue}
             onChange={(value) => handleFieldChange(q.field!, value)}
             onContinue={handleNext}
+            suggestion={cardSuggestion}
           />
         );
 
