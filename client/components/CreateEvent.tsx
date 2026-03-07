@@ -17,7 +17,7 @@ interface CreateEventProps {
 
 type LocationType = 'in-person' | 'virtual' | 'hybrid';
 type PriceType = 'free' | 'paid';
-type Step = 'logistics' | 'description' | 'prelaunch';
+type Step = 'logistics' | 'description' | 'prelaunch' | 'criteria';
 
 type QuestionType = 'text' | 'options' | 'checkbox' | 'social';
 type SelectionType = 'single' | 'multiple';
@@ -42,6 +42,11 @@ interface RSVPQuestion {
   selectionType?: SelectionType;
   platform?: SocialPlatform;
   required: boolean;
+}
+
+interface CriteriaCategory {
+  name: string;
+  target_pct: number;
 }
 
 interface EventFormData {
@@ -75,7 +80,14 @@ interface NominatimResult {
   };
 }
 
-const STEPS: Step[] = ['logistics', 'description', 'prelaunch'];
+const CRITERIA_TYPE_COLOURS = [
+  'bg-violet-100 text-violet-700',
+  'bg-sky-100 text-sky-700',
+  'bg-pink-100 text-pink-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+  'bg-amber-100 text-amber-700',
+];
 
 const LOCATION_OPTIONS = [
   { value: 'in-person' as LocationType, label: 'In Person', icon: '📍' },
@@ -147,8 +159,17 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
   const [locationState, setLocationState] = useState('');
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const currentStepIndex = STEPS.indexOf(currentStep);
   const { user } = useUserStore();
+
+  const [createdEventId, setCreatedEventId] = useState<string | null>(null);
+  const [criteriaPrompt, setCriteriaPrompt] = useState('');
+  const [criteriaCategories, setCriteriaCategories] = useState<CriteriaCategory[]>([]);
+  const [criteriaSpecialRequests, setCriteriaSpecialRequests] = useState('');
+  const [criteriaGenerating, setCriteriaGenerating] = useState(false);
+  const [criteriaSaving, setCriteriaSaving] = useState(false);
+
+  const steps: Step[] = ['logistics', 'description', 'prelaunch', ...(formData.requireApproval ? ['criteria' as Step] : [])];
+  const currentStepIndex = steps.indexOf(currentStep);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -202,12 +223,23 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     return true;
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!validateCurrentStep()) return;
 
+    // When leaving prelaunch with requireApproval, create the event first
+    if (currentStep === 'prelaunch' && formData.requireApproval) {
+      if (createdEventId) {
+        setCurrentStep('criteria');
+        setError('');
+      } else {
+        await handleCreateEvent();
+      }
+      return;
+    }
+
     const nextIndex = currentStepIndex + 1;
-    if (nextIndex < STEPS.length) {
-      setCurrentStep(STEPS[nextIndex]);
+    if (nextIndex < steps.length) {
+      setCurrentStep(steps[nextIndex]);
       setError('');
     }
   };
@@ -215,7 +247,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
   const handleBack = () => {
     const prevIndex = currentStepIndex - 1;
     if (prevIndex >= 0) {
-      setCurrentStep(STEPS[prevIndex]);
+      setCurrentStep(steps[prevIndex]);
       setError('');
     }
   };
@@ -320,13 +352,12 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     setLocationSuggestions([]);
   };
 
-  const handleSubmit = async () => {
+  const handleCreateEvent = async () => {
     if (!validateCurrentStep()) return;
 
     setLoading(true);
 
     try {
-      // Upload cover photo first if one was selected
       let coverPhotoUrl: string | null = null;
       if (coverPhotoFile) {
         const fd = new FormData();
@@ -367,7 +398,13 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
       const data = await response.json();
 
       if (response.ok) {
-        onSuccess(data.id);
+        if (formData.requireApproval) {
+          setCreatedEventId(data.id);
+          setCurrentStep('criteria');
+          setError('');
+        } else {
+          onSuccess(data.id);
+        }
       } else {
         setError(data.error || 'Failed to create event');
       }
@@ -376,6 +413,41 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerateCriteria = async () => {
+    if (!criteriaPrompt.trim() || !createdEventId) return;
+    setCriteriaGenerating(true);
+    try {
+      const res = await authenticatedFetch(`/api/conferences/${createdEventId}/generate-criteria`, {
+        method: 'POST',
+        body: JSON.stringify({ prompt: criteriaPrompt }),
+      });
+      const data = await res.json();
+      if (data.categories) setCriteriaCategories(data.categories);
+    } catch {
+      // silently fail
+    } finally {
+      setCriteriaGenerating(false);
+    }
+  };
+
+  const handleFinish = async () => {
+    if (!createdEventId) return;
+    if (criteriaCategories.length > 0) {
+      setCriteriaSaving(true);
+      try {
+        await authenticatedFetch(`/api/conferences/${createdEventId}/review-criteria`, {
+          method: 'PUT',
+          body: JSON.stringify({ prompt: criteriaPrompt, categories: criteriaCategories, special_requests: criteriaSpecialRequests }),
+        });
+      } catch {
+        // criteria is optional, proceed anyway
+      } finally {
+        setCriteriaSaving(false);
+      }
+    }
+    onSuccess(createdEventId);
   };
 
   const formatTimeForDisplay = (timeString: string) => {
@@ -400,12 +472,10 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
 
   const getStepLabel = (step: Step) => {
     switch (step) {
-      case 'logistics':
-        return 'Logistics';
-      case 'description':
-        return 'Description';
-      case 'prelaunch':
-        return 'Pre-Launch';
+      case 'logistics':   return 'Logistics';
+      case 'description': return 'Description';
+      case 'prelaunch':   return 'Pre-Launch';
+      case 'criteria':    return 'Review Setup';
     }
   };
 
@@ -524,7 +594,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
 
           {/* Step Labels */}
           <div className="flex items-center gap-6">
-            {STEPS.map((step, index) => (
+            {steps.map((step, index) => (
               <div key={step} className="flex items-center gap-2">
                 <div
                   className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
@@ -552,7 +622,7 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                 >
                   {getStepLabel(step)}
                 </span>
-                {index < STEPS.length - 1 && (
+                {index < steps.length - 1 && (
                   <div className="w-8 h-px ml-2" style={{ background: 'var(--border-light)' }} />
                 )}
               </div>
@@ -1517,6 +1587,117 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                 </div>
               )}
 
+              {/* Criteria Step */}
+              {currentStep === 'criteria' && (
+                <div className="space-y-5">
+                  <div>
+                    <h2 className="text-2xl font-black mb-1" style={{ color: 'var(--text)' }}>Review Setup</h2>
+                    <p style={{ color: 'var(--text-muted)' }}>Describe your ideal attendee mix so AI can help you review applicants.</p>
+                  </div>
+
+                  <div className="rounded-lg p-3 flex items-start gap-2" style={{ background: '#f0fdf4', border: '2px solid #86efac' }}>
+                    <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#16a34a' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p className="text-xs" style={{ color: '#15803d' }}>
+                      Event created! Set your criteria now or skip — you can always update this later.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold" style={{ color: 'var(--text)' }}>Ideal attendee mix</label>
+                    <textarea
+                      rows={3}
+                      value={criteriaPrompt}
+                      onChange={e => setCriteriaPrompt(e.target.value)}
+                      placeholder="e.g. 40% builders, 25% students, 20% founders, 15% VCs — strong AI/ML background preferred"
+                      className="input resize-none w-full"
+                      style={{ padding: '12px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateCriteria}
+                      disabled={criteriaGenerating || !criteriaPrompt.trim()}
+                      className="btn btn-primary w-full justify-center disabled:opacity-50"
+                    >
+                      {criteriaGenerating ? (
+                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating...</>
+                      ) : 'Generate Criteria →'}
+                    </button>
+                  </div>
+
+                  {criteriaCategories.length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="section-heading">Fine-tuning</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          criteriaCategories.reduce((s, c) => s + c.target_pct, 0) === 100
+                            ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                        }`}>
+                          Total: {criteriaCategories.reduce((s, c) => s + c.target_pct, 0)}%
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        {criteriaCategories.map((cat, i) => (
+                          <div key={i} className="flex items-center gap-3">
+                            <textarea
+                              rows={1}
+                              value={cat.name}
+                              ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                              onChange={e => {
+                                const el = e.target; el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`;
+                                const updated = [...criteriaCategories];
+                                updated[i] = { ...updated[i], name: e.target.value };
+                                setCriteriaCategories(updated);
+                              }}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-lg w-28 flex-shrink-0 text-center border-none focus:outline-none resize-none overflow-hidden ${CRITERIA_TYPE_COLOURS[i % CRITERIA_TYPE_COLOURS.length]}`}
+                            />
+                            <input
+                              type="range" min={0} max={100} value={cat.target_pct}
+                              onChange={e => {
+                                const updated = [...criteriaCategories];
+                                updated[i] = { ...updated[i], target_pct: parseInt(e.target.value) };
+                                setCriteriaCategories(updated);
+                              }}
+                              className="flex-1"
+                              style={{ accentColor: 'var(--accent)' }}
+                            />
+                            <div className="flex items-center flex-shrink-0">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={cat.target_pct === 0 ? '' : cat.target_pct}
+                                onChange={e => {
+                                  const raw = e.target.value.replace(/[^0-9]/g, '');
+                                  const num = raw === '' ? 0 : Math.min(100, parseInt(raw));
+                                  const updated = [...criteriaCategories];
+                                  updated[i] = { ...updated[i], target_pct: num };
+                                  setCriteriaCategories(updated);
+                                }}
+                                className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none"
+                                style={{ color: 'var(--accent)' }}
+                              />
+                              <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>%</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-2">
+                        <label className="section-heading">Special Requests</label>
+                        <textarea
+                          rows={2}
+                          value={criteriaSpecialRequests}
+                          onChange={e => setCriteriaSpecialRequests(e.target.value)}
+                          placeholder="e.g. prefer Stanford affiliations"
+                          className="input resize-none w-full"
+                          style={{ padding: '12px' }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Error Message */}
               {error && (
                 <div className="mt-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2" style={{ background: '#fef2f2', color: '#dc2626', border: '2px solid #fca5a5' }}>
@@ -1543,9 +1724,45 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                   <div />
                 )}
 
-                {currentStep === 'prelaunch' ? (
+                {currentStepIndex === steps.length - 1 ? (
+                  currentStep === 'criteria' ? (
+                    <button
+                      onClick={handleFinish}
+                      disabled={criteriaSaving}
+                      className="btn btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ padding: '10px 32px' }}
+                    >
+                      {criteriaSaving ? (
+                        <>
+                          <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Saving...
+                        </>
+                      ) : 'Finish'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCreateEvent}
+                      disabled={loading}
+                      className="btn btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ padding: '10px 32px' }}
+                    >
+                      {loading ? (
+                        <>
+                          <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Creating...
+                        </>
+                      ) : 'Create Event'}
+                    </button>
+                  )
+                ) : (
                   <button
-                    onClick={handleSubmit}
+                    onClick={handleContinue}
                     disabled={loading}
                     className="btn btn-primary flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ padding: '10px 32px' }}
@@ -1559,19 +1776,13 @@ export default function CreateEvent({ userId, onClose, onSuccess }: CreateEventP
                         Creating...
                       </>
                     ) : (
-                      'Create Event'
+                      <>
+                        Continue
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </>
                     )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleContinue}
-                    className="btn btn-primary flex items-center gap-2"
-                    style={{ padding: '10px 32px' }}
-                  >
-                    Continue
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
                   </button>
                 )}
               </div>

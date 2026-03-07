@@ -249,7 +249,7 @@ function ProfileDrawer({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantReviewerProps) {
-  const [phase, setPhase]                   = useState<ReviewPhase>('setup');
+  const [phase, setPhase]                   = useState<ReviewPhase>('review');
   const [applicants, setApplicants]         = useState<Applicant[]>([]);
   const [reviewCriteria, setReviewCriteria] = useState<ReviewCriteria>({ prompt: '', categories: [], special_requests: '' });
   const [promptInput, setPromptInput]       = useState('');
@@ -527,9 +527,14 @@ export default function ApplicantReviewer({ eventId, onConfirmed }: ApplicantRev
                   />
                   <div className="flex items-center flex-shrink-0">
                     <input
-                      type="number" min={0} max={100} value={cat.target_pct}
-                      onChange={e => handleSliderChange(i, Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                      className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      type="text"
+                      inputMode="numeric"
+                      value={cat.target_pct === 0 ? '' : cat.target_pct}
+                      onChange={e => {
+                        const raw = e.target.value.replace(/[^0-9]/g, '');
+                        handleSliderChange(i, raw === '' ? 0 : Math.min(100, parseInt(raw)));
+                      }}
+                      className="w-8 text-sm font-semibold text-right bg-transparent focus:outline-none"
                       style={{ color: 'var(--accent)' }}
                     />
                     <span className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>%</span>
