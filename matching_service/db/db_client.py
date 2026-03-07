@@ -5,6 +5,8 @@ Provides a single global instance of Supabase client for database operations.
 """
 
 import os
+import json
+import base64
 from typing import Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -19,6 +21,7 @@ class SupabaseClient:
 
     _instance: Optional[Client] = None
     _initialized: bool = False
+    _key: Optional[str] = None
 
     @classmethod
     def get_instance(cls) -> Client:
@@ -65,8 +68,23 @@ class SupabaseClient:
                 "or SUPABASE_KEY/SUPABASE_PUBLISHABLE_KEY."
             )
 
+        # Log which key role is being used (decode JWT payload without exposing key)
+        try:
+            payload = key.split(".")[1]
+            payload += "=" * (4 - len(payload) % 4)  # pad base64
+            claims = json.loads(base64.b64decode(payload))
+            print(f"[supabase-client] Initialized with role: {claims.get('role', 'UNKNOWN')}")
+        except Exception:
+            print("[supabase-client] Could not decode key role")
+
         # Create Supabase client
         cls._instance = create_client(url, key)
+        cls._key = key
+
+        # Explicitly set the auth token on the PostgREST client to ensure
+        # the service role key is used for all database operations (bypasses RLS).
+        cls._instance.postgrest.auth(key)
+
         cls._initialized = True
 
     @classmethod
