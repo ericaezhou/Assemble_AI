@@ -329,3 +329,111 @@ CREATE TABLE IF NOT EXISTS public.csv_applicants (
 -- Add profile_data column to store LinkedIn-extracted structured profile for CSV applicants
 ALTER TABLE public.csv_applicants
   ADD COLUMN IF NOT EXISTS profile_data jsonb;
+
+-- ============================================================
+-- RLS POLICY HARDENING
+-- ============================================================
+
+-- CONFERENCES: anyone can read, only host can modify
+DROP POLICY IF EXISTS "Service role can manage conferences" ON public.conferences;
+CREATE POLICY "Conferences are publicly readable" ON public.conferences
+  FOR SELECT USING (true);
+CREATE POLICY "Hosts can insert conferences" ON public.conferences
+  FOR INSERT WITH CHECK (auth.uid() = host_id);
+CREATE POLICY "Hosts can update their conferences" ON public.conferences
+  FOR UPDATE USING (auth.uid() = host_id);
+CREATE POLICY "Hosts can delete their conferences" ON public.conferences
+  FOR DELETE USING (auth.uid() = host_id);
+
+-- CONFERENCE_PARTICIPANTS: only co-participants can view, users can only modify their own row
+DROP POLICY IF EXISTS "Service role can manage conference_participants" ON public.conference_participants;
+CREATE POLICY "Participants can view co-participants" ON public.conference_participants
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.conference_participants cp2
+      WHERE cp2.conference_id = conference_participants.conference_id
+      AND cp2.researcher_id = auth.uid()
+    )
+  );
+CREATE POLICY "Users can register themselves" ON public.conference_participants
+  FOR INSERT WITH CHECK (auth.uid() = researcher_id);
+CREATE POLICY "Users can update their own participation" ON public.conference_participants
+  FOR UPDATE USING (auth.uid() = researcher_id);
+CREATE POLICY "Users can remove their own participation" ON public.conference_participants
+  FOR DELETE USING (auth.uid() = researcher_id);
+
+-- CONVERSATIONS: only participants can access their own conversations
+DROP POLICY IF EXISTS "Service role can manage conversations" ON public.conversations;
+CREATE POLICY "Users can view their own conversations" ON public.conversations
+  FOR SELECT USING (auth.uid() = participant1_id OR auth.uid() = participant2_id);
+CREATE POLICY "Users can create conversations they participate in" ON public.conversations
+  FOR INSERT WITH CHECK (auth.uid() = participant1_id OR auth.uid() = participant2_id);
+CREATE POLICY "Users can update their own conversations" ON public.conversations
+  FOR UPDATE USING (auth.uid() = participant1_id OR auth.uid() = participant2_id);
+CREATE POLICY "Users can delete their own conversations" ON public.conversations
+  FOR DELETE USING (auth.uid() = participant1_id OR auth.uid() = participant2_id);
+
+-- MESSAGES: only conversation participants can access messages
+DROP POLICY IF EXISTS "Service role can manage messages" ON public.messages;
+CREATE POLICY "Users can view messages in their conversations" ON public.messages
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = messages.conversation_id
+      AND (c.participant1_id = auth.uid() OR c.participant2_id = auth.uid())
+    )
+  );
+CREATE POLICY "Users can send messages in their conversations" ON public.messages
+  FOR INSERT WITH CHECK (
+    auth.uid() = sender_id AND
+    EXISTS (
+      SELECT 1 FROM public.conversations c
+      WHERE c.id = messages.conversation_id
+      AND (c.participant1_id = auth.uid() OR c.participant2_id = auth.uid())
+    )
+  );
+CREATE POLICY "Users can update their own messages" ON public.messages
+  FOR UPDATE USING (auth.uid() = sender_id);
+CREATE POLICY "Users can delete their own messages" ON public.messages
+  FOR DELETE USING (auth.uid() = sender_id);
+
+-- PARSING_JOBS: service role only
+DROP POLICY IF EXISTS "Service role can manage parsing_jobs" ON public.parsing_jobs;
+CREATE POLICY "Service role can manage parsing_jobs" ON public.parsing_jobs
+  FOR ALL USING (auth.role() = 'service_role');
+
+-- ============================================================
+-- LINKEDIN PROFILES CACHE TABLE
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.linkedin_profiles (
+  id            uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id       uuid        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  linkedin_url  text        NOT NULL,
+  name          text,
+  headline      text,
+  description   text,
+  company       text,
+  title         text,
+  posts         text[],
+  raw_data      jsonb,
+  source        text        NOT NULL DEFAULT 'scrapfly',
+  status        text        NOT NULL DEFAULT 'pending',
+  error_message text,
+  scraped_at    timestamptz,
+  created_at    timestamptz DEFAULT now(),
+  updated_at    timestamptz DEFAULT now(),
+  UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_linkedin_profiles_user_id ON public.linkedin_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_linkedin_profiles_status ON public.linkedin_profiles(status);
+
+ALTER TABLE public.linkedin_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Service role only — no client-side access needed
+DROP POLICY IF EXISTS "Service role can manage linkedin_profiles" ON public.linkedin_profiles;
+CREATE POLICY "Service role can manage linkedin_profiles" ON public.linkedin_profiles
+  FOR ALL USING (auth.role() = 'service_role');
+
+ALTER TABLE linkedin_profiles ADD COLUMN experiences jsonb DEFAULT '[]';

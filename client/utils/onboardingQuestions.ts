@@ -57,7 +57,7 @@ export const onboardingQuestions: QuestionConfig[] = [
   {
     id: 'github-import',
     type: 'github-import',
-    question: 'Got a GitHub?',
+    question: 'How about a GitHub?',
     subtitle: 'We can pull your skills and interests from your repos',
     optional: true,
     shouldShow: (data) => data._parsedData == null || !data.github,

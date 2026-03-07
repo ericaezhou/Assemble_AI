@@ -19,6 +19,14 @@ interface GitHubImportQuestionProps {
   error?: string | null;
 }
 
+// Extract username from various GitHub URL formats
+function extractGitHubUsername(value: string): string {
+  const trimmed = value.trim();
+  const urlMatch = trimmed.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9_-]+)\/?$/i);
+  if (urlMatch) return urlMatch[1];
+  return trimmed.replace(/^@/, '');
+}
+
 export default function GitHubImportQuestion({
   question,
   subtitle,
@@ -76,7 +84,7 @@ export default function GitHubImportQuestion({
             id="github-input"
             type="text"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(extractGitHubUsername(e.target.value))}
             onKeyPress={handleKeyPress}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}

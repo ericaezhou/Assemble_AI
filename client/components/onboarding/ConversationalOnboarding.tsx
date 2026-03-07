@@ -136,6 +136,9 @@ export default function ConversationalOnboarding({
   const [githubData, setGithubData] = useState<{ name?: string; bio?: string; company?: string; languages: string[]; topics: string[] } | null>(null);
   const [githubUsername, setGithubUsername] = useState('');
 
+  // LinkedIn import state
+  const [linkedinSlug, setLinkedinSlug] = useState('');
+
   // Email validation state
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const emailCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -256,6 +259,15 @@ export default function ConversationalOnboarding({
       setGithubStatus('error');
       setErrors((prev) => ({ ...prev, 'github-import': err.message || 'Failed to fetch GitHub profile' }));
     }
+  };
+
+  const handleLinkedInSubmit = (slug: string) => {
+    setLinkedinSlug(slug);
+    setFormData((prev: any) => ({
+      ...prev,
+      linkedin: `https://www.linkedin.com/in/${slug}`,
+    }));
+    handleNext();
   };
 
   const handleGitHubContinue = () => {
@@ -492,10 +504,12 @@ export default function ConversationalOnboarding({
         }
       }
 
-      // Generate bio in background if we have GitHub or resume data (non-blocking)
+      // Generate bio in background if we have GitHub, resume, or LinkedIn data (non-blocking)
+      // Bio generation handles LinkedIn scraping + caching internally
       const hasGithub = !!profileFields.github;
       const hasResumeData = !!_parsedData;
-      if (hasGithub || hasResumeData) {
+      const hasLinkedIn = !!profileFields.linkedin;
+      if (hasGithub || hasResumeData || hasLinkedIn) {
         const bioRequestBody: any = {};
         if (hasGithub) {
           bioRequestBody.githubUsername = profileFields.github;
